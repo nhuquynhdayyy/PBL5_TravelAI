@@ -1,0 +1,6 @@
+@TravelAI.WebAPI_HostAddress = http://localhost:5134
+
+GET {{TravelAI.WebAPI_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
