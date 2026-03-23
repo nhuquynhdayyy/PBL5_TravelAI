@@ -1,27 +1,25 @@
+import { Routes, Route } from 'react-router-dom';
 import MainLayout from './layouts/MainLayout';
+import Login from './pages/auth/Login';
+import Register from './pages/auth/Register';
 
 function App() {
   return (
-    <MainLayout>
-      {/* Đây là nơi các Page sẽ hiển thị */}
-      <div className="space-y-8">
-        <section className="text-center py-12">
-          <h1 className="text-5xl font-extrabold text-slate-900 mb-4">
-            Where to next?
-          </h1>
-          <p className="text-xl text-slate-600 max-w-2xl mx-auto">
-            Explore world-class destinations with our AI-powered travel system.
-          </p>
-        </section>
+    <Routes>
+      {/* Trang chủ sử dụng Layout chung */}
+      <Route path="/" element={
+        <MainLayout>
+          <div className="py-10">
+            <h1 className="text-4xl font-bold text-center">Chào mừng tới TravelAI</h1>
+            <p className="text-center mt-4 text-slate-600">Hệ thống lập kế hoạch du lịch thông minh.</p>
+          </div>
+        </MainLayout>
+      } />
 
-        {/* Placeholder cho trang chủ */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="bg-white rounded-2xl h-64 shadow-sm border border-slate-100 hover:shadow-md transition-shadow"></div>
-          ))}
-        </div>
-      </div>
-    </MainLayout>
+      {/* Các trang Auth không dùng Layout chung (hoặc dùng layout riêng) */}
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+    </Routes>
   );
 }
 
