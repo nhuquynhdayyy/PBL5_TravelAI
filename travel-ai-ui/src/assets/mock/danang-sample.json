@@ -1,0 +1,48 @@
+{
+  "trip_title": "Khám phá Đà Nẵng 3 ngày 2 đêm",
+  "destination": "Đà Nẵng",
+  "total_estimated_cost": 5000000,
+  "currency": "VND",
+  "days": [
+    {
+      "day": 1,
+      "daily_cost": 1500000,
+      "activities": {
+        "morning": [
+          {
+            "title": "Ăn sáng Mì Quảng Bà Mua",
+            "location": "Trần Bình Trọng",
+            "description": "Thưởng thức đặc sản Mì Quảng nổi tiếng.",
+            "duration": "1 hour",
+            "estimated_cost": 50000
+          },
+          {
+            "title": "Tham quan Ngũ Hành Sơn",
+            "location": "Ngũ Hành Sơn",
+            "description": "Leo núi và thăm các hang động huyền bí.",
+            "duration": "2.5 hours",
+            "estimated_cost": 40000
+          }
+        ],
+        "afternoon": [
+          {
+            "title": "Tắm biển Mỹ Khê",
+            "location": "Biển Mỹ Khê",
+            "description": "Thư giãn tại một trong những bãi biển đẹp nhất hành tinh.",
+            "duration": "3 hours",
+            "estimated_cost": 0
+          }
+        ],
+        "evening": [
+          {
+            "title": "Ngắm Cầu Rồng phun lửa",
+            "location": "Cầu Rồng",
+            "description": "Xem rồng phun lửa và nước vào cuối tuần.",
+            "duration": "1 hour",
+            "estimated_cost": 0
+          }
+        ]
+      }
+    }
+  ]
+}

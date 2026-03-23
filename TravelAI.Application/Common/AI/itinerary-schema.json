@@ -1,0 +1,41 @@
+{
+  "trip_title": "string",
+  "destination": "string",
+  "total_estimated_cost": "number",
+  "currency": "VND",
+  "days": [
+    {
+      "day": "number",
+      "daily_cost": "number",
+      "activities": {
+        "morning": [
+          {
+            "title": "string",
+            "location": "string",
+            "description": "string",
+            "duration": "string",
+            "estimated_cost": "number"
+          }
+        ],
+        "afternoon": [
+          {
+            "title": "string",
+            "location": "string",
+            "description": "string",
+            "duration": "string",
+            "estimated_cost": "number"
+          }
+        ],
+        "evening": [
+          {
+            "title": "string",
+            "location": "string",
+            "description": "string",
+            "duration": "string",
+            "estimated_cost": "number"
+          }
+        ]
+      }
+    }
+  ]
+}
