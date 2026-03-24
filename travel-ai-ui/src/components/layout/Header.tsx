@@ -52,16 +52,36 @@ const Header: React.FC = () => {
             <div className="h-6 w-px bg-slate-200 mx-1"></div>
             
             {user ? (
-              <div className="flex items-center gap-4">
-                <div className="flex flex-col items-end">
-                  <span className="text-sm font-bold text-slate-900">{user.fullName}</span>
-                  <span className="text-[10px] text-blue-500 font-medium">Customer</span>
+                <div className="flex items-center gap-4">
+                    {/* Chỉnh sửa đoạn này: Bọc thông tin user vào Link */}
+                    <Link 
+                    to="/profile" 
+                    className="flex flex-col items-end group cursor-pointer hover:opacity-80 transition-all"
+                    >
+                    <span className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                        {user.fullName}
+                    </span>
+                    <span className="text-[10px] text-blue-500 font-medium tracking-tight uppercase">
+                        View Profile
+                    </span>
+                    </Link>
+                    <div className="flex flex-col items-end">
+                      <span className="text-sm font-bold text-slate-900">{user.fullName}</span>
+                      {/* THÊM LINK NÀY */}
+                      <Link to="/preferences" className="text-[10px] text-blue-600 hover:underline font-bold uppercase tracking-tighter">
+                        AI Preferences
+                      </Link>
+                    </div>
+                    {/* Nút Logout giữ nguyên */}
+                    <button 
+                    onClick={handleLogout} 
+                    className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+                    title="Logout"
+                    >
+                    <LogOut size={20} />
+                    </button>
                 </div>
-                <button onClick={handleLogout} className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors">
-                  <LogOut size={20} />
-                </button>
-              </div>
-            ) : (
+                ) : (
               <div className="flex items-center gap-2">
                 <button onClick={() => navigate('/login')} className="px-5 py-2 text-slate-700 font-bold text-sm hover:text-blue-500">
                   Login

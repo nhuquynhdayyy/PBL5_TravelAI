@@ -8,7 +8,7 @@ public class TouristSpot {
     public double Longitude { get; set; }
     public int AvgTimeSpent { get; set; } // minutes
     public string? OpeningHours { get; set; }
-
+    public string Description { get; set; }
     public Destination Destination { get; set; } = null!;
     public ICollection<Service> Services { get; set; } = new List<Service>();
     public ICollection<Service_Spot> ServiceSpots { get; set; } = new List<Service_Spot>();
