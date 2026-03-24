@@ -1,46 +1,81 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Mail, Phone, ShieldCheck, LogOut, Edit3, Loader2, Settings2 } from 'lucide-react';
+import { User, Mail, Phone, ShieldCheck, LogOut, Edit3, Loader2, Settings2, Save, X, Camera } from 'lucide-react';
 import axiosClient from '../../api/axiosClient';
 import MainLayout from '../../layouts/MainLayout';
 
-interface UserProfile {
-  fullName: string;
-  email: string;
-  phone: string | null;
-  roleName: string;
-}
-
 const Profile: React.FC = () => {
-  // --- 1. TẤT CẢ HOOKS PHẢI ĐẶT Ở ĐÂY (TRƯỚC MỌI LỆNH IF RETURN) ---
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [userPref, setUserPref] = useState<any>(null); // Lưu sở thích
+  const [profile, setProfile] = useState<any>(null);
+  const [userPref, setUserPref] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-  const navigate = useNavigate();
+  const [isEditing, setIsEditing] = useState(false); // Trạng thái chỉnh sửa
+  const [saving, setSaving] = useState(false);
+  
+  // State cho Form sửa
+  const [editData, setEditData] = useState({ fullName: '', phone: '' });
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState('');
 
-  // Effect lấy Profile
+  const navigate = useNavigate();
+  const API_BASE_URL = 'http://localhost:5134'; // ĐỔI PORT CHO ĐÚNG BACKEND CỦA BẠN (5134 hoặc 7243)
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        // Gọi song song cả 2 API để tối ưu tốc độ
-        const [profileRes, prefRes] = await Promise.all([
-          axiosClient.get('/users/me'),
-          axiosClient.get('/preferences').catch(() => ({ data: { data: null } })) // Nếu lỗi pref thì coi như null
-        ]);
-        
-        setProfile(profileRes.data);
-        setUserPref(prefRes.data.data);
-      } catch (err) {
-        console.error("Lỗi lấy dữ liệu:", err);
-        setError(true);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchData();
   }, []);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const [profileRes, prefRes] = await Promise.all([
+        axiosClient.get('/users/me'),
+        axiosClient.get('/preferences').catch(() => ({ data: { data: null } }))
+      ]);
+      
+      const userData = profileRes.data;
+      setProfile(userData);
+      setEditData({ fullName: userData.fullName, phone: userData.phone || '' });
+      
+      // Nếu có avatar trong DB thì hiển thị full URL
+      if (userData.avatarUrl) {
+        setPreviewUrl(`${API_BASE_URL}${userData.avatarUrl}`);
+      }
+      
+      setUserPref(prefRes.data.data);
+    } catch (err) {
+      console.error("Lỗi lấy dữ liệu:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setSelectedFile(file);
+      setPreviewUrl(URL.createObjectURL(file)); // Xem trước ảnh ngay lập tức
+    }
+  };
+
+  const handleUpdate = async () => {
+    setSaving(true);
+    const formData = new FormData(); // Bắt buộc dùng FormData để upload file
+    formData.append('fullName', editData.fullName);
+    formData.append('phone', editData.phone);
+    if (selectedFile) formData.append('avatar', selectedFile);
+
+    try {
+      await axiosClient.put('/users/update-profile', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      alert("Cập nhật thành công!");
+      setIsEditing(false);
+      fetchData(); // Load lại dữ liệu mới từ Server
+    } catch (err) {
+      alert("Cập nhật thất bại. Vui lòng thử lại.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.clear();
@@ -48,118 +83,159 @@ const Profile: React.FC = () => {
     window.location.reload();
   };
 
-  // --- 2. CÁC ĐIỀU KIỆN RENDER PHỤ (LOADING/ERROR) ĐẶT SAU HOOKS ---
-  if (loading) {
-    return (
-      <MainLayout>
-        <div className="flex h-[60vh] items-center justify-center">
-          <Loader2 className="animate-spin text-blue-500 size-10" />
-        </div>
-      </MainLayout>
-    );
-  }
+  if (loading) return (
+    <MainLayout>
+      <div className="flex h-[60vh] items-center justify-center">
+        <Loader2 className="animate-spin text-blue-500 size-10" />
+      </div>
+    </MainLayout>
+  );
 
-  // --- 3. GIAO DIỆN CHÍNH ---
   return (
     <MainLayout>
       <div className="max-w-2xl mx-auto mt-10">
-        <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-100 mb-10">
+        <div className="bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 mb-10">
           {/* Cover Image */}
-          <div className="h-32 bg-gradient-to-r from-blue-500 to-indigo-600"></div>
+          <div className="h-32 bg-gradient-to-r from-blue-600 to-indigo-700"></div>
 
           <div className="px-8 pb-8 relative">
-            {/* Avatar - Dùng pl-28 để né Logo */}
+            {/* Avatar Section */}
             <div className="absolute -top-12 left-8">
-              <div className="size-24 rounded-2xl bg-white p-1 shadow-lg">
-                <div className="size-full rounded-xl bg-slate-200 flex items-center justify-center text-slate-500">
-                  <User size={48} />
+              <div className="size-28 rounded-3xl bg-white p-1.5 shadow-xl relative group">
+                <div className="size-full rounded-2xl bg-slate-100 overflow-hidden flex items-center justify-center text-slate-400">
+                  {previewUrl ? (
+                    <img src={previewUrl} className="size-full object-cover" alt="avatar" />
+                  ) : (
+                    <User size={50} />
+                  )}
+                </div>
+                
+                {/* Overlay nút Camera khi ở chế độ Edit */}
+                {isEditing && (
+                  <label className="absolute inset-1.5 flex items-center justify-center bg-black/40 rounded-2xl cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Camera className="text-white size-8" />
+                    <input type="file" className="hidden" onChange={handleFileChange} accept="image/*" />
+                  </label>
+                )}
+              </div>
+            </div>
+
+            {/* User Info Header */}
+            <div className="pt-20 sm:pl-32 flex flex-col sm:flex-row justify-between items-start gap-4">
+              <div className="flex-grow w-full">
+                {isEditing ? (
+                  <input 
+                    className="text-3xl font-black text-slate-900 border-b-2 border-blue-500 outline-none w-full bg-blue-50/30 px-2"
+                    value={editData.fullName}
+                    onChange={e => setEditData({...editData, fullName: e.target.value})}
+                    placeholder="Nhập họ tên..."
+                  />
+                ) : (
+                  <h1 className="text-3xl font-black text-slate-900 leading-tight">
+                    {profile?.fullName || "Người dùng"}
+                  </h1>
+                )}
+                <div className="flex items-center gap-2 mt-2">
+                    <span className="px-3 py-1 bg-blue-600 text-white text-[10px] font-black rounded-lg flex items-center gap-1 uppercase tracking-widest">
+                        <ShieldCheck size={12} /> {profile?.roleName || "Customer"}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
+                        Thành viên từ: {profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString() : '...'}
+                    </span>
                 </div>
               </div>
-            </div>
-
-            <div className="pt-14 sm:pl-28 flex flex-col sm:flex-row justify-between items-start gap-4">
-              <div>
-                <h1 className="text-3xl font-black text-slate-900 leading-tight">
-                  {profile?.fullName || "Người dùng"}
-                </h1>
-                <p className="text-blue-600 font-bold flex items-center gap-1 mt-1 uppercase text-xs tracking-widest bg-blue-50 w-fit px-2 py-1 rounded-md">
-                  <ShieldCheck size={14} /> {profile?.roleName || "Customer"}
-                </p>
+              
+              <div className="flex gap-2">
+                {isEditing ? (
+                  <>
+                    <button 
+                      onClick={handleUpdate} 
+                      disabled={saving}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-2xl font-black text-sm shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95 disabled:bg-slate-300"
+                    >
+                      {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />} SAVE
+                    </button>
+                    <button 
+                      onClick={() => { setIsEditing(false); setPreviewUrl(profile.avatarUrl ? `${API_BASE_URL}${profile.avatarUrl}` : ''); }}
+                      className="px-4 py-2.5 bg-slate-100 text-slate-500 rounded-2xl font-black text-sm hover:bg-slate-200 transition-all"
+                    >
+                      <X size={18} />
+                    </button>
+                  </>
+                ) : (
+                  <button 
+                    onClick={() => setIsEditing(true)}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-2xl font-black text-sm shadow-xl hover:bg-black transition-all active:scale-95"
+                  >
+                    <Edit3 size={18} /> EDIT PROFILE
+                  </button>
+                )}
               </div>
-              <button className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm transition-colors shrink-0">
-                <Edit3 size={16} /> Edit Profile
-              </button>
             </div>
 
-            <div className="mt-8 space-y-4">
-              <div className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100">
-                <div className="p-2 bg-white rounded-lg shadow-sm text-blue-500"><Mail size={20} /></div>
+            {/* Contact Details */}
+            <div className="mt-10 space-y-4">
+              <div className="flex items-center gap-5 p-5 rounded-[1.5rem] bg-slate-50 border border-slate-100">
+                <div className="p-3 bg-white rounded-xl shadow-sm text-blue-500"><Mail size={22} /></div>
                 <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">Email Address</p>
-                  <p className="text-slate-700 font-medium">{profile?.email}</p>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Email Address</p>
+                  <p className="text-slate-700 font-bold">{profile?.email}</p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100">
-                <div className="p-2 bg-white rounded-lg shadow-sm text-green-500"><Phone size={20} /></div>
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">Phone Number</p>
-                  <p className="text-slate-700 font-medium">{profile?.phone || "Not provided"}</p>
+              <div className="flex items-center gap-5 p-5 rounded-[1.5rem] bg-slate-50 border border-slate-100 transition-all">
+                <div className="p-3 bg-white rounded-xl shadow-sm text-green-500"><Phone size={22} /></div>
+                <div className="flex-grow">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Phone Number</p>
+                  {isEditing ? (
+                    <input 
+                      className="bg-transparent border-b-2 border-slate-200 outline-none w-full text-slate-700 font-bold focus:border-green-500 transition-colors"
+                      value={editData.phone}
+                      onChange={e => setEditData({...editData, phone: e.target.value})}
+                      placeholder="Nhập số điện thoại..."
+                    />
+                  ) : (
+                    <p className="text-slate-700 font-bold">{profile?.phone || "Chưa cung cấp"}</p>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* Mục hiển thị sở thích hiện tại */}
+            {/* AI Preferences Shortcut */}
             {userPref && (
-                <div className="mt-6 p-6 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                    <h3 className="text-sm font-bold text-slate-500 uppercase mb-4 tracking-widest">Sở thích du lịch hiện tại</h3>
-                    <div className="flex flex-wrap gap-3">
-                        <span className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-xl text-xs font-black shadow-sm">
-                            STYLE: {userPref.travelStyle}
-                        </span>
-                        <span className="px-3 py-1.5 bg-green-100 text-green-700 rounded-xl text-xs font-black shadow-sm">
-                            PACE: {userPref.travelPace === 0 ? "Thong thả" : userPref.travelPace === 1 ? "Cân bằng" : "Dày đặc"}
-                        </span>
-                        <span className="px-3 py-1.5 bg-orange-100 text-orange-700 rounded-xl text-xs font-black shadow-sm">
-                            BUDGET: {userPref.budgetLevel === 0 ? "Tiết kiệm" : userPref.budgetLevel === 1 ? "Trung bình" : "Cao"}
-                        </span>
+                <div className="mt-8 p-6 bg-indigo-50/50 rounded-3xl border border-dashed border-indigo-200">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-xs font-black text-indigo-400 uppercase tracking-widest">Sở thích du lịch của bạn</h3>
+                        <Settings2 size={16} className="text-indigo-300" />
                     </div>
+                    <div className="flex flex-wrap gap-3">
+                        <div className="px-3 py-1.5 bg-white border border-indigo-100 text-indigo-600 rounded-xl text-[10px] font-black shadow-sm uppercase tracking-tighter">
+                            {userPref.travelStyle}
+                        </div>
+                        <div className="px-3 py-1.5 bg-white border border-indigo-100 text-indigo-600 rounded-xl text-[10px] font-black shadow-sm uppercase tracking-tighter">
+                            PACE: {userPref.travelPace === 0 ? "Thong thả" : userPref.travelPace === 1 ? "Cân bằng" : "Dày đặc"}
+                        </div>
+                        <div className="px-3 py-1.5 bg-white border border-indigo-100 text-indigo-600 rounded-xl text-[10px] font-black shadow-sm uppercase tracking-tighter">
+                            BUDGET: {userPref.budgetLevel === 0 ? "Tiết kiệm" : userPref.budgetLevel === 1 ? "Trung bình" : "Cao"}
+                        </div>
+                    </div>
+                    <button 
+                        onClick={() => navigate('/preferences')}
+                        className="mt-5 w-full text-[10px] font-black text-indigo-500 hover:underline"
+                    >
+                        Cập nhật sở thích ngay →
+                    </button>
                 </div>
             )}
 
-            {/* Nút bấm sang trang chỉnh sửa - CHỈ ĐỂ 1 NÚT DUY NHẤT */}
-            <div className="mt-6">
-              <button 
-                onClick={() => navigate('/preferences')}
-                className="w-full flex items-center justify-between p-5 rounded-2xl bg-blue-50 border border-blue-100 hover:bg-blue-100 transition-all group"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-white rounded-xl text-blue-600 shadow-sm group-hover:scale-110 transition-transform">
-                    <Settings2 size={24} />
-                  </div>
-                  <div className="text-left">
-                    <p className="text-sm font-black text-slate-800">Cấu hình AI Planner</p>
-                    <p className="text-xs text-slate-500">Cập nhật sở thích để AI gợi ý lịch trình chính xác hơn</p>
-                  </div>
-                </div>
-                <div className="text-blue-500 font-bold">→</div>
-              </button>
-            </div>
-
             <button 
               onClick={handleLogout}
-              className="w-full mt-8 flex items-center justify-center gap-2 py-4 bg-red-50 hover:bg-red-100 text-red-600 rounded-2xl font-black transition-all active:scale-95"
+              className="w-full mt-10 flex items-center justify-center gap-2 py-5 bg-red-50 hover:bg-red-100 text-red-600 rounded-[1.5rem] font-black transition-all active:scale-[0.98]"
             >
-              <LogOut size={20} /> Logout
+              <LogOut size={20} /> LOGOUT ACCOUNT
             </button>
           </div>
         </div>
-        
-        {error && (
-          <p className="mt-4 text-center text-red-500 text-sm italic">
-            * Hệ thống gặp sự cố khi lấy dữ liệu thật. Vui lòng kiểm tra kết nối Backend.
-          </p>
-        )}
       </div>
     </MainLayout>
   );
