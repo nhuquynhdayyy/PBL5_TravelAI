@@ -49,7 +49,8 @@ public class AuthService
             return null;
 
         var token = GenerateJwtToken(user);
-        return new AuthResponse(token, user.FullName, user.Email);
+        
+        return new AuthResponse(token, user.FullName, user.Email, user.Role.RoleName); 
     }
 
     private string GenerateJwtToken(User user)

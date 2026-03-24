@@ -7,6 +7,12 @@ const DestinationDetail: React.FC = () => {
     const { id } = useParams(); // Lấy ID từ URL
     const [dest, setDest] = useState<any>(null);
 
+    const getFullImageUrl = (url: string) => {
+        if (!url) return 'https://via.placeholder.com/800x400';
+        // Nếu là link web (unsplash) thì giữ nguyên, nếu là path local thì thêm localhost:5134
+        return url.startsWith('http') ? url : `http://localhost:5134${url}`;
+    };
+
     useEffect(() => {
         const fetchDetail = async () => {
             try {
@@ -23,12 +29,26 @@ const DestinationDetail: React.FC = () => {
     if (!dest) return <div className="text-center p-10">Đang tải chi tiết điểm đến...</div>;
 
     return (
-        <div className="max-w-4xl mx-auto p-6 bg-white rounded-2xl shadow-lg mt-10">
-            <img src={dest.imageUrl} className="w-full h-96 object-cover rounded-xl" alt={dest.name} />
-            <h1 className="text-4xl font-black mt-6 text-slate-900">{dest.name}</h1>
-            <p className="mt-4 text-lg text-gray-700 leading-relaxed">{dest.description}</p>
+        <div className="max-w-4xl mx-auto p-6 bg-white rounded-3xl shadow-2xl mt-10 mb-20 border border-slate-50">
+            {/* ✅ CẬP NHẬT: Sử dụng hàm getFullImageUrl ở đây */}
+            <img 
+                src={getFullImageUrl(dest.imageUrl)} 
+                className="w-full h-[450px] object-cover rounded-2xl shadow-lg" 
+                alt={dest.name} 
+            />
+            
+            <div className="mt-8">
+                <h1 className="text-5xl font-black text-slate-900 tracking-tight">
+                    {dest.name}
+                </h1>
+                <div className="w-20 h-1.5 bg-blue-500 mt-4 rounded-full"></div>
+                
+                <p className="mt-8 text-xl text-slate-600 leading-relaxed font-medium">
+                    {dest.description}
+                </p>
+            </div>
         </div>
-  );
+    );
 };
 
 export default DestinationDetail;

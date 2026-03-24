@@ -61,4 +61,21 @@ public class DestinationsController : ControllerBase
             return BadRequest(new { success = false, message = ex.Message });
         }
     }
+    [HttpPut("{id}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> Update(int id, [FromForm] UpdateDestinationRequest request)
+    {
+        var success = await _service.UpdateAsync(id, request, _webHostEnvironment.WebRootPath);
+        if (!success) return NotFound();
+        return Ok(new { success = true, message = "Cập nhật thành công!" });
+    }
+
+    [HttpDelete("{id}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var success = await _service.DeleteAsync(id, _webHostEnvironment.WebRootPath);
+        if (!success) return NotFound();
+        return Ok(new { success = true, message = "Xóa thành công!" });
+    }
 }

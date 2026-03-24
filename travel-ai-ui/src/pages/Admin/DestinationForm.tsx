@@ -38,7 +38,6 @@ const DestinationForm = () => {
     };
 
     return (
-        <MainLayout>
             <div className="max-w-3xl mx-auto bg-white p-8 rounded-3xl shadow-2xl mt-10">
                 <h1 className="text-3xl font-black text-slate-900 mb-8">Add New Destination</h1>
                 <form onSubmit={handleSubmit} className="space-y-6">
@@ -65,7 +64,6 @@ const DestinationForm = () => {
                     </button>
                 </form>
             </div>
-        </MainLayout>
     );
 };
 

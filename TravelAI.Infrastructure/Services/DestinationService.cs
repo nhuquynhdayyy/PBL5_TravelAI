@@ -59,4 +59,58 @@ public class DestinationService : IDestinationService
 
         return new DestinationDto(destination.DestinationId, destination.Name, destination.Description, destination.ImageUrl);
     }
+
+    private void DeletePhysicalFile(string? relativePath, string webRootPath)
+    {
+        if (string.IsNullOrEmpty(relativePath) || relativePath.StartsWith("http")) return;
+        
+        var fullPath = Path.Combine(webRootPath, relativePath.TrimStart('/'));
+        if (File.Exists(fullPath)) File.Delete(fullPath);
+    }
+
+    public async Task<bool> UpdateAsync(int id, UpdateDestinationRequest request, string webRootPath)
+    {
+        var destination = await _context.Destinations.FindAsync(id);
+        if (destination == null) return false;
+
+        // Chỉ cập nhật nếu request có dữ liệu (tránh bị mất data khi binding lỗi)
+        if (!string.IsNullOrWhiteSpace(request.Name))
+            destination.Name = request.Name;
+            
+        if (!string.IsNullOrWhiteSpace(request.Description))
+            destination.Description = request.Description;
+
+        if (request.Image != null)
+        {
+            // Xóa ảnh cũ nếu có
+            DeletePhysicalFile(destination.ImageUrl, webRootPath);
+
+            // Lưu ảnh mới
+            string folderPath = Path.Combine(webRootPath, "uploads");
+            if (!Directory.Exists(folderPath)) Directory.CreateDirectory(folderPath);
+            
+            string fileName = Guid.NewGuid().ToString() + Path.GetExtension(request.Image.FileName);
+            string filePath = Path.Combine(folderPath, fileName);
+
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await request.Image.CopyToAsync(stream);
+            }
+            destination.ImageUrl = $"/uploads/{fileName}";
+        }
+
+        return await _context.SaveChangesAsync() > 0;
+    }
+
+    public async Task<bool> DeleteAsync(int id, string webRootPath)
+    {
+        var destination = await _context.Destinations.FindAsync(id);
+        if (destination == null) return false;
+
+        // Xóa ảnh vật lý
+        DeletePhysicalFile(destination.ImageUrl, webRootPath);
+
+        _context.Destinations.Remove(destination);
+        return await _context.SaveChangesAsync() > 0;
+    }
 }

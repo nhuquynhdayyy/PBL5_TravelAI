@@ -6,6 +6,8 @@ import Destinations from './pages/Destinations';
 import Profile from './pages/Profile/Profile';
 import DestinationDetail from './pages/DestinationDetail';
 import UserPreferences from './pages/Preferences/UserPreferences';
+import DestinationForm from './pages/Admin/DestinationForm'; 
+import EditDestination from './pages/Admin/EditDestination';
 
 function App() {
   return (
@@ -28,6 +30,8 @@ function App() {
         </MainLayout>
       } />
       <Route path="/destinations/:id" element={<MainLayout><DestinationDetail /></MainLayout>} />
+      <Route path="/admin/destinations/add" element={<MainLayout><DestinationForm /></MainLayout>} />
+      <Route path="/admin/destinations/edit/:id" element={<MainLayout><EditDestination /></MainLayout>} />
       <Route path="/preferences" element={<UserPreferences />} />
       <Route path="/profile" element={<Profile />} />
       <Route path="/login" element={<Login />} />
