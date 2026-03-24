@@ -1,15 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import axiosClient from '../../api/axiosClient';
 import MainLayout from '../../layouts/MainLayout';
-import { Settings, Save, Loader2 } from 'lucide-react';
+import PrefForm from '../../components/User/PrefForm'; // Import component mới
+import { Loader2 } from 'lucide-react';
 
 const UserPreferences = () => {
-    // Giả định lấy userId từ localStorage sau khi login
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const userId = user.userId || 1; 
-
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    
+    // State lưu trữ dữ liệu sở thích
     const [pref, setPref] = useState({
         travelStyle: '',
         budgetLevel: 0,
@@ -17,109 +16,60 @@ const UserPreferences = () => {
         cuisinePref: ''
     });
 
+    // 1. Lấy dữ liệu cũ từ Server khi mở trang
     useEffect(() => {
-    const fetchCurrentPreferences = async () => {
-        try {
-            setLoading(true);
-            // Gọi API GET (không cần truyền ID vì BE lấy từ Token)
-            const res = await axiosClient.get('/preferences');
-            
-            if (res.data.success && res.data.data) {
-                // Đổ dữ liệu từ DB vào State để hiện lên Form
-                setPref(res.data.data);
+        const fetchCurrentPreferences = async () => {
+            try {
+                setLoading(true);
+                const res = await axiosClient.get('/preferences');
+                if (res.data.success && res.data.data) {
+                    setPref(res.data.data);
+                }
+            } catch (err) {
+                console.error("Chưa có sở thích cũ");
+            } finally {
+                setLoading(false);
             }
-        } catch (err) {
-            console.error("Chưa có sở thích cũ hoặc lỗi kết nối");
-        } finally {
-            setLoading(false);
-        }
-    };
+        };
+        fetchCurrentPreferences();
+    }, []);
 
-    fetchCurrentPreferences();
-}, []); // Chạy 1 lần duy nhất khi mở trang
-
+    // 2. Hàm lưu dữ liệu khi nhấn nút Save
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
         setSaving(true);
         try {
-            await axiosClient.put('/preferences', pref); 
-            alert("Cập nhật thành công!");
+            await axiosClient.put('/preferences', pref);
+            alert("Cập nhật sở thích thành công! AI đã sẵn sàng phục vụ bạn.");
         } catch (err) {
-            alert("Có lỗi xảy ra");
-        } finally { setSaving(false); }
+            alert("Có lỗi xảy ra khi lưu.");
+        } finally { 
+            setSaving(false); 
+        }
     };
 
-    if (loading) return <div className="flex justify-center p-20"><Loader2 className="animate-spin" /></div>;
+    if (loading) return (
+        <div className="flex flex-col items-center justify-center p-20">
+            <Loader2 className="animate-spin text-blue-500 mb-2" size={40} />
+            <p className="text-slate-500 font-medium">Đang tải sở thích của bạn...</p>
+        </div>
+    );
 
     return (
         <MainLayout>
-            <div className="max-w-2xl mx-auto bg-white p-8 rounded-3xl shadow-xl border border-slate-100 mt-10">
-                <div className="flex items-center gap-3 mb-8">
-                    <Settings className="text-blue-500" size={28} />
-                    <h1 className="text-2xl font-black text-slate-800">Cấu hình sở thích du lịch</h1>
+            <div className="max-w-3xl mx-auto bg-white p-10 rounded-[2.5rem] shadow-2xl border border-slate-100 mt-10 mb-20">
+                <div className="text-center mb-12">
+                    <h1 className="text-4xl font-black text-slate-900 mb-2 tracking-tight">Thiết lập AI Travel</h1>
+                    <p className="text-slate-500 italic">"Hãy cho AI biết gu của bạn để nhận lịch trình hoàn hảo nhất"</p>
                 </div>
 
-                <form onSubmit={handleSave} className="space-y-6">
-                    <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-2">Phong cách du lịch</label>
-                        <select 
-                            className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                            value={pref.travelStyle}
-                            onChange={e => setPref({...pref, travelStyle: e.target.value})}
-                        >
-                            <option value="">Chọn phong cách</option>
-                            <option value="Thám hiểm">Thám hiểm (Adventure)</option>
-                            <option value="Nghỉ dưỡng">Nghỉ dưỡng (Relax)</option>
-                            <option value="Văn hóa">Văn hóa (Cultural)</option>
-                        </select>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-bold text-slate-700 mb-2">Ngân sách (Budget)</label>
-                            <select 
-                                className="w-full p-3 border rounded-xl"
-                                value={pref.budgetLevel}
-                                onChange={e => setPref({...pref, budgetLevel: parseInt(e.target.value)})}
-                            >
-                                <option value={0}>Thấp (Economy)</option>
-                                <option value={1}>Trung bình (Standard)</option>
-                                <option value={2}>Cao (Luxury)</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-bold text-slate-700 mb-2">Nhịp độ (Pace)</label>
-                            <select 
-                                className="w-full p-3 border rounded-xl"
-                                value={pref.travelPace}
-                                onChange={e => setPref({...pref, travelPace: parseInt(e.target.value)})}
-                            >
-                                <option value={0}>Thong thả</option>
-                                <option value={1}>Cân bằng</option>
-                                <option value={2}>Dày đặc</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-2">Sở thích ẩm thực</label>
-                        <textarea 
-                            className="w-full p-3 border rounded-xl h-24"
-                            placeholder="Ví dụ: Thích ăn đồ biển, không ăn được cay..."
-                            value={pref.cuisinePref || ''}
-                            onChange={e => setPref({...pref, cuisinePref: e.target.value})}
-                        />
-                    </div>
-
-                    <button 
-                        type="submit" 
-                        disabled={saving}
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95 disabled:bg-slate-400"
-                    >
-                        {saving ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
-                        Lưu sở thích
-                    </button>
-                </form>
+                {/* TRUYỀN DATA VÀO FORM COMPONENT */}
+                <PrefForm 
+                    formData={pref} 
+                    onChange={setPref} 
+                    onSave={handleSave} 
+                    saving={saving} 
+                />
             </div>
         </MainLayout>
     );
