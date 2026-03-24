@@ -3,7 +3,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using TravelAI.Infrastructure.Persistence;
-using TravelAI.Infrastructure.Services; // Đảm bảo namespace này đúng
+using TravelAI.Infrastructure.Services; 
+using TravelAI.Application.Interfaces;
+using TravelAI.Application.Services;
+using TravelAI.Domain.Interfaces;     
+using TravelAI.Infrastructure.Repositories; 
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,8 +30,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 // --- 3. ĐĂNG KÝ SERVICES (THÊM MỚI) ---
+builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+builder.Services.AddScoped<IDestinationService, DestinationService>();
+builder.Services.AddScoped<IPreferenceService, PreferenceService>();
 builder.Services.AddScoped<AuthService>();
-
 // --- 4. Cấu hình CORS (CẬP NHẬT) ---
 builder.Services.AddCors(options =>
 {
@@ -54,10 +60,13 @@ if (app.Environment.IsDevelopment())
     });
 }
 
+app.UseStaticFiles();
+app.UseCors("AllowReactApp");
+
 app.UseHttpsRedirection();
 app.UseCors(p => p.AllowAnyHeader().AllowAnyMethod().WithOrigins("http://localhost:5173"));
 
-app.UseAuthentication(); // THÊM MỚI: Phải đứng trước Authorization
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

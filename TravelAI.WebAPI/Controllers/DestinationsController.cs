@@ -1,7 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using TravelAI.Infrastructure.Persistence;
-using TravelAI.Domain.Entities;
+using TravelAI.Application.Interfaces;
+using TravelAI.Application.DTOs; 
+using Microsoft.AspNetCore.Authorization; 
+using TravelAI.Application.DTOs.Destination;
 
 namespace TravelAI.WebAPI.Controllers;
 
@@ -9,26 +10,55 @@ namespace TravelAI.WebAPI.Controllers;
 [Route("api/[controller]")]
 public class DestinationsController : ControllerBase
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IDestinationService _service;
+    private readonly IWebHostEnvironment _webHostEnvironment;
 
-    public DestinationsController(ApplicationDbContext context)
+    public DestinationsController(IDestinationService service, IWebHostEnvironment webHostEnvironment)
     {
-        _context = context;
+        _service = service;
+        _webHostEnvironment = webHostEnvironment;
     }
 
     // GET: api/destinations
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Destination>>> GetDestinations()
+    public async Task<IActionResult> GetAll()
     {
-        return await _context.Destinations.ToListAsync();
+        var data = await _service.GetAllAsync();
+        return Ok(new { 
+            data = data, 
+            message = "Lấy danh sách điểm đến thành công",
+            success = true 
+        });
     }
 
-    // POST: api/destinations
-    [HttpPost]
-    public async Task<ActionResult<Destination>> CreateDestination(Destination destination)
+    // GET: api/destinations/{id}
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetById(int id)
     {
-        _context.Destinations.Add(destination);
-        await _context.SaveChangesAsync();
-        return Ok(destination);
+        var data = await _service.GetByIdAsync(id);
+        
+        if (data == null) 
+            return NotFound(new { success = false, message = "Không tìm thấy điểm đến" });
+
+        return Ok(new { 
+            data = data, 
+            success = true 
+        });
+    }
+
+    [HttpPost]
+    [Authorize(Roles = "Admin")] 
+    public async Task<IActionResult> Create([FromForm] CreateDestinationRequest request)
+    {
+        try 
+        {
+            var webRootPath = _webHostEnvironment.WebRootPath;
+            var result = await _service.CreateAsync(request, webRootPath);
+            return Ok(new { success = true, data = result, message = "Thêm điểm đến thành công!" });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
     }
 }
