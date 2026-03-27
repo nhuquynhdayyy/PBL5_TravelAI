@@ -47,6 +47,8 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+builder.Services.AddScoped<TravelAI.Infrastructure.Services.UserService>();
+
 var app = builder.Build();
 
 // --- 5. Cấu hình Pipeline (GIỮ LẠI & SẮP XẾP) ---
