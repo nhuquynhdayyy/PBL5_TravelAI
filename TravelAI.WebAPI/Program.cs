@@ -48,6 +48,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddScoped<TravelAI.Infrastructure.Services.UserService>();
+builder.Services.AddScoped<ISpotService, SpotService>();
 
 var app = builder.Build();
 

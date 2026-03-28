@@ -4,5 +4,5 @@ namespace TravelAI.Application.Interfaces;
 
 public interface ISpotService
 {
-    Task<IEnumerable<SpotResponseDto>> GetByDestinationIdAsync(int destinationId);
+    Task<IEnumerable<SpotDto>> GetSpotsByDestinationAsync(int destinationId);
 }

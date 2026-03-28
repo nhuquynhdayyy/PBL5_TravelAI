@@ -8,6 +8,7 @@ import DestinationDetail from './pages/DestinationDetail';
 import UserPreferences from './pages/Preferences/UserPreferences';
 import DestinationForm from './pages/Admin/DestinationForm'; 
 import EditDestination from './pages/Admin/EditDestination';
+import SpotList from './pages/Destinations/SpotList';
 
 function App() {
   return (
@@ -36,6 +37,7 @@ function App() {
       <Route path="/profile" element={<Profile />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/destinations/:id/spots" element={<MainLayout><SpotList /></MainLayout>} />
     </Routes>
   );
 }
