@@ -1,0 +1,42 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TravelAI.Application", "TravelAI.Application\TravelAI.Application.csproj", "{FCCFF629-506B-AE23-0A15-446A7994E300}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TravelAI.Domain", "TravelAI.Domain\TravelAI.Domain.csproj", "{D415AF2A-895F-6952-D334-62C877ABCB82}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TravelAI.Infrastructure", "TravelAI.Infrastructure\TravelAI.Infrastructure.csproj", "{CBB7FE43-F95B-3B47-97AD-D99945AA558F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TravelAI.WebAPI", "TravelAI.WebAPI\TravelAI.WebAPI.csproj", "{6767D427-B00C-F67A-9CDE-1DFFC7B9E48A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{FCCFF629-506B-AE23-0A15-446A7994E300}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FCCFF629-506B-AE23-0A15-446A7994E300}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FCCFF629-506B-AE23-0A15-446A7994E300}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FCCFF629-506B-AE23-0A15-446A7994E300}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D415AF2A-895F-6952-D334-62C877ABCB82}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D415AF2A-895F-6952-D334-62C877ABCB82}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D415AF2A-895F-6952-D334-62C877ABCB82}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D415AF2A-895F-6952-D334-62C877ABCB82}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CBB7FE43-F95B-3B47-97AD-D99945AA558F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CBB7FE43-F95B-3B47-97AD-D99945AA558F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CBB7FE43-F95B-3B47-97AD-D99945AA558F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CBB7FE43-F95B-3B47-97AD-D99945AA558F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6767D427-B00C-F67A-9CDE-1DFFC7B9E48A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6767D427-B00C-F67A-9CDE-1DFFC7B9E48A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6767D427-B00C-F67A-9CDE-1DFFC7B9E48A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6767D427-B00C-F67A-9CDE-1DFFC7B9E48A}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {33CA2FF7-49A2-4143-A85B-A87353F46300}
+	EndGlobalSection
+EndGlobal

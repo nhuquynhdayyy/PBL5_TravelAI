@@ -12,4 +12,5 @@ public class TouristSpot {
     public Destination Destination { get; set; } = null!;
     public ICollection<Service> Services { get; set; } = new List<Service>();
     public ICollection<Service_Spot> ServiceSpots { get; set; } = new List<Service_Spot>();
+    public string? ImageUrl { get; set; }
 }

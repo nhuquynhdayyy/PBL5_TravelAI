@@ -5,7 +5,7 @@ import MainLayout from '../../layouts/MainLayout';
 import { Upload, Save, X } from 'lucide-react';
 
 const DestinationForm = () => {
-    const [name, setName] = useState('');
+    const [name, setName] = useState('');z
     const [description, setDescription] = useState('');
     const [image, setImage] = useState<File | null>(null);
     const [preview, setPreview] = useState('');

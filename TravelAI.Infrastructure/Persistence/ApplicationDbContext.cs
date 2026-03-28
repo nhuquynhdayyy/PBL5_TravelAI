@@ -1,9 +1,10 @@
 using Microsoft.EntityFrameworkCore;
+using TravelAI.Application.Abstractions;
 using TravelAI.Domain.Entities;
 
 namespace TravelAI.Infrastructure.Persistence;
 
-public class ApplicationDbContext : DbContext {
+public class ApplicationDbContext : DbContext, IApplicationDbContext {
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) {}
 
     public DbSet<Role> Roles => Set<Role>();
@@ -27,6 +28,7 @@ public class ApplicationDbContext : DbContext {
     public DbSet<Refund> Refunds => Set<Refund>();
     public DbSet<Review> Reviews => Set<Review>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<Spot> Spots => Set<Spot>(); 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder) {
         base.OnModelCreating(modelBuilder);

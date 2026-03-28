@@ -8,6 +8,9 @@ using TravelAI.Application.Interfaces;
 using TravelAI.Application.Services;
 using TravelAI.Domain.Interfaces;     
 using TravelAI.Infrastructure.Repositories; 
+using TravelAI.Application.Features.Spots.Queries;
+using TravelAI.Application.Abstractions;  
+using MediatR;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -47,6 +50,17 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+builder.Services.AddMediatR(cfg =>
+{
+    cfg.RegisterServicesFromAssembly(
+        typeof(TravelAI.Application.Features.Spots.Queries.GetSpotsQuery).Assembly
+    );
+});
+
+// builder.Services.AddScoped<TravelAI.Infrastructure.Services.UserService>();
+builder.Services.AddScoped<IApplicationDbContext>(provider => 
+    provider.GetRequiredService<ApplicationDbContext>());
+
 var app = builder.Build();
 
 // --- 5. Cấu hình Pipeline (GIỮ LẠI & SẮP XẾP) ---
@@ -70,5 +84,4 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
-
 app.Run();
