@@ -81,7 +81,7 @@ const HomeSearch: React.FC = () => {
         const spotResults: ResultItem[] = allSpots
             .filter(s =>
                 (s.name || s.spotName || '').toLowerCase().includes(q) ||
-                (s.description || '').toLowerCase().includes(q) ||
+                // (s.description || '').toLowerCase().includes(q) ||
                 (s.location || s.address || '').toLowerCase().includes(q)
             )
             .slice(0, 5)

@@ -76,7 +76,7 @@ const DestinationDetail: React.FC = () => {
         const q = searchQuery.toLowerCase().trim();
         return spots.filter(spot =>
             (spot.name || spot.spotName || '').toLowerCase().includes(q) ||
-            (spot.description || '').toLowerCase().includes(q) ||
+            // (spot.description || '').toLowerCase().includes(q) ||
             (spot.location || spot.address || '').toLowerCase().includes(q)
         );
     }, [spots, searchQuery]);
@@ -108,7 +108,7 @@ const DestinationDetail: React.FC = () => {
     return (
         <div className="max-w-6xl mx-auto p-6 mb-20">
             {/* Back button */}
-            <button onClick={() => navigate('/destinations')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 mb-6 font-bold transition-colors">
+            <button onClick={() => navigate('/')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 mb-6 font-bold transition-colors">
                 <ArrowLeft size={20} /> Quay lại danh sách tỉnh
             </button>
 

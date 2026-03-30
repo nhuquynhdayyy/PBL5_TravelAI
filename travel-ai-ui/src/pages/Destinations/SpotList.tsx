@@ -121,7 +121,7 @@ const SpotList: React.FC = () => {
         const q = searchQuery.toLowerCase().trim();
         return allSpots.filter(spot =>
             (spot.name || spot.spotName || '').toLowerCase().includes(q) ||
-            (spot.description || '').toLowerCase().includes(q) ||
+            // (spot.description || '').toLowerCase().includes(q) ||
             (spot.location || spot.address || '').toLowerCase().includes(q)
         );
     }, [allSpots, searchQuery]);
