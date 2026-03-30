@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using TravelAI.Application.DTOs.Spot;
 using TravelAI.Application.Interfaces;
 
@@ -10,37 +11,12 @@ public class SpotsController : ControllerBase
 {
     private readonly ISpotService _spotService;
     private readonly IWebHostEnvironment _env;
+
     public SpotsController(ISpotService spotService, IWebHostEnvironment env)
     {
         _spotService = spotService;
-        _env = env; // Inject IWebHostEnvironment
+        _env = env;
     }
-[HttpGet("{id}")]
-public async Task<IActionResult> GetById(int id)
-{
-    var result = await _spotService.GetByIdAsync(id);
-
-    if (result == null)
-        return NotFound(new { message = "Spot not found" });
-
-    return Ok(result);
-}
-
-[HttpPost]
-public async Task<IActionResult> Create([FromForm] CreateSpotRequest request)
-{
-    // Lấy đường dẫn, nếu null thì trỏ về thư mục hiện tại/wwwroot
-    string webRootPath = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
-
-    // Đảm bảo thư mục wwwroot tồn tại vật lý
-    if (!Directory.Exists(webRootPath)) 
-    {
-        Directory.CreateDirectory(webRootPath);
-    }
-
-    var result = await _spotService.CreateSpotAsync(request, webRootPath);
-    return Ok(result);
-}
     
     [HttpGet("by-destination/{destinationId}")]
     public async Task<IActionResult> GetByDestination(int destinationId)
@@ -54,24 +30,52 @@ public async Task<IActionResult> Create([FromForm] CreateSpotRequest request)
         });
     }
 
+    [HttpGet("{id}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetById(int id)
+    {
+        var result = await _spotService.GetByIdAsync(id);
+
+        if (result == null)
+            return NotFound(new { message = "Spot not found" });
+
+        return Ok(new { success = true, data = result });
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Create([FromForm] CreateSpotRequest request)
+    {
+        // Lấy đường dẫn, nếu null thì trỏ về thư mục hiện tại/wwwroot
+        string webRootPath = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+
+        // Đảm bảo thư mục wwwroot tồn tại vật lý
+        if (!Directory.Exists(webRootPath)) 
+        {
+            Directory.CreateDirectory(webRootPath);
+        }
+
+        var result = await _spotService.CreateSpotAsync(request, webRootPath);
+        return Ok(result);
+    }
+
     [HttpPut("{id}")]
-public async Task<IActionResult> Update(int id, [FromForm] UpdateSpotRequest request)
-{
-    var result = await _spotService.UpdateSpotAsync(id, request, _env.WebRootPath);
+    public async Task<IActionResult> Update(int id, [FromForm] UpdateSpotRequest request)
+    {
+        var result = await _spotService.UpdateSpotAsync(id, request, _env.WebRootPath);
 
-    if (!result)
-        return NotFound(new { message = "Spot not found" });
+        if (!result)
+            return NotFound(new { message = "Spot not found" });
 
-    return Ok(new { message = "Updated successfully" });
-}
-[HttpDelete("{id}")]
-public async Task<IActionResult> Delete(int id)
-{
-    var result = await _spotService.DeleteSpotAsync(id, _env.WebRootPath);
+        return Ok(new { message = "Updated successfully" });
+    }
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var result = await _spotService.DeleteSpotAsync(id, _env.WebRootPath);
 
-    if (!result)
-        return NotFound(new { message = "Spot not found" });
+        if (!result)
+            return NotFound(new { message = "Spot not found" });
 
-    return Ok(new { message = "Deleted successfully" });
-}
+        return Ok(new { message = "Deleted successfully" });
+    }
 }
