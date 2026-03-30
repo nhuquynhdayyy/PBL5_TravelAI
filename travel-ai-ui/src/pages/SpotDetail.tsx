@@ -89,4 +89,4 @@ const SpotDetail: React.FC = () => {
     );
 };
 
-export default SpotDetail;
+export default SpotDetail; 

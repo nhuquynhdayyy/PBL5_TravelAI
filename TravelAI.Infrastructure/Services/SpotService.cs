@@ -3,7 +3,7 @@ using TravelAI.Application.Interfaces;
 using TravelAI.Application.DTOs.Spot;
 using TravelAI.Domain.Entities;
 using TravelAI.Infrastructure.Persistence;
-
+ 
 namespace TravelAI.Infrastructure.Services;
 
 public class SpotService : ISpotService

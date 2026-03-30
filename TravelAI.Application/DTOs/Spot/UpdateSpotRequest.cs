@@ -11,5 +11,5 @@ public class UpdateSpotRequest
     public int? AvgTimeSpent { get; set; }
     public string? OpeningHours { get; set; }
 
-    public IFormFile? Image { get; set; } // 👈 QUAN TRỌNG
+    public IFormFile? Image { get; set; } 
 }

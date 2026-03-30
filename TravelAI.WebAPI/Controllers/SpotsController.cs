@@ -78,4 +78,4 @@ public class SpotsController : ControllerBase
 
         return Ok(new { message = "Deleted successfully" });
     }
-}
+} 

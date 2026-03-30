@@ -58,4 +58,4 @@ const SpotCard: React.FC<SpotCardProps> = ({ spot, isAdmin, onDelete }) => {
     );
 };
 
-export default SpotCard;
+export default SpotCard; 

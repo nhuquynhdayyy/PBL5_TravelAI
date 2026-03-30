@@ -131,4 +131,4 @@ const EditSpot = () => {
     );
 };
 
-export default EditSpot;
+export default EditSpot; 
