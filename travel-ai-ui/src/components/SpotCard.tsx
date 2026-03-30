@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Edit, Trash2, Clock } from 'lucide-react';
 
 interface SpotCardProps {
@@ -44,6 +44,14 @@ const SpotCard: React.FC<SpotCardProps> = ({ spot, isAdmin, onDelete }) => {
                 <p className="text-slate-500 text-xs line-clamp-2 mb-4">{spot.description}</p>
                 <div className="mt-auto flex items-center text-[10px] font-bold text-slate-400 uppercase">
                      <Clock size={12} className="mr-1"/> {spot.avgTimeSpent || 60} phút
+                </div>
+                <div className="mt-auto">
+                    <Link 
+                        to={`/spots/${spot.id || spot.spotId}`} 
+                        className="block w-full py-2 bg-slate-900 text-white text-center rounded-2xl font-bold text-sm hover:bg-blue-600 transition-all shadow-md active:scale-[0.98]"
+                    >
+                        Khám phá ngay
+                    </Link>
                 </div>
             </div>
         </div>

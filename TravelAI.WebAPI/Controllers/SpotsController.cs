@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using TravelAI.Application.DTOs.Spot;
 using TravelAI.Application.Interfaces;
 
@@ -30,6 +31,7 @@ public class SpotsController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [AllowAnonymous]
     public async Task<IActionResult> GetById(int id)
     {
         var result = await _spotService.GetByIdAsync(id);
