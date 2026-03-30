@@ -9,6 +9,8 @@ import UserPreferences from './pages/Preferences/UserPreferences';
 import DestinationForm from './pages/Admin/DestinationForm'; 
 import EditDestination from './pages/Admin/EditDestination';
 import SpotList from './pages/Destinations/SpotList';
+import SpotForm from './pages/Admin/SpotForm'; 
+import EditSpot from './pages/Admin/EditSpot';
 
 function App() {
   return (
@@ -38,6 +40,8 @@ function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/destinations/:id/spots" element={<MainLayout><SpotList /></MainLayout>} />
+      <Route path="/admin/spots/add" element={<MainLayout><SpotForm /></MainLayout>} />
+      <Route path="/admin/spots/edit/:id" element={<MainLayout><EditSpot /></MainLayout>} />
     </Routes>
   );
 }
