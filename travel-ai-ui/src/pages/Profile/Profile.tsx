@@ -4,24 +4,28 @@ import { User, Mail, Phone, ShieldCheck, LogOut, Edit3, Loader2, Settings2, Save
 import axiosClient from '../../api/axiosClient';
 import MainLayout from '../../layouts/MainLayout';
 
+
 const Profile: React.FC = () => {
   const [profile, setProfile] = useState<any>(null);
   const [userPref, setUserPref] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false); // Trạng thái chỉnh sửa
   const [saving, setSaving] = useState(false);
-  
+ 
   // State cho Form sửa
   const [editData, setEditData] = useState({ fullName: '', phone: '' });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState('');
 
+
   const navigate = useNavigate();
   const API_BASE_URL = 'http://localhost:5134'; // ĐỔI PORT CHO ĐÚNG BACKEND CỦA BẠN (5134 hoặc 7243)
+
 
   useEffect(() => {
     fetchData();
   }, []);
+
 
   const fetchData = async () => {
     try {
@@ -30,16 +34,16 @@ const Profile: React.FC = () => {
         axiosClient.get('/users/me'),
         axiosClient.get('/preferences').catch(() => ({ data: { data: null } }))
       ]);
-      
+     
       const userData = profileRes.data;
       setProfile(userData);
       setEditData({ fullName: userData.fullName, phone: userData.phone || '' });
-      
+     
       // Nếu có avatar trong DB thì hiển thị full URL
       if (userData.avatarUrl) {
         setPreviewUrl(`${API_BASE_URL}${userData.avatarUrl}`);
       }
-      
+     
       setUserPref(prefRes.data.data);
     } catch (err) {
       console.error("Lỗi lấy dữ liệu:", err);
@@ -47,6 +51,7 @@ const Profile: React.FC = () => {
       setLoading(false);
     }
   };
+
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -56,32 +61,65 @@ const Profile: React.FC = () => {
     }
   };
 
+
   const handleUpdate = async () => {
     setSaving(true);
-    const formData = new FormData(); // Bắt buộc dùng FormData để upload file
+    const formData = new FormData();
     formData.append('fullName', editData.fullName);
     formData.append('phone', editData.phone);
     if (selectedFile) formData.append('avatar', selectedFile);
-
+ 
     try {
-      await axiosClient.put('/users/update-profile', formData, {
+      const response = await axiosClient.put('/users/update-profile', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      alert("Cập nhật thành công!");
-      setIsEditing(false);
-      fetchData(); // Load lại dữ liệu mới từ Server
+ 
+      if (response.data.success) {
+        // --- BẮT ĐẦU FIX BUG TẠI ĐÂY ---
+        // 1. Lấy dữ liệu user hiện tại từ localStorage
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+          const userData = JSON.parse(userStr);
+         
+          // 2. Cập nhật các thông tin mới vào object
+          userData.fullName = editData.fullName;
+         
+          // Cập nhật lại đường dẫn ảnh mới nếu có trong phản hồi từ server
+          if (response.data.avatarUrl) {
+             userData.avatarUrl = response.data.avatarUrl;
+          }
+ 
+          // 3. Lưu ngược lại vào localStorage để Header nhận diện được sự thay đổi
+          localStorage.setItem('user', JSON.stringify(userData));
+        }
+        // --- KẾT THÚC FIX BUG ---
+ 
+        alert("Cập nhật thành công!");
+        setIsEditing(false);
+       
+        // Load lại dữ liệu để cập nhật UI tại trang Profile
+        await fetchData();
+ 
+        // (Tùy chọn) Nếu Header không dùng Context/Redux, cách nhanh nhất để Header
+        // cập nhật lại tên là phát một sự kiện storage hoặc reload nhẹ
+        window.dispatchEvent(new Event("storage"));
+        // Hoặc: window.location.reload(); (nếu muốn chắc chắn 100% đồng bộ mọi nơi)
+      }
     } catch (err) {
+      console.error(err);
       alert("Cập nhật thất bại. Vui lòng thử lại.");
     } finally {
       setSaving(false);
     }
   };
 
+
   const handleLogout = () => {
     localStorage.clear();
     navigate('/login');
     window.location.reload();
   };
+
 
   if (loading) return (
     <MainLayout>
@@ -91,12 +129,14 @@ const Profile: React.FC = () => {
     </MainLayout>
   );
 
+
   return (
     <MainLayout>
       <div className="max-w-2xl mx-auto mt-10">
         <div className="bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 mb-10">
           {/* Cover Image */}
           <div className="h-32 bg-gradient-to-r from-blue-600 to-indigo-700"></div>
+
 
           <div className="px-8 pb-8 relative">
             {/* Avatar Section */}
@@ -109,7 +149,7 @@ const Profile: React.FC = () => {
                     <User size={50} />
                   )}
                 </div>
-                
+               
                 {/* Overlay nút Camera khi ở chế độ Edit */}
                 {isEditing && (
                   <label className="absolute inset-1.5 flex items-center justify-center bg-black/40 rounded-2xl cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
@@ -120,11 +160,12 @@ const Profile: React.FC = () => {
               </div>
             </div>
 
+
             {/* User Info Header */}
             <div className="pt-20 sm:pl-32 flex flex-col sm:flex-row justify-between items-start gap-4">
               <div className="flex-grow w-full">
                 {isEditing ? (
-                  <input 
+                  <input
                     className="text-3xl font-black text-slate-900 border-b-2 border-blue-500 outline-none w-full bg-blue-50/30 px-2"
                     value={editData.fullName}
                     onChange={e => setEditData({...editData, fullName: e.target.value})}
@@ -144,18 +185,18 @@ const Profile: React.FC = () => {
                     </span>
                 </div>
               </div>
-              
+             
               <div className="flex gap-2">
                 {isEditing ? (
                   <>
-                    <button 
-                      onClick={handleUpdate} 
+                    <button
+                      onClick={handleUpdate}
                       disabled={saving}
                       className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-2xl font-black text-sm shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95 disabled:bg-slate-300"
                     >
                       {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />} SAVE
                     </button>
-                    <button 
+                    <button
                       onClick={() => { setIsEditing(false); setPreviewUrl(profile.avatarUrl ? `${API_BASE_URL}${profile.avatarUrl}` : ''); }}
                       className="px-4 py-2.5 bg-slate-100 text-slate-500 rounded-2xl font-black text-sm hover:bg-slate-200 transition-all"
                     >
@@ -163,7 +204,7 @@ const Profile: React.FC = () => {
                     </button>
                   </>
                 ) : (
-                  <button 
+                  <button
                     onClick={() => setIsEditing(true)}
                     className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-2xl font-black text-sm shadow-xl hover:bg-black transition-all active:scale-95"
                   >
@@ -172,6 +213,7 @@ const Profile: React.FC = () => {
                 )}
               </div>
             </div>
+
 
             {/* Contact Details */}
             <div className="mt-10 space-y-4">
@@ -183,12 +225,13 @@ const Profile: React.FC = () => {
                 </div>
               </div>
 
+
               <div className="flex items-center gap-5 p-5 rounded-[1.5rem] bg-slate-50 border border-slate-100 transition-all">
                 <div className="p-3 bg-white rounded-xl shadow-sm text-green-500"><Phone size={22} /></div>
                 <div className="flex-grow">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Phone Number</p>
                   {isEditing ? (
-                    <input 
+                    <input
                       className="bg-transparent border-b-2 border-slate-200 outline-none w-full text-slate-700 font-bold focus:border-green-500 transition-colors"
                       value={editData.phone}
                       onChange={e => setEditData({...editData, phone: e.target.value})}
@@ -200,6 +243,7 @@ const Profile: React.FC = () => {
                 </div>
               </div>
             </div>
+
 
             {/* AI Preferences Shortcut */}
             {userPref && (
@@ -219,7 +263,7 @@ const Profile: React.FC = () => {
                             BUDGET: {userPref.budgetLevel === 0 ? "Tiết kiệm" : userPref.budgetLevel === 1 ? "Trung bình" : "Cao"}
                         </div>
                     </div>
-                    <button 
+                    <button
                         onClick={() => navigate('/preferences')}
                         className="mt-5 w-full text-[10px] font-black text-indigo-500 hover:underline"
                     >
@@ -228,7 +272,8 @@ const Profile: React.FC = () => {
                 </div>
             )}
 
-            <button 
+
+            <button
               onClick={handleLogout}
               className="w-full mt-10 flex items-center justify-center gap-2 py-5 bg-red-50 hover:bg-red-100 text-red-600 rounded-[1.5rem] font-black transition-all active:scale-[0.98]"
             >
@@ -240,5 +285,6 @@ const Profile: React.FC = () => {
     </MainLayout>
   );
 };
+
 
 export default Profile;
