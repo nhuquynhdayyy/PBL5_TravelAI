@@ -7,6 +7,7 @@ public class Service {
     public int? SpotId { get; set; }
     public ServiceType ServiceType { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty; 
     public decimal BasePrice { get; set; }
     public double RatingAvg { get; set; }
     public double Latitude { get; set; }
