@@ -56,7 +56,6 @@ import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import Destinations from './pages/Destinations';
 import Profile from './pages/Profile/Profile';
-import DestinationDetail from './pages/DestinationDetail';
 import UserPreferences from './pages/Preferences/UserPreferences';
 import DestinationForm from './pages/Admin/DestinationForm';
 import EditDestination from './pages/Admin/EditDestination';
@@ -65,6 +64,8 @@ import SpotForm from './pages/Admin/SpotForm';
 import EditSpot from './pages/Admin/EditSpot';
 import SpotDetail from './pages/SpotDetail';
 import HomeSearch from './components/HomeSearch'; // ← component mới
+import ServiceList from './pages/Services/ServiceList';
+
 
 function App() {
   return (
@@ -94,7 +95,7 @@ function App() {
           <Destinations />
         </MainLayout>
       } />
-      <Route path="/destinations/:id" element={<MainLayout><DestinationDetail /></MainLayout>} />
+      <Route path="/destinations/:id" element={<MainLayout><SpotList  /></MainLayout>} />
       <Route path="/admin/destinations/add" element={<MainLayout><DestinationForm /></MainLayout>} />
       <Route path="/admin/destinations/edit/:id" element={<MainLayout><EditDestination /></MainLayout>} />
 
@@ -104,6 +105,14 @@ function App() {
       <Route path="/spots/:id" element={<MainLayout><SpotDetail /></MainLayout>} />
       <Route path="/admin/spots/add" element={<MainLayout><SpotForm /></MainLayout>} />
       <Route path="/admin/spots/edit/:id" element={<MainLayout><EditSpot /></MainLayout>} />
+
+      {/* ── SERVICES (Dịch vụ: Khách sạn, Tour) ── */}
+      <Route path="/services" element={
+        <MainLayout>
+          <ServiceList />
+        </MainLayout>
+      } />
+     
 
       {/* ── AUTH & PROFILE ── */}
       <Route path="/preferences" element={<UserPreferences />} />
