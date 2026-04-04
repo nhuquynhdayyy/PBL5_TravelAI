@@ -56,30 +56,4 @@ public class ServicesController : ControllerBase
         if (!success) return BadRequest(new { message = "Không thể cập nhật dịch vụ" });
         return Ok(new { success = true, message = "Cập nhật thành công" });
     }
-
-    [ApiController]
-[Route("api/[controller]")]
-public class ServicesController : ControllerBase {
-    private readonly IServiceService _service;
-    public ServicesController(IServiceService service) => _service = service;
-
-    [HttpGet("public")] // Khách xem
-    public async Task<IActionResult> GetPublic([FromQuery] int? type) 
-        => Ok(await _service.GetPublicServicesAsync(type));
-
-    [HttpGet("my-services")] // Partner quản lý
-    [Authorize(Roles = "Partner")]
-    public async Task<IActionResult> GetPartnerServices() {
-        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-        return Ok(await _service.GetPartnerServicesAsync(userId));
-    }
-
-    [HttpGet("admin-all")] // Admin quản trị
-    [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> AdminGetAll() => Ok(await _service.AdminGetAllServicesAsync());
-
-    [HttpPatch("{id}/toggle")] // Admin Duyệt/Khóa
-    [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> Toggle(int id) => Ok(await _service.ToggleStatusAsync(id));
-}
 }
