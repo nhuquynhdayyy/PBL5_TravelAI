@@ -3,6 +3,7 @@ namespace TravelAI.Application.DTOs.Service;
 public record ServiceDto(
     int ServiceId,
     int PartnerId,
+    string PartnerName,
     string Name,
     string Description,
     decimal BasePrice,
@@ -10,5 +11,6 @@ public record ServiceDto(
     double RatingAvg,
     int? SpotId,
     string? SpotName,
-    List<string> ImageUrls
+    List<string> ImageUrls,
+    bool IsActive
 );
