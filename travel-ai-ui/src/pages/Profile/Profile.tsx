@@ -131,7 +131,6 @@ const Profile: React.FC = () => {
 
 
   return (
-    <MainLayout>
       <div className="max-w-2xl mx-auto mt-10">
         <div className="bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 mb-10">
           {/* Cover Image */}
@@ -282,7 +281,6 @@ const Profile: React.FC = () => {
           </div>
         </div>
       </div>
-    </MainLayout>
   );
 };
 

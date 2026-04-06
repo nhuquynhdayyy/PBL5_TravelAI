@@ -3,10 +3,20 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
-import { Save, ArrowLeft, Upload, Loader2, Hotel, Compass, MapPin, DollarSign, AlignLeft } from 'lucide-react';
+import { 
+    Save, 
+    ArrowLeft, 
+    Upload, 
+    Loader2, 
+    Hotel, 
+    Compass, 
+    MapPin, 
+    DollarSign, 
+    AlignLeft 
+} from 'lucide-react';
 
 const ServiceForm = () => {
-    const { id } = useParams();
+    const { id } = useParams(); // Nếu có ID là đang ở chế độ Sửa
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [fetching, setFetching] = useState(false);
@@ -21,6 +31,7 @@ const ServiceForm = () => {
     const [images, setImages] = useState<FileList | null>(null);
     const [previews, setPreviews] = useState<string[]>([]);
 
+    // 1. Nếu là chế độ Sửa, load dữ liệu cũ lên form
     useEffect(() => {
         if (id) {
             const fetchService = async () => {
@@ -60,19 +71,24 @@ const ServiceForm = () => {
         if (formData.spotId) data.append('SpotId', formData.spotId);
 
         if (images && images.length > 0) {
-            Array.from(images).forEach(file => {
-                data.append('Images', file);
-            });
+            Array.from(images).forEach(file => data.append('Images', file));
         }
 
         try {
+            let targetId = id;
             if (id) {
-                await axiosClient.put(`/services/${id}`, data, { headers: { 'Content-Type': 'multipart/form-data' } });
+                // CẬP NHẬT
+                await axiosClient.put(`/services/${id}`, data);
             } else {
-                await axiosClient.post('/services', data, { headers: { 'Content-Type': 'multipart/form-data' } });
+                // THÊM MỚI
+                const res = await axiosClient.post('/services', data);
+                targetId = res.data.serviceId; // Lấy ID mới tạo từ Backend
             }
-            alert("Lưu dữ liệu thành công!");
-            navigate('/partner/services');
+            alert("Lưu thông tin thành công!");
+            
+            // SAU KHI LƯU: Dẫn Partner vào trang Quản trị chi tiết ngay lập tức
+            navigate(`/partner/services/${targetId}/manage`);
+            
         } catch (err) {
             alert("Lỗi khi lưu dữ liệu. Vui lòng kiểm tra lại!");
         } finally { setLoading(false); }
@@ -81,127 +97,62 @@ const ServiceForm = () => {
     if (fetching) return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
             <Loader2 className="animate-spin text-blue-500" size={48} />
-            <p className="text-slate-400 font-bold">Đang tải dữ liệu dịch vụ...</p>
+            <p className="text-slate-400 font-bold">Đang tải dữ liệu...</p>
         </div>
     );
 
     return (
         <div className="max-w-4xl mx-auto py-10 px-4">
-            {/* Nút quay lại */}
             <div className="mb-8">
-                <button 
-                    onClick={() => navigate(-1)} 
-                    className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold transition-all group"
-                >
-                    <div className="p-2 bg-white rounded-xl shadow-sm group-hover:bg-blue-50 transition-colors">
-                        <ArrowLeft size={20} />
-                    </div>
-                    Quay lại
+                <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold transition-all">
+                    <ArrowLeft size={20} /> Quay lại
                 </button>
             </div>
 
-            <div className="bg-white rounded-[3rem] shadow-2xl shadow-slate-200 border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-700">
-                {/* Header Card */}
-                <div className="bg-slate-900 p-10 text-white relative overflow-hidden">
-                    <div className="relative z-10">
-                        <h2 className="text-4xl font-black tracking-tighter mb-2">
-                            {id ? "Chỉnh sửa dịch vụ" : "Đăng dịch vụ mới"}
-                        </h2>
-                        <p className="text-slate-400 font-medium italic">"Thông tin chính xác giúp dịch vụ của bạn dễ dàng được duyệt hơn"</p>
-                    </div>
-                    <div className="absolute top-0 right-0 p-10 opacity-10">
-                        {formData.serviceType === '0' ? <Hotel size={120}/> : <Compass size={120}/>}
-                    </div>
+            <div className="bg-white rounded-[3rem] shadow-2xl border border-slate-100 overflow-hidden">
+                <div className="bg-slate-900 p-10 text-white text-left">
+                    <h2 className="text-4xl font-black tracking-tighter mb-2">
+                        {id ? "Chỉnh sửa dịch vụ" : "Đăng dịch vụ mới"}
+                    </h2>
+                    <p className="text-slate-400 font-medium italic">Vui lòng điền đầy đủ để AI có thể gợi ý lịch trình chính xác hơn.</p>
                 </div>
 
-                {/* Form Body */}
                 <form onSubmit={handleSubmit} className="p-10 space-y-8 text-left">
-                    {/* Tên dịch vụ */}
                     <div>
-                        <label className="flex items-center gap-2 text-xs font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">
-                            <AlignLeft size={14}/> Tên khách sạn / Tour du lịch
-                        </label>
-                        <input 
-                            className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-blue-500 focus:bg-white transition-all outline-none font-bold text-slate-700" 
-                            value={formData.name} 
-                            placeholder="Ví dụ: Vinpearl Resort & Spa..."
-                            onChange={e => setFormData({...formData, name: e.target.value})} 
-                            required 
-                        />
+                        <label className="flex items-center gap-2 text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Tên khách sạn / Tour du lịch</label>
+                        <input className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-blue-500 outline-none font-bold text-slate-700" 
+                            value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required />
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        {/* Giá tiền */}
                         <div>
-                            <label className="flex items-center gap-2 text-xs font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">
-                                <DollarSign size={14}/> Giá cơ bản (VNĐ)
-                            </label>
-                            <input 
-                                type="number" 
-                                className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-blue-500 focus:bg-white transition-all outline-none font-bold text-slate-700" 
-                                value={formData.basePrice} 
-                                placeholder="0"
-                                onChange={e => setFormData({...formData, basePrice: e.target.value})} 
-                                required 
-                            />
+                            <label className="flex items-center gap-2 text-xs font-black text-slate-400 uppercase mb-3">Giá cơ bản (VNĐ)</label>
+                            <input type="number" className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold" 
+                                value={formData.basePrice} onChange={e => setFormData({...formData, basePrice: e.target.value})} required />
                         </div>
-
-                        {/* Loại hình */}
                         <div>
-                            <label className="flex items-center gap-2 text-xs font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">
-                                Phân loại dịch vụ
-                            </label>
-                            <select 
-                                className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-blue-500 focus:bg-white transition-all outline-none font-black text-blue-600 appearance-none cursor-pointer" 
-                                value={formData.serviceType} 
-                                onChange={e => setFormData({...formData, serviceType: e.target.value})}
-                            >
-                                <option value="0">🏨 KHÁCH SẠN (HOTEL)</option>
+                            <label className="flex items-center gap-2 text-xs font-black text-slate-400 uppercase mb-3">Loại hình</label>
+                            <select className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-blue-600" 
+                                value={formData.serviceType} onChange={e => setFormData({...formData, serviceType: e.target.value})}>
+                                <option value="0">🏨 KHÁCH SẠN</option>
                                 <option value="1">🧭 TOUR DU LỊCH</option>
                             </select>
                         </div>
                     </div>
 
-                    {/* ID Địa danh liên kết */}
                     <div>
-                        <label className="flex items-center gap-2 text-xs font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">
-                            <MapPin size={14}/> Liên kết địa danh (Spot ID)
-                        </label>
-                        <input 
-                            type="number" 
-                            className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-blue-500 focus:bg-white transition-all outline-none font-bold text-slate-700" 
-                            value={formData.spotId} 
-                            placeholder="Nhập ID địa danh (nếu có)..."
-                            onChange={e => setFormData({...formData, spotId: e.target.value})} 
-                        />
+                        <label className="flex items-center gap-2 text-xs font-black text-slate-400 uppercase mb-3">Mô tả chi tiết</label>
+                        <textarea className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-[2rem] h-40 outline-none font-medium text-slate-600" 
+                            value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
                     </div>
 
-                    {/* Mô tả */}
                     <div>
-                        <label className="flex items-center gap-2 text-xs font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">
-                            Mô tả chi tiết dịch vụ
-                        </label>
-                        <textarea 
-                            className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-[2rem] h-40 focus:border-blue-500 focus:bg-white transition-all outline-none font-medium text-slate-600 resize-none" 
-                            value={formData.description} 
-                            placeholder="Giới thiệu về dịch vụ, tiện ích, chính sách..."
-                            onChange={e => setFormData({...formData, description: e.target.value})} 
-                        />
-                    </div>
-
-                    {/* Hình ảnh */}
-                    <div>
-                        <label className="flex items-center gap-2 text-xs font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">
-                            Hình ảnh thực tế
-                        </label>
+                        <label className="flex items-center gap-2 text-xs font-black text-slate-400 uppercase mb-3">Hình ảnh</label>
                         <div className="p-8 border-2 border-dashed border-slate-200 rounded-[2.5rem] bg-slate-50/50">
-                            <div className="flex flex-wrap gap-4 mb-6">
-                                {previews.map((p, i) => (
-                                    <img key={i} src={p} className="h-24 w-32 object-cover rounded-2xl border-4 border-white shadow-md animate-in zoom-in duration-300" />
-                                ))}
-                                <label className="h-24 w-32 flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-2xl hover:border-blue-500 hover:bg-white cursor-pointer transition-all text-slate-400 hover:text-blue-500">
-                                    <Upload size={24} />
-                                    <span className="text-[10px] font-black uppercase mt-1">Thêm ảnh</span>
+                            <div className="flex flex-wrap gap-4 mb-4">
+                                {previews.map((p, i) => <img key={i} src={p} className="h-24 w-32 object-cover rounded-2xl border-4 border-white shadow-md" />)}
+                                <label className="h-24 w-32 flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-2xl hover:border-blue-500 cursor-pointer">
+                                    <Upload size={24} className="text-slate-400" />
                                     <input type="file" multiple className="hidden" onChange={(e) => {
                                         if(e.target.files) {
                                             setImages(e.target.files);
@@ -210,18 +161,11 @@ const ServiceForm = () => {
                                     }} />
                                 </label>
                             </div>
-                            <p className="text-center text-xs text-slate-400 font-medium italic">Cho phép chọn nhiều ảnh cùng lúc. Ảnh đầu tiên sẽ là ảnh đại diện.</p>
                         </div>
                     </div>
 
-                    {/* Nút Submit */}
-                    <button 
-                        type="submit" 
-                        disabled={loading} 
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-[2rem] font-black text-xl shadow-2xl shadow-blue-200 transition-all active:scale-[0.98] flex items-center justify-center gap-3"
-                    >
-                        {loading ? <Loader2 className="animate-spin" /> : <Save />}
-                        {id ? "CẬP NHẬT THAY ĐỔI" : "LƯU VÀ ĐĂNG BÀI"}
+                    <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white py-5 rounded-[2rem] font-black text-xl shadow-xl flex items-center justify-center gap-3">
+                        {loading ? <Loader2 className="animate-spin" /> : <Save />} {id ? "CẬP NHẬT DỊCH VỤ" : "LƯU VÀ TIẾP TỤC"}
                     </button>
                 </form>
             </div>

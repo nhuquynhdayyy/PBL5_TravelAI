@@ -1,10 +1,11 @@
 // src/components/layout/Header.tsx
 
 import React, { useState, useEffect } from 'react';
-import { Menu, X, Plane, Search, LogOut, LayoutDashboard, Store, User } from 'lucide-react';
+import { Menu, X, Plane, Search, LogOut, LayoutDashboard, Store, User, ChevronDown, Hotel, Compass } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 
 const Header: React.FC = () => {
+  const [isServicesOpen, setIsServicesOpen] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const navigate = useNavigate();
@@ -32,121 +33,102 @@ const Header: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center">
           
-          {/* Logo - Đối với Partner nhấn vào logo sẽ về trang quản lý của họ */}
+          {/* LOGO */}
           <Link to={role === 'partner' ? "/partner/services" : "/"} className="flex items-center gap-2 cursor-pointer group">
             <div className="bg-blue-500 p-1.5 rounded-lg group-hover:rotate-12 transition-transform">
-              <Plane className="text-white size-6" />
+                <Plane className="text-white size-6" />
             </div>
             <span className="text-xl font-extrabold tracking-tight text-slate-900">
-              Travel<span className="text-blue-500">AI</span>
+                Travel<span className="text-blue-500">AI</span>
             </span>
           </Link>
 
-          {/* Navigation Menu */}
+          {/* DESKTOP MENU */}
           <nav className="hidden md:flex space-x-8 items-center">
-            
-            {/* CHỈ HIỆN CÁC LINK NÀY NẾU KHÔNG PHẢI LÀ PARTNER */}
             {role !== 'partner' && (
               <>
-                <Link to="/" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-colors">Home</Link>
-                <Link to="/destinations" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-colors">Destinations</Link>
-                <Link to="/services" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-colors">Services</Link>
-                <Link to="/planner" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-colors">Itinerary</Link>
+                <Link to="/" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all">Home</Link>
+                <Link to="/destinations" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all">Destinations</Link>
+                
+                {/* DROPDOWN SERVICES */}
+                <div 
+                    className="relative py-2"
+                    onMouseEnter={() => setIsServicesOpen(true)}
+                    onMouseLeave={() => setIsServicesOpen(false)}
+                >
+                    <button className="flex items-center gap-1 text-slate-600 hover:text-blue-500 font-medium text-sm transition-all outline-none">
+                        Services <ChevronDown size={14} className={`transition-transform duration-300 ${isServicesOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {isServicesOpen && (
+                        <div className="absolute top-full left-0 w-60 bg-white rounded-3xl shadow-2xl border border-slate-50 p-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                            <Link to="/hotels" className="flex items-center gap-3 p-3 hover:bg-blue-50 rounded-2xl transition-all group/item">
+                                <div className="p-2 bg-blue-100 text-blue-600 rounded-xl group-hover/item:bg-blue-600 group-hover/item:text-white transition-colors">
+                                    <Hotel size={20} />
+                                </div>
+                                <div className="text-left">
+                                    <p className="text-sm font-black text-slate-800">Khách sạn</p>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Tìm chỗ ở ưng ý</p>
+                                </div>
+                            </Link>
+                            <Link to="/tours" className="flex items-center gap-3 p-3 hover:bg-emerald-50 rounded-2xl transition-all group/item mt-1">
+                                <div className="p-2 bg-emerald-100 text-emerald-600 rounded-xl group-hover/item:bg-emerald-600 group-hover/item:text-white transition-colors">
+                                    <Compass size={20} />
+                                </div>
+                                <div className="text-left">
+                                    <p className="text-sm font-black text-slate-800">Tour du lịch</p>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Trải nghiệm thú vị</p>
+                                </div>
+                            </Link>
+                        </div>
+                    )}
+                </div>
+
+                <Link to="/planner" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all">Itinerary</Link>
               </>
             )}
 
-            {/* PARTNER CHỈ THẤY MY SERVICES */}
+            {/* PARTNER MENU */}
             {role === 'partner' && (
-              <Link 
-                to="/partner/services" 
-                className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest"
-              >
+              <Link to="/partner/services" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
                 <Store size={14} /> MY SERVICES
               </Link>
             )}
 
-            {/* ADMIN CHỈ THẤY QUẢN TRỊ VIÊN */}
+            {/* ADMIN MENU */}
             {role === 'admin' && (
-              <Link 
-                to="/admin/services" 
-                className="flex items-center gap-2 px-6 py-2.5 bg-slate-900 text-white rounded-full font-black text-xs hover:bg-black transition-all shadow-lg shadow-slate-200 uppercase tracking-widest"
-              >
+              <Link to="/admin/services" className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl font-black text-xs hover:bg-red-700 transition-all uppercase">
                 <LayoutDashboard size={14} /> QUẢN TRỊ VIÊN
               </Link>
             )}
           </nav>
 
-          {/* User Actions */}
+          {/* USER ACTIONS */}
           <div className="hidden md:flex items-center gap-3">
-            <Search className="size-5 text-slate-500 cursor-pointer hover:text-blue-500 transition-colors" />
-            <div className="h-6 w-px bg-slate-200 mx-1"></div>
-           
             {user ? (
                 <div className="flex items-center gap-4">
                     <div className="flex flex-col items-end">
-                      <Link to="/profile" className="text-sm font-black text-slate-900 hover:text-blue-600 transition-all">
-                        {user.fullName}
+                      <Link to="/profile" className="text-sm font-black text-slate-900 hover:text-blue-600 transition-all flex items-center gap-1">
+                        {user.fullName} <User size={14} className="text-blue-500" />
                       </Link>
-                      {role === 'customer' && (
-                        <Link to="/preferences" className="text-[10px] text-blue-500 hover:underline font-bold uppercase tracking-tighter">
-                          AI Preferences
-                        </Link>
-                      )}
                     </div>
-                    
-                    <button
-                      onClick={handleLogout}
-                      className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors"
-                      title="Logout"
-                    >
+                    <button onClick={handleLogout} className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors">
                       <LogOut size={20} />
                     </button>
                 </div>
             ) : (
               <div className="flex items-center gap-2">
                 <button onClick={() => navigate('/login')} className="px-5 py-2 text-slate-700 font-bold text-sm hover:text-blue-500">Login</button>
-                <button onClick={() => navigate('/register')} className="flex items-center px-6 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-200 transition-all active:scale-95">
-                  Register
-                </button>
+                <button onClick={() => navigate('/register')} className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-200 transition-all active:scale-95">Register</button>
               </div>
             )}
           </div>
 
-          {/* Mobile Menu Button */}
-          <button onClick={() => setIsOpen(!isOpen)} className="md:hidden text-slate-600">
+          <button onClick={() => setIsOpen(!isOpen)} className="md:hidden text-slate-600 p-2">
             {isOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
       </div>
-
-      {/* Mobile Sidebar */}
-      {isOpen && (
-        <div className="md:hidden bg-white border-t border-slate-100 py-6 px-4 space-y-4 shadow-2xl animate-in slide-in-from-top duration-300">
-           {role !== 'partner' && (
-             <>
-                <Link to="/" className="block text-slate-600 font-bold py-2">Home</Link>
-                <Link to="/destinations" className="block text-slate-600 font-bold py-2">Destinations</Link>
-                <Link to="/services" className="block text-slate-600 font-bold py-2">Services</Link>
-             </>
-           )}
-           
-           {role === 'partner' && (
-             <Link to="/partner/services" className="block text-blue-600 font-black py-2">My Services</Link>
-           )}
-
-           {role === 'admin' && (
-             <Link to="/admin/services" className="block text-red-600 font-black py-2">Quản Trị Hệ Thống</Link>
-           )}
-
-           <Link to="/profile" className="block text-slate-900 font-black py-2 border-t pt-4">Trang cá nhân</Link>
-           
-           {user && (
-             <button onClick={handleLogout} className="w-full mt-4 py-4 bg-red-50 text-red-600 font-bold rounded-2xl flex items-center justify-center gap-2">
-               <LogOut size={18} /> Đăng xuất
-             </button>
-           )}
-        </div>
-      )}
     </header>
   );
 };
