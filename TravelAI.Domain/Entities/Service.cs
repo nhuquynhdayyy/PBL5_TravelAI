@@ -13,6 +13,8 @@ public class Service {
     public double Latitude { get; set; }
     public double Longitude { get; set; }
 
+    public bool IsActive { get; set; } = false; 
+    
     public User Partner { get; set; } = null!;
     public TouristSpot? TouristSpot { get; set; }
     public ICollection<ServiceAttribute> Attributes { get; set; } = new List<ServiceAttribute>();

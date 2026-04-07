@@ -50,6 +50,8 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddScoped<TravelAI.Infrastructure.Services.UserService>();
 builder.Services.AddScoped<ISpotService, SpotService>();
 builder.Services.AddScoped<IServiceService, ServiceService>();
+builder.Services.AddScoped<IAvailabilityService, AvailabilityService>();
+builder.Services.AddScoped<IBookingService, BookingService>();
 
 var app = builder.Build();
 

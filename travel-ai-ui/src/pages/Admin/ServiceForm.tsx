@@ -1,21 +1,37 @@
+// src/pages/Admin/ServiceForm.tsx
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
-import MainLayout from '../../layouts/MainLayout';
-import { Save, ArrowLeft, Upload, Hotel, Compass, DollarSign, AlignLeft, Image as ImageIcon, Loader2, MapPin } from 'lucide-react';
+import { 
+    Save, 
+    ArrowLeft, 
+    Upload, 
+    Loader2, 
+    Hotel, 
+    Compass, 
+    MapPin, 
+    DollarSign, 
+    AlignLeft 
+} from 'lucide-react';
 
 const ServiceForm = () => {
-    const { id } = useParams();
+    const { id } = useParams(); // Nếu có ID là đang ở chế độ Sửa
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [fetching, setFetching] = useState(false);
     
     const [formData, setFormData] = useState({
-        name: '', description: '', basePrice: '', serviceType: '0', spotId: '', latitude: '0', longitude: '0'
+        name: '', 
+        description: '', 
+        basePrice: '', 
+        serviceType: '0', 
+        spotId: ''
     });
     const [images, setImages] = useState<FileList | null>(null);
     const [previews, setPreviews] = useState<string[]>([]);
 
+    // 1. Nếu là chế độ Sửa, load dữ liệu cũ lên form
     useEffect(() => {
         if (id) {
             const fetchService = async () => {
@@ -24,18 +40,16 @@ const ServiceForm = () => {
                     const res = await axiosClient.get(`/services/${id}`);
                     const data = res.data;
                     setFormData({
-                        name: data.name,
+                        name: data.name || '',
                         description: data.description || '',
-                        basePrice: data.basePrice.toString(),
+                        basePrice: data.basePrice?.toString() || '',
                         serviceType: data.serviceType === "Hotel" ? "0" : "1",
-                        spotId: data.spotId?.toString() || '',
-                        latitude: '0',
-                        longitude: '0'
+                        spotId: data.spotId?.toString() || ''
                     });
                     if (data.imageUrls) {
                         setPreviews(data.imageUrls.map((u: string) => `http://localhost:5134${u}`));
                     }
-                } catch (err) { alert("Lỗi tải dữ liệu"); }
+                } catch (err) { console.error(err); }
                 finally { setFetching(false); }
             };
             fetchService();
@@ -47,13 +61,12 @@ const ServiceForm = () => {
         setLoading(true);
 
         const data = new FormData();
-        // PHẢI VIẾT HOA CHỮ ĐẦU ĐỂ KHỚP VỚI C# DTO
         data.append('Name', formData.name);
-        data.append('Description', formData.description);
+        data.append('Description', formData.description || '');
         data.append('BasePrice', formData.basePrice);
-        data.append('ServiceType', formData.serviceType); // Gửi "0" hoặc "1"
-        data.append('Latitude', formData.latitude);
-        data.append('Longitude', formData.longitude);
+        data.append('ServiceType', formData.serviceType); 
+        data.append('Latitude', '0');
+        data.append('Longitude', '0');
         
         if (formData.spotId) data.append('SpotId', formData.spotId);
 
@@ -62,102 +75,101 @@ const ServiceForm = () => {
         }
 
         try {
+            let targetId = id;
             if (id) {
-                // Sử dụng PUT để cập nhật
-                await axiosClient.put(`/services/${id}`, data, {
-                    headers: { 'Content-Type': 'multipart/form-data' }
-                });
-                alert("Cập nhật thành công!");
+                // CẬP NHẬT
+                await axiosClient.put(`/services/${id}`, data);
             } else {
-                await axiosClient.post('/services', data, {
-                    headers: { 'Content-Type': 'multipart/form-data' }
-                });
-                alert("Thêm mới thành công!");
+                // THÊM MỚI
+                const res = await axiosClient.post('/services', data);
+                targetId = res.data.serviceId; // Lấy ID mới tạo từ Backend
             }
-            navigate('/services');
-        } catch (err: any) {
-            console.error(err.response?.data);
-            alert("Lỗi khi lưu: " + (err.response?.data?.message || "Kiểm tra lại dữ liệu nhập vào"));
+            alert("Lưu thông tin thành công!");
+            
+            // SAU KHI LƯU: Dẫn Partner vào trang Quản trị chi tiết ngay lập tức
+            navigate(`/partner/services/${targetId}/manage`);
+            
+        } catch (err) {
+            alert("Lỗi khi lưu dữ liệu. Vui lòng kiểm tra lại!");
         } finally { setLoading(false); }
     };
 
-    if (fetching) return <div className="flex justify-center p-20"><Loader2 className="animate-spin text-blue-500" /></div>;
+    if (fetching) return (
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+            <Loader2 className="animate-spin text-blue-500" size={48} />
+            <p className="text-slate-400 font-bold">Đang tải dữ liệu...</p>
+        </div>
+    );
 
     return (
-        <MainLayout>
-            <div className="max-w-4xl mx-auto mb-20">
-                <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-slate-400 hover:text-blue-600 mb-8 font-bold">
+        <div className="max-w-4xl mx-auto py-10 px-4">
+            <div className="mb-8">
+                <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold transition-all">
                     <ArrowLeft size={20} /> Quay lại
                 </button>
-                
-                <div className="bg-white rounded-[3rem] shadow-2xl border border-slate-50 overflow-hidden">
-                    <div className="bg-slate-900 p-10 text-white">
-                        <h2 className="text-3xl font-black">{id ? "Chỉnh sửa dịch vụ" : "Thêm dịch vụ mới"}</h2>
+            </div>
+
+            <div className="bg-white rounded-[3rem] shadow-2xl border border-slate-100 overflow-hidden">
+                <div className="bg-slate-900 p-10 text-white text-left">
+                    <h2 className="text-4xl font-black tracking-tighter mb-2">
+                        {id ? "Chỉnh sửa dịch vụ" : "Đăng dịch vụ mới"}
+                    </h2>
+                    <p className="text-slate-400 font-medium italic">Vui lòng điền đầy đủ để AI có thể gợi ý lịch trình chính xác hơn.</p>
+                </div>
+
+                <form onSubmit={handleSubmit} className="p-10 space-y-8 text-left">
+                    <div>
+                        <label className="flex items-center gap-2 text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Tên khách sạn / Tour du lịch</label>
+                        <input className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-blue-500 outline-none font-bold text-slate-700" 
+                            value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required />
                     </div>
 
-                    <form onSubmit={handleSubmit} className="p-10 space-y-8 text-left">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                            <div className="md:col-span-2">
-                                <label className="block text-xs font-black text-slate-400 uppercase mb-3">Tên dịch vụ</label>
-                                <input className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold" 
-                                    value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-black text-slate-400 uppercase mb-3">Loại hình</label>
-                                <select className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-blue-600" 
-                                    value={formData.serviceType} onChange={e => setFormData({...formData, serviceType: e.target.value})}>
-                                    <option value="0">🏨 Khách sạn</option>
-                                    <option value="1">🧭 Tour du lịch</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div>
-                                <label className="block text-xs font-black text-slate-400 uppercase mb-3">Giá cơ bản (VNĐ)</label>
-                                <input type="number" className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold" 
-                                    value={formData.basePrice} onChange={e => setFormData({...formData, basePrice: e.target.value})} required />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-black text-slate-400 uppercase mb-3"><MapPin size={14} className="inline mr-1"/> ID Địa danh liên kết</label>
-                                <input type="number" className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold" 
-                                    value={formData.spotId} placeholder="Ví dụ: 5"
-                                    onChange={e => setFormData({...formData, spotId: e.target.value})} />
-                            </div>
-                        </div>
-
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div>
-                            <label className="block text-xs font-black text-slate-400 uppercase mb-3">Mô tả</label>
-                            <textarea className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-3xl h-32 resize-none" 
-                                value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
+                            <label className="flex items-center gap-2 text-xs font-black text-slate-400 uppercase mb-3">Giá cơ bản (VNĐ)</label>
+                            <input type="number" className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold" 
+                                value={formData.basePrice} onChange={e => setFormData({...formData, basePrice: e.target.value})} required />
                         </div>
-
                         <div>
-                            <label className="block text-xs font-black text-slate-400 uppercase mb-3">Hình ảnh</label>
-                            <div className="p-6 border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50">
-                                <div className="flex flex-wrap gap-4 mb-4">
-                                    {previews.map((url, i) => <img key={i} src={url} className="h-20 w-28 object-cover rounded-xl border-2 border-white shadow-sm" />)}
-                                    <label className="h-20 w-28 flex items-center justify-center border-2 border-dashed border-slate-300 rounded-xl hover:bg-white cursor-pointer">
-                                        <Upload size={20} className="text-slate-400" />
-                                        <input type="file" multiple className="hidden" onChange={(e) => {
-                                            if (e.target.files) {
-                                                setImages(e.target.files);
-                                                setPreviews(Array.from(e.target.files).map(f => URL.createObjectURL(f)));
-                                            }
-                                        }} accept="image/*" />
-                                    </label>
-                                </div>
+                            <label className="flex items-center gap-2 text-xs font-black text-slate-400 uppercase mb-3">Loại hình</label>
+                            <select className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-blue-600" 
+                                value={formData.serviceType} onChange={e => setFormData({...formData, serviceType: e.target.value})}>
+                                <option value="0">🏨 KHÁCH SẠN</option>
+                                <option value="1">🧭 TOUR DU LỊCH</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="flex items-center gap-2 text-xs font-black text-slate-400 uppercase mb-3">Mô tả chi tiết</label>
+                        <textarea className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-[2rem] h-40 outline-none font-medium text-slate-600" 
+                            value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
+                    </div>
+
+                    <div>
+                        <label className="flex items-center gap-2 text-xs font-black text-slate-400 uppercase mb-3">Hình ảnh</label>
+                        <div className="p-8 border-2 border-dashed border-slate-200 rounded-[2.5rem] bg-slate-50/50">
+                            <div className="flex flex-wrap gap-4 mb-4">
+                                {previews.map((p, i) => <img key={i} src={p} className="h-24 w-32 object-cover rounded-2xl border-4 border-white shadow-md" />)}
+                                <label className="h-24 w-32 flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-2xl hover:border-blue-500 cursor-pointer">
+                                    <Upload size={24} className="text-slate-400" />
+                                    <input type="file" multiple className="hidden" onChange={(e) => {
+                                        if(e.target.files) {
+                                            setImages(e.target.files);
+                                            setPreviews(Array.from(e.target.files).map(f => URL.createObjectURL(f)));
+                                        }
+                                    }} />
+                                </label>
                             </div>
                         </div>
+                    </div>
 
-                        <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white py-5 rounded-[2rem] font-black text-lg flex items-center justify-center gap-3">
-                            {loading ? <Loader2 className="animate-spin" /> : <Save />}
-                            {id ? "LƯU THAY ĐỔI" : "TẠO DỊCH VỤ"}
-                        </button>
-                    </form>
-                </div>
+                    <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white py-5 rounded-[2rem] font-black text-xl shadow-xl flex items-center justify-center gap-3">
+                        {loading ? <Loader2 className="animate-spin" /> : <Save />} {id ? "CẬP NHẬT DỊCH VỤ" : "LƯU VÀ TIẾP TỤC"}
+                    </button>
+                </form>
             </div>
-        </MainLayout>
+        </div>
     );
 };
 
