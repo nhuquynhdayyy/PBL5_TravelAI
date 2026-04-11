@@ -15,11 +15,11 @@ using TravelAI.Application.Services.AI;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --- 1. Cấu hình SQL SERVER & DB CONTEXT (GIỮ LẠI) ---
+// --- 1. Cấu hình SQL SERVER & DB CONTEXT ---
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// --- 2. Cấu hình JWT AUTHENTICATION (THÊM MỚI) ---
+// --- 2. Cấu hình JWT AUTHENTICATION ---
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options => {
         options.TokenValidationParameters = new TokenValidationParameters {
@@ -33,12 +33,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-// --- 3. ĐĂNG KÝ SERVICES (THÊM MỚI) ---
+// --- 3. ĐĂNG KÝ SERVICES ---
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 builder.Services.AddScoped<IDestinationService, DestinationService>();
 builder.Services.AddScoped<IPreferenceService, PreferenceService>();
 builder.Services.AddScoped<AuthService>();
-// --- 4. Cấu hình CORS (CẬP NHẬT) ---
+// --- 4. Cấu hình CORS ---
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReactApp",
@@ -64,7 +64,7 @@ builder.Services.AddScoped<PromptBuilder>();
 
 var app = builder.Build();
 
-// --- 5. Cấu hình Pipeline (GIỮ LẠI & SẮP XẾP) ---
+// --- 5. Cấu hình Pipeline ---
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();

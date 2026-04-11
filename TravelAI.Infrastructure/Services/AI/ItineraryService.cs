@@ -23,9 +23,15 @@ public class ItineraryService : IItineraryService
 
     public async Task<ItineraryResponseDto?> GenerateAndLogItineraryAsync(int userId, GenerateItineraryRequest request)
     {
+        // 1. Lấy sở thích (nếu chưa có thì dùng mặc định)
         var pref = await _db.UserPreferences.FirstOrDefaultAsync(u => u.UserId == userId)
-                ?? new UserPreference { TravelStyle = "Khám phá", BudgetLevel = Domain.Enums.BudgetLevel.Medium };
+                ?? new UserPreference { 
+                    TravelStyle = "Khám phá tổng hợp", 
+                    BudgetLevel = Domain.Enums.BudgetLevel.Medium,
+                    TravelPace = Domain.Enums.TravelPace.Balanced 
+                };
 
+        // 2. Lấy dữ liệu Điểm đến và các Địa danh liên quan
         var dest = await _db.Destinations.FindAsync(request.DestinationId);
         if (dest == null) return null;
 
@@ -34,39 +40,20 @@ public class ItineraryService : IItineraryService
             .Where(s => s.DestinationId == request.DestinationId)
             .ToListAsync();
 
+        // 3. Xây dựng câu lệnh (Prompt) và gọi AI qua Groq/Gemini
         var prompt = new PromptBuilder().Build(pref, dest, spots, request.NumberOfDays);
-        
         var rawAiResponse = await _gemini.CallApiAsync(prompt);
 
+        // 4. Lưu Nhật ký (Log) vào Database
         _db.AISuggestionLogs.Add(new AISuggestionLog {
-            UserId = userId, UserPrompt = prompt, AiResponseJson = rawAiResponse, CreatedAt = DateTime.UtcNow
+            UserId = userId, 
+            UserPrompt = prompt, 
+            AiResponseJson = rawAiResponse, 
+            CreatedAt = DateTime.UtcNow
         });
         await _db.SaveChangesAsync();
 
-        string cleanedJson = rawAiResponse;
-        if (rawAiResponse.Contains("```json"))
-        {
-            cleanedJson = rawAiResponse.Split("```json")[1].Split("```")[0].Trim();
-        }
-        else if (rawAiResponse.Contains("```"))
-        {
-            cleanedJson = rawAiResponse.Split("```")[1].Split("```")[0].Trim();
-        }
-
-        return _parser.Parse(cleanedJson);
-    }
-
-    private string CleanAiResponse(string raw)
-    {
-        if (string.IsNullOrWhiteSpace(raw)) return "{}";
-        if (raw.Contains("```json"))
-        {
-            return raw.Split("```json")[1].Split("```")[0].Trim();
-        }
-        if (raw.Contains("```"))
-        {
-            return raw.Split("```")[1].Split("```")[0].Trim();
-        }
-        return raw.Trim();
+        // 5. Gửi chuỗi thô sang bộ Parser để làm sạch và bóc tách
+        return _parser.ParseAndValidate(rawAiResponse);
     }
 }
