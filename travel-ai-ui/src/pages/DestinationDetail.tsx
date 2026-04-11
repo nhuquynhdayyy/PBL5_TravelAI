@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { MapPin, Clock, Info, ArrowLeft, Settings2, Sparkles, Plus, Search, Filter, ChevronDown, Compass } from 'lucide-react';
+import { MapPin, Clock, Info, ArrowLeft, Settings2, Sparkles, Loader2, Plus, Search, Filter, ChevronDown, Compass } from 'lucide-react';
 import axiosClient from '../api/axiosClient';
 import SpotCard from '../components/SpotCard';
+import AIItineraryResult from '../components/AIItineraryResult';
 
 const DestinationDetail: React.FC = () => {
     const { id } = useParams();
@@ -22,6 +23,44 @@ const DestinationDetail: React.FC = () => {
     const [filterDestId, setFilterDestId] = useState<string>('all');
     const [isFilterOpen, setIsFilterOpen] = useState(false);
 
+    const [currentPage, setCurrentPage] = useState<number>(1);
+
+    const [aiLoading, setAiLoading] = useState(false);
+    const [aiResult, setAiResult] = useState<any>(null);
+
+    const handleGenerateAI = async () => {
+        try {
+            setAiLoading(true);
+            setAiResult(null); 
+
+            const response = await axiosClient.post('/itinerary/generate', {
+                destinationId: parseInt(id || '0'),
+                numberOfDays: 3
+            });
+
+            console.log("Toàn bộ Response từ Axios:", response);
+            console.log("Data thực sự:", response.data);
+
+            const finalData = response.data.data || response.data;
+
+            if (finalData) {
+                setAiResult(finalData); 
+                
+                setTimeout(() => {
+                    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+                }, 200);
+            } else {
+                alert("API trả về thành công nhưng data bị rỗng!");
+            }
+
+        } catch (error: any) {
+            console.error("AI Error:", error);
+            alert(error.response?.data?.message || "AI hiện đang bận. Thử lại sau nhé!");
+        } finally {
+            setAiLoading(false);
+        }
+    };
+
     const getImageUrl = (url: string) => {
         if (!url) return 'https://via.placeholder.com/800x400';
         return url.startsWith('http') ? url : `http://localhost:5134${url}`;
@@ -30,12 +69,9 @@ const DestinationDetail: React.FC = () => {
     const fetchData = async () => {
         try {
             setLoading(true);
-            const [destRes, spotsRes, allDestsRes] = await Promise.all([
-                axiosClient.get(`/destinations/${id}`),
-                axiosClient.get(`/spots/by-destination/${id}`),
-                axiosClient.get(`/destinations`)
-            ]);
-            setDest(destRes.data.data);
+            const allDestsRes = await axiosClient.get('/destinations');
+            setDest(allDestsRes.data.data.find((d: any) => d.id === parseInt(id || '0')));
+            const spotsRes = await axiosClient.get(`/spots/by-destination/${id}`);
             setSpots(spotsRes.data.data);
             setAllDestinations(allDestsRes.data.data || []);
         } catch (error) {
@@ -51,24 +87,22 @@ const DestinationDetail: React.FC = () => {
 
     // Filter spots khi chọn destination khác
     useEffect(() => {
-        if (filterDestId !== 'all' && filterDestId !== id) {
-            axiosClient.get(`/spots/by-destination/${filterDestId}`)
-                .then(res => setSpots(res.data.data))
-                .catch(console.error);
-        } else if (filterDestId === 'all') {
-            axiosClient.get(`/spots`)
-                .then(res => setSpots(res.data.data))
-                .catch(() => {
-                    // Fallback: reload spots của destination hiện tại
-                    axiosClient.get(`/spots/by-destination/${id}`)
-                        .then(res => setSpots(res.data.data));
-                });
+        // Reset trang về 1 khi đổi bộ lọc
+        setCurrentPage(1);
+
+        if (filterDestId !== "all" && filterDestId !== id) {
+            // Trường hợp lọc theo tỉnh khác
+            axiosClient
+            .get(`/spots/by-destination/${filterDestId}`)
+            .then((res) => setSpots(res.data.data))
+            .catch(console.error);
         } else {
-            axiosClient.get(`/spots/by-destination/${id}`)
-                .then(res => setSpots(res.data.data))
-                .catch(console.error);
+            axiosClient
+            .get(`/spots/by-destination/${id}`)
+            .then((res) => setSpots(res.data.data))
+            .catch(console.error);
         }
-    }, [filterDestId]);
+        }, [filterDestId, id]);
 
     // Filter spots theo search query
     const filteredSpots = useMemo(() => {
@@ -276,7 +310,7 @@ const DestinationDetail: React.FC = () => {
                         {/* ====== NÚT TÌM HIỂU THÊM ====== */}
                         <div className="mt-10">
                             <button
-                                onClick={() => navigate('/destinations/${id}/spots')}
+                                onClick={() => navigate(`/destinations/${id}/spots`)}
                                 className="group w-full flex items-center justify-center gap-3 py-5 px-8 bg-gradient-to-r from-indigo-500 via-blue-500 to-cyan-500 hover:from-indigo-600 hover:via-blue-600 hover:to-cyan-600 text-white rounded-3xl font-black text-base shadow-xl shadow-blue-200 transition-all active:scale-[0.98] hover:shadow-2xl hover:shadow-blue-300"
                             >
                                 <Compass size={22} className="group-hover:rotate-45 transition-transform duration-300" />
@@ -285,6 +319,7 @@ const DestinationDetail: React.FC = () => {
                             </button>
                         </div>
                     </section>
+                    {aiResult && <AIItineraryResult data={aiResult} />}
                 </div>
 
                 {/* Sidebar */}
@@ -295,8 +330,16 @@ const DestinationDetail: React.FC = () => {
                         <p className="text-slate-400 text-sm mb-8 leading-relaxed relative z-10">
                             Để AI thiết kế lịch trình tối ưu nhất cho chuyến đi {dest.name} của bạn.
                         </p>
-                        <button className="w-full py-4 bg-blue-500 hover:bg-blue-600 text-white rounded-2xl font-black shadow-lg shadow-blue-500/30 transition-all flex items-center justify-center gap-2 relative z-10">
-                            Bắt đầu ngay
+                        <button 
+                            onClick={handleGenerateAI}
+                            disabled={aiLoading}
+                            className="w-full py-4 bg-blue-500 hover:bg-blue-600 text-white rounded-2xl font-black shadow-lg shadow-blue-500/30 transition-all flex items-center justify-center gap-2 relative z-10 active:scale-95 disabled:bg-slate-400"
+                        >
+                            {aiLoading ? (
+                                <><Loader2 className="animate-spin" size={20} /> ĐANG PHÂN TÍCH...</>
+                            ) : (
+                                <>BẮT ĐẦU NGAY</>
+                            )}
                         </button>
                     </div>
 
@@ -320,7 +363,7 @@ const DestinationDetail: React.FC = () => {
                                 ))}
                         </div>
                         <button
-                            onClick={() => navigate('destinations/${id}/spots')}
+                            onClick={() => navigate(`/destinations/${id}/spots`)}
                             className="mt-4 w-full py-2.5 border-2 border-slate-200 hover:border-blue-400 hover:text-blue-600 text-slate-600 rounded-xl font-bold text-sm transition-all"
                         >
                             Xem tất cả địa danh

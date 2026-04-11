@@ -2,66 +2,53 @@ using System.Text.Json.Serialization;
 
 namespace TravelAI.Application.DTOs.AI;
 
-// 1. Class cao nhất: Toàn bộ lịch trình
-public class ItineraryResponseDto
-{
+public class ItineraryResponseDto {
+    [JsonPropertyName("tripTitle")]
+    public string TripTitle { get; set; } = "";
+
     [JsonPropertyName("trip_title")]
-    public string TripTitle { get; set; } = string.Empty;
+    public string TripTitleAlias { get => TripTitle; set => TripTitle = value; }
 
     [JsonPropertyName("destination")]
-    public string Destination { get; set; } = string.Empty;
+    public string Destination { get; set; } = "";
 
-    [JsonPropertyName("total_estimated_cost")]
+    [JsonPropertyName("totalEstimatedCost")]
     public decimal TotalEstimatedCost { get; set; }
 
-    [JsonPropertyName("currency")]
-    public string Currency { get; set; } = "VND";
+    [JsonPropertyName("total_estimated_cost")]
+    public decimal TotalEstimatedCostAlias { get => TotalEstimatedCost; set => TotalEstimatedCost = value; }
 
     [JsonPropertyName("days")]
-    public List<DayDto> Days { get; set; } = new();
+    public List<DayPlanDto> Days { get; set; } = new();
 }
 
-// 2. Class cho từng ngày
-public class DayDto
-{
+public class DayPlanDto {
     [JsonPropertyName("day")]
-    public int DayNumber { get; set; }
+    public int Day { get; set; }
 
     [JsonPropertyName("daily_cost")]
     public decimal DailyCost { get; set; }
 
     [JsonPropertyName("activities")]
-    public ActivitiesDto Activities { get; set; } = new();
+    public List<ActivityDto> Activities { get; set; } = new();
 }
 
-// 3. Khối hoạt động Sáng - Chiều - Tối
-public class ActivitiesDto
-{
-    [JsonPropertyName("morning")]
-    public List<ActivityItemDto> Morning { get; set; } = new();
-
-    [JsonPropertyName("afternoon")]
-    public List<ActivityItemDto> Afternoon { get; set; } = new();
-
-    [JsonPropertyName("evening")]
-    public List<ActivityItemDto> Evening { get; set; } = new();
-}
-
-// 4. Chi tiết từng hoạt động
-public class ActivityItemDto
-{
+public class ActivityDto {
     [JsonPropertyName("title")]
-    public string Title { get; set; } = string.Empty;
+    public string Title { get; set; } = "";
 
     [JsonPropertyName("location")]
-    public string Location { get; set; } = string.Empty;
+    public string Location { get; set; } = "";
 
     [JsonPropertyName("description")]
-    public string Description { get; set; } = string.Empty;
+    public string Description { get; set; } = "";
 
     [JsonPropertyName("duration")]
-    public string Duration { get; set; } = string.Empty;
+    public string Duration { get; set; } = "";
+
+    [JsonPropertyName("estimatedCost")]
+    public decimal EstimatedCost { get; set; }
 
     [JsonPropertyName("estimated_cost")]
-    public decimal EstimatedCost { get; set; }
+    public decimal EstimatedCostAlias { get => EstimatedCost; set => EstimatedCost = value; }
 }

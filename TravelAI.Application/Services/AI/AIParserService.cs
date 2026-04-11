@@ -1,33 +1,29 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using TravelAI.Application.DTOs.AI;
-
 namespace TravelAI.Application.Services.AI;
 
-public class AIParserService
-{
-    public ItineraryResponseDto? ParseAndValidateItinerary(string rawJsonFromAI)
-    {
-        if (string.IsNullOrWhiteSpace(rawJsonFromAI)) return null;
-
-        try
-        {
-            // Cấu hình để không phân biệt chữ hoa chữ thường nếu AI trả về nhầm
-            var options = new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
+public class AIParserService {
+    public ItineraryResponseDto? Parse(string rawJson) {
+        try {
+            var cleanJson = rawJson.Replace("```json", "").Replace("```", "").Trim();
+            
+            var options = new JsonSerializerOptions { 
+                PropertyNameCaseInsensitive = true, 
+                
+                PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+                
+                NumberHandling = JsonNumberHandling.AllowReadingFromString 
             };
 
-            // THỰC HIỆN VALIDATE: Thử chuyển String thành Object
-            var result = JsonSerializer.Deserialize<ItineraryResponseDto>(rawJsonFromAI, options);
-
-            // Nếu code chạy đến đây mà result không null tức là JSON chuẩn 100%
+            var result = JsonSerializer.Deserialize<ItineraryResponseDto>(cleanJson, options);
+            
+            Console.WriteLine("--> PARSE THÀNH CÔNG: " + (result?.TripTitle ?? "Không có tiêu đề"));
+            
             return result;
-        }
-        catch (JsonException ex)
-        {
-            // Nếu AI trả về sai format (thiếu dấu phẩy, sai ngoặc...), nó sẽ nhảy vào đây
-            Console.WriteLine($"Lỗi format AI: {ex.Message}");
-            return null; // Hoặc bạn có thể throw lỗi tùy ý
+        } catch (Exception ex) { 
+            Console.WriteLine("--> LỖI PARSE: " + ex.Message);
+            return null; 
         }
     }
 }

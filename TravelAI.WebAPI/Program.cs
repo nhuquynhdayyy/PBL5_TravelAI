@@ -8,6 +8,10 @@ using TravelAI.Application.Interfaces;
 using TravelAI.Application.Services;
 using TravelAI.Domain.Interfaces;     
 using TravelAI.Infrastructure.Repositories; 
+using TravelAI.Application.Interfaces;
+using TravelAI.Infrastructure.Services.AI;
+using TravelAI.Infrastructure.ExternalServices;
+using TravelAI.Application.Services.AI;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -52,6 +56,11 @@ builder.Services.AddScoped<ISpotService, SpotService>();
 builder.Services.AddScoped<IServiceService, ServiceService>();
 builder.Services.AddScoped<IAvailabilityService, AvailabilityService>();
 builder.Services.AddScoped<IBookingService, BookingService>();
+
+builder.Services.AddHttpClient<GeminiService>();
+builder.Services.AddScoped<AIParserService>();
+builder.Services.AddScoped<IItineraryService, ItineraryService>();
+builder.Services.AddScoped<PromptBuilder>();
 
 var app = builder.Build();
 
