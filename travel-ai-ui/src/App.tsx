@@ -1,7 +1,7 @@
 // src/App.tsx
-
 import { Routes, Route, Navigate } from 'react-router-dom';
 import MainLayout from './layouts/MainLayout';
+import Timeline from './pages/Planner/Timeline';
 
 // --- TRANG AUTHENTICATION ---
 import Login from './pages/auth/Login';
@@ -112,6 +112,7 @@ function App() {
       {/* ─── 6. FALLBACK ─── */}
       {/* Nếu gõ đường dẫn không tồn tại hoặc không đủ quyền, tự động đá về trang chủ */}
       <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="/itinerary/latest" element={<MainLayout><Timeline /></MainLayout>} />
     </Routes>
   );
 }

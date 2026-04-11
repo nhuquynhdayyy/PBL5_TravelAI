@@ -31,31 +31,23 @@ const DestinationDetail: React.FC = () => {
     const handleGenerateAI = async () => {
         try {
             setAiLoading(true);
-            setAiResult(null); 
-
             const response = await axiosClient.post('/itinerary/generate', {
                 destinationId: parseInt(id || '0'),
                 numberOfDays: 3
             });
 
-            console.log("Toàn bộ Response từ Axios:", response);
-            console.log("Data thực sự:", response.data);
+            console.log("Xem thử C# trả về cái gì:", response.data);
 
             const finalData = response.data.data || response.data;
 
             if (finalData) {
-                setAiResult(finalData); 
-                
-                setTimeout(() => {
-                    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-                }, 200);
+                navigate('/itinerary/latest', { state: { data: finalData } });
             } else {
-                alert("API trả về thành công nhưng data bị rỗng!");
+                alert("Có lỗi: API trả về rỗng!");
             }
-
         } catch (error: any) {
-            console.error("AI Error:", error);
-            alert(error.response?.data?.message || "AI hiện đang bận. Thử lại sau nhé!");
+            console.error(error);
+            alert("Lỗi AI rồi! Mở Console F12 xem chi tiết.");
         } finally {
             setAiLoading(false);
         }
