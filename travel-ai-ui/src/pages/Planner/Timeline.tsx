@@ -21,7 +21,19 @@ const Timeline: React.FC = () => {
         if (index === 1) return <Sun className="size-5" />;    // Trưa/Chiều
         return <Moon className="size-5" />;                    // Tối
     };
-
+    
+    const handleSave = async () => {
+        try {
+            const response = await axiosClient.post('/itinerary/save', data); // 'data' là JSON AI vừa trả về
+            if (response.data.success) {
+                alert("🎉 Tuyệt vời! Lịch trình đã được lưu vào mục 'Chuyến đi của tôi'.");
+                navigate('/profile'); // Chuyển về trang cá nhân để xem danh sách
+            }
+        } catch (error) {
+            alert("Không thể lưu lịch trình lúc này.");
+        }
+    };
+    
     if (loading) return (
         <div className="flex flex-col h-[70vh] items-center justify-center gap-4">
             <div className="size-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
@@ -135,7 +147,12 @@ const Timeline: React.FC = () => {
                     Mọi thứ đã được AI chuẩn bị sẵn sàng. Hãy lưu lại lịch trình này để làm hành trang cho chuyến đi sắp tới nhé!
                 </p>
                 <div className="flex flex-wrap justify-center gap-4 relative z-10">
-                    <button className="px-10 py-4 bg-white text-blue-600 rounded-2xl font-black shadow-lg hover:scale-105 transition-all active:scale-95">LƯU VÀO TÀI KHOẢN</button>
+                    <button 
+                        onClick={handleSave}
+                        className="px-10 py-4 bg-white text-blue-600 rounded-2xl font-black shadow-lg hover:scale-105 transition-all"
+                    >
+                        LƯU VÀO TÀI KHOẢN
+                    </button>
                     <button className="px-10 py-4 bg-blue-500 text-white border-2 border-white/20 rounded-2xl font-black hover:bg-blue-400 transition-all active:scale-95">ĐẶT TOÀN BỘ DỊCH VỤ</button>
                 </div>
             </div>

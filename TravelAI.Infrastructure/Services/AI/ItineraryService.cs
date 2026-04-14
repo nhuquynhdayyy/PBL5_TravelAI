@@ -57,4 +57,64 @@ public class ItineraryService : IItineraryService
         // 7. Bóc tách và trả kết quả
         return _parserService.ParseAndValidate(rawAiResponse);
     }
+
+    public async Task<int> SaveItineraryAsync(int userId, ItineraryResponseDto dto)
+    {
+        // 1. Khởi tạo Transaction để đảm bảo an toàn dữ liệu
+        using var transaction = await _db.Database.BeginTransactionAsync();
+        try
+        {
+            // 2. Tạo đối tượng Itinerary (Bảng Cha)
+            var itinerary = new Itinerary
+            {
+                UserId = userId,
+                Title = dto.TripTitle,
+                StartDate = DateTime.Now, // Có thể mở rộng để User chọn ngày sau
+                EndDate = DateTime.Now.AddDays(dto.Days.Count),
+                EstimatedCost = dto.TotalEstimatedCost,
+                Status = Domain.Enums.ItineraryStatus.Confirmed
+            };
+
+            _db.Itineraries.Add(itinerary);
+            await _db.SaveChangesAsync(); // Lưu để lấy ItineraryId
+
+            // 3. Duyệt qua từng ngày và từng hoạt động để lưu ItineraryItems (Bảng Con)
+            int order = 1;
+            foreach (var day in dto.Days)
+            {
+                foreach (var act in day.Activities)
+                {
+                    // --- SMART MATCHING LOGIC ---
+                    // Tìm SpotId dựa trên tên địa danh AI trả về
+                    var spot = await _db.TouristSpots
+                        .FirstOrDefaultAsync(s => s.Name.Contains(act.Location) || act.Title.Contains(s.Name));
+
+                    // Tìm ServiceId (Khách sạn/Tour) nếu có
+                    var service = await _db.Services
+                        .FirstOrDefaultAsync(s => s.Name.Contains(act.Title));
+
+                    var item = new ItineraryItem
+                    {
+                        ItineraryId = itinerary.ItineraryId,
+                        SpotId = spot?.SpotId, // Nếu không tìm thấy thì để null (địa điểm tự do)
+                        ServiceId = service?.ServiceId,
+                        StartTime = DateTime.Now, // AI có thể trả về giờ cụ thể, tạm thời để mặc định
+                        EndTime = DateTime.Now,
+                        ActivityOrder = order++
+                    };
+                    _db.ItineraryItems.Add(item);
+                }
+            }
+
+            await _db.SaveChangesAsync();
+            await transaction.CommitAsync(); // Xác nhận lưu thành công toàn bộ
+
+            return itinerary.ItineraryId;
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync(); // Nếu lỗi thì hủy bỏ toàn bộ thao tác trên
+            throw new Exception("Lỗi khi lưu lịch trình: " + ex.Message);
+        }
+    }
 }

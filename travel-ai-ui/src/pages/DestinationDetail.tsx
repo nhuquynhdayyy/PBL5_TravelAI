@@ -27,13 +27,14 @@ const DestinationDetail: React.FC = () => {
 
     const [aiLoading, setAiLoading] = useState(false);
     const [aiResult, setAiResult] = useState<any>(null);
-
+    const [days, setDays] = useState<number>(1);
+    
     const handleGenerateAI = async () => {
         try {
             setAiLoading(true);
             const response = await axiosClient.post('/itinerary/generate', {
                 destinationId: parseInt(id || '0'),
-                numberOfDays: 3
+                numberOfDays: days
             });
 
             console.log("Xem thử C# trả về cái gì:", response.data);
@@ -319,6 +320,22 @@ const DestinationDetail: React.FC = () => {
                     <div className="bg-slate-900 p-8 rounded-[40px] text-white shadow-2xl relative overflow-hidden group">
                         <Sparkles className="absolute -top-4 -right-4 size-24 text-white/10 group-hover:rotate-12 transition-transform" />
                         <h3 className="text-2xl font-black mb-4 relative z-10">Lên kế hoạch thông minh?</h3>
+                        <div className="mb-6 relative z-10">
+                            <label className="block text-[10px] font-black text-blue-400 uppercase tracking-widest mb-2">
+                                Bạn muốn đi trong bao lâu?
+                            </label>
+                            <div className="flex items-center bg-white/10 rounded-2xl p-1 border border-white/10">
+                                <button 
+                                    onClick={() => setDays(Math.max(1, days - 1))}
+                                    className="size-10 flex items-center justify-center hover:bg-white/20 rounded-xl transition-all font-bold"
+                                >-</button>
+                                <span className="flex-1 text-center font-black text-xl">{days} Ngày</span>
+                                <button 
+                                    onClick={() => setDays(Math.min(7, days + 1))} // Giới hạn tối đa 7 ngày để AI đỡ lag
+                                    className="size-10 flex items-center justify-center hover:bg-white/20 rounded-xl transition-all font-bold"
+                                >+</button>
+                            </div>
+                        </div>
                         <p className="text-slate-400 text-sm mb-8 leading-relaxed relative z-10">
                             Để AI thiết kế lịch trình tối ưu nhất cho chuyến đi {dest.name} của bạn.
                         </p>

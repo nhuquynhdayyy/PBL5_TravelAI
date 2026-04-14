@@ -15,4 +15,18 @@ public class ItineraryController : ControllerBase {
         var result = await _service.GenerateAndLogItineraryAsync(userId, req);
         return result != null ? Ok(result) : BadRequest("AI Error");
     }
+
+    [HttpPost("save")]
+    public async Task<IActionResult> SaveItinerary([FromBody] ItineraryResponseDto dto)
+    {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        
+        var itineraryId = await _service.SaveItineraryAsync(userId, dto);
+        
+        return Ok(new { 
+            success = true, 
+            itineraryId = itineraryId, 
+            message = "Lịch trình đã được lưu vào tài khoản của bạn!" 
+        });
+    }
 }
