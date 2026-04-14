@@ -29,4 +29,12 @@ public class ItineraryController : ControllerBase {
             message = "Lịch trình đã được lưu vào tài khoản của bạn!" 
         });
     }
+
+    [HttpGet("my-trips")]
+    public async Task<IActionResult> GetMyTrips()
+    {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        var result = await _service.GetMyTripsAsync(userId);
+        return Ok(new { success = true, data = result });
+    }
 }

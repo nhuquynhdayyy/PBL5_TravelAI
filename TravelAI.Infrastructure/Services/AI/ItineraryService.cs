@@ -117,4 +117,21 @@ public class ItineraryService : IItineraryService
             throw new Exception("Lỗi khi lưu lịch trình: " + ex.Message);
         }
     }
+
+    public async Task<IEnumerable<ItineraryResponseDto>> GetMyTripsAsync(int userId)
+    {
+        var list = await _db.Itineraries
+            .Where(i => i.UserId == userId)
+            .OrderByDescending(i => i.CreatedAt) // Mới nhất hiện lên đầu
+            .Select(i => new ItineraryResponseDto {
+                // Lưu ý: Ta map ngược dữ liệu từ DB sang DTO để FE hiển thị
+                TripTitle = i.Title,
+                Destination = i.Title, // Hoặc em thêm cột Destination vào bảng Itineraries
+                TotalEstimatedCost = i.EstimatedCost,
+                // (Tùy chọn) Em có thể include ItineraryItems nếu muốn hiện chi tiết ngay
+            })
+            .ToListAsync();
+
+        return list;
+    }
 }

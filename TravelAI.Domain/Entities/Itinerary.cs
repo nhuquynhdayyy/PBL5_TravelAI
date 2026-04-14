@@ -9,7 +9,7 @@ public class Itinerary {
     public DateTime EndDate { get; set; }
     public decimal EstimatedCost { get; set; }
     public ItineraryStatus Status { get; set; }
-
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public User User { get; set; } = null!;
     public ICollection<ItineraryItem> Items { get; set; } = new List<ItineraryItem>();
 }

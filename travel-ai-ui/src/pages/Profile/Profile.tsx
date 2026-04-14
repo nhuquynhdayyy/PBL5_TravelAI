@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { User, Mail, Phone, ShieldCheck, LogOut, Edit3, Loader2, Settings2, Save, X, Camera } from 'lucide-react';
 import axiosClient from '../../api/axiosClient';
 import MainLayout from '../../layouts/MainLayout';
-
+import { DollarSign, ChevronRight, Calendar, MapPin } from 'lucide-react';
 
 const Profile: React.FC = () => {
   const [profile, setProfile] = useState<any>(null);
@@ -20,7 +20,7 @@ const Profile: React.FC = () => {
 
   const navigate = useNavigate();
   const API_BASE_URL = 'http://localhost:5134'; // ĐỔI PORT CHO ĐÚNG BACKEND CỦA BẠN (5134 hoặc 7243)
-
+  const [myTrips, setMyTrips] = useState<any[]>([]);
 
   useEffect(() => {
     fetchData();
@@ -30,9 +30,10 @@ const Profile: React.FC = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [profileRes, prefRes] = await Promise.all([
+      const [profileRes, prefRes, tripsRes] = await Promise.all([
         axiosClient.get('/users/me'),
-        axiosClient.get('/preferences').catch(() => ({ data: { data: null } }))
+        axiosClient.get('/preferences').catch(() => ({ data: { data: null } })),
+        axiosClient.get('/itinerary/my-trips')
       ]);
      
       const userData = profileRes.data;
@@ -45,6 +46,7 @@ const Profile: React.FC = () => {
       }
      
       setUserPref(prefRes.data.data);
+      setMyTrips(tripsRes.data.data);
     } catch (err) {
       console.error("Lỗi lấy dữ liệu:", err);
     } finally {
@@ -271,7 +273,49 @@ const Profile: React.FC = () => {
                 </div>
             )}
 
+            <div className="mt-10 mb-20">
+                <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-2xl font-black text-slate-900 tracking-tighter flex items-center gap-2">
+                        <MapPin className="text-blue-500" /> LỊCH TRÌNH ĐÃ LƯU
+                    </h2>
+                    <span className="bg-blue-100 text-blue-600 px-3 py-1 rounded-full text-xs font-black">
+                        {myTrips.length} TRIPS
+                    </span>
+                </div>
 
+                {myTrips.length > 0 ? (
+                    <div className="space-y-4">
+                        {myTrips.map((trip, index) => (
+                            <div key={index} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-xl transition-all cursor-pointer group">
+                                <div className="flex justify-between items-center">
+                                    <div className="flex-1">
+                                        <h3 className="font-bold text-lg text-slate-800 group-hover:text-blue-600 transition-colors">
+                                            {trip.tripTitle}
+                                        </h3>
+                                        <div className="flex items-center gap-4 mt-2 text-slate-400 font-bold text-[10px] uppercase tracking-widest">
+                                            <span className="flex items-center gap-1"><Calendar size={12}/> Vừa tạo</span>
+                                            <span className="flex items-center gap-1 text-green-600 bg-green-50 px-2 py-0.5 rounded-md">
+                                                <DollarSign size={12}/> {new Intl.NumberFormat('vi-VN').format(trip.totalEstimatedCost)}₫
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <ChevronRight className="text-slate-300 group-hover:text-blue-500 transition-all group-hover:translate-x-1" />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="bg-slate-50 p-10 rounded-[2.5rem] border-2 border-dashed border-slate-200 text-center">
+                        <p className="text-slate-400 font-medium italic">Bạn chưa lưu lịch trình nào.</p>
+                        <button 
+                            onClick={() => navigate('/destinations')}
+                            className="mt-4 text-blue-500 font-bold text-sm hover:underline"
+                        >
+                            Khám phá ngay →
+                        </button>
+                    </div>
+                )}
+            </div>
             <button
               onClick={handleLogout}
               className="w-full mt-10 flex items-center justify-center gap-2 py-5 bg-red-50 hover:bg-red-100 text-red-600 rounded-[1.5rem] font-black transition-all active:scale-[0.98]"
