@@ -12,13 +12,13 @@ public class ItineraryService : IItineraryService
 {
     private readonly ApplicationDbContext _db;
     private readonly GeminiService _gemini;
-    private readonly AIParserService _parser;
+    private readonly AIParserService _parserService; 
 
-    public ItineraryService(ApplicationDbContext db, GeminiService gemini, AIParserService parser) 
+    public ItineraryService(ApplicationDbContext db, GeminiService gemini, AIParserService parserService) 
     {
         _db = db; 
         _gemini = gemini; 
-        _parser = parser;
+        _parserService = parserService;
     }
 
     public async Task<ItineraryResponseDto?> GenerateAndLogItineraryAsync(int userId, GenerateItineraryRequest request)
@@ -54,6 +54,7 @@ public class ItineraryService : IItineraryService
         await _db.SaveChangesAsync();
 
         // 5. Gửi chuỗi thô sang bộ Parser để làm sạch và bóc tách
-        return _parser.ParseAndValidate(rawAiResponse);
+        var finalizedData = _parserService.ParseAndValidate(rawAiResponse);
+        return finalizedData;
     }
 }
