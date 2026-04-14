@@ -38,15 +38,7 @@ public class ItineraryService : IItineraryService
             .Include(s => s.Services) 
             .Where(s => s.DestinationId == request.DestinationId)
             .ToListAsync();
-
-        if (spots.Count == 0) {
-            return new ItineraryResponseDto { 
-                TripTitle = "Dữ liệu đang cập nhật", 
-                Destination = dest.Name,
-                Days = new List<DayPlanDto>() // Trả về mảng rỗng để FE biết đường hiện thông báo
-            };
-        }
-
+            
         // 4. Xây dựng câu lệnh gửi AI
         var prompt = _promptBuilder.Build(pref, dest, spots, request.NumberOfDays);
         

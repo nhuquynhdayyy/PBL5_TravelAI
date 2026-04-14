@@ -6,23 +6,25 @@ public class PromptBuilder
 {
     public string Build(UserPreference pref, Destination dest, List<TouristSpot> spots, int days) {
     
-        // Kiểm tra nếu tỉnh này chưa có địa danh nào trong DB
-        if (spots == null || spots.Count == 0) {
-            return "THÔNG BÁO: Hiện tại hệ thống chưa cập nhật địa danh cho tỉnh này. Hãy trả về JSON thông báo lỗi format rỗng.";
-        }
+        // Chuyển danh sách DB thành chuỗi, nhấn mạnh đây là dịch vụ chính thức
+        var officialServices = spots.Select(s => 
+            $"- {s.Name} (Địa danh này có dịch vụ đặt vé/tour: {s.Services.FirstOrDefault()?.BasePrice ?? 0} VND). Mô tả: {s.Description}").ToList();
 
-        var spotDetails = spots.Select(s => $"- {s.Name}: {s.Description}. (Giá: {s.Services.FirstOrDefault()?.BasePrice ?? 0} VND)").ToList();
-
-        return $@"Bạn là chuyên gia du lịch. Hãy lập lịch trình {days} ngày tại {dest.Name}.
+        return $@"Bạn là chuyên gia lập kế hoạch du lịch. Hãy lập lịch trình {days} ngày tại {dest.Name}.
         
-        ### QUY TẮC TỐI THƯỢNG:
-        1. CHỈ ĐƯỢC PHÉP sử dụng địa danh có trong danh sách 'DỮ LIỆU HỆ THỐNG' dưới đây.
-        2. TUYỆT ĐỐI KHÔNG sử dụng địa danh bên ngoài trí nhớ của bạn.
-        3. Nếu danh sách địa danh cung cấp không đủ để lập lịch trình, hãy chỉ sử dụng những gì đang có.
+        ### YÊU CẦU ƯU TIÊN:
+        1. Nếu danh sách 'DỊCH VỤ HỆ THỐNG' dưới đây có dữ liệu, bạn BẮT BUỘC phải đưa chúng vào lịch trình một cách hợp lý.
+        2. Với các khoảng thời gian trống còn lại trong ngày, hãy sử dụng kiến thức của bạn để gợi ý thêm các địa điểm tham quan TỰ DO, MIỄN PHÍ hoặc các quán ăn nổi tiếng địa phương để lịch trình hoàn hảo hơn.
+        3. Đảm bảo lịch trình cân bằng giữa các điểm có phí (trong hệ thống) và các điểm trải nghiệm tự do.
 
-        ### DỮ LIỆU HỆ THỐNG (BẮT BUỘC DÙNG):
-        {string.Join("\n", spotDetails)}
+        ### DỊCH VỤ HỆ THỐNG (ƯU TIÊN SỬ DỤNG):
+        {(officialServices.Any() ? string.Join("\n", officialServices) : "Hiện tại tỉnh này chưa có dịch vụ trả phí, hãy gợi ý hoàn toàn bằng địa điểm tự do.")}
 
-        YÊU CẦU: Trả về JSON theo đúng cấu trúc.";
+        ### THÔNG TIN KHÁCH HÀNG:
+        - Phong cách: {pref.TravelStyle}
+        - Ngân sách: {pref.BudgetLevel}
+        - Nhịp độ: {pref.TravelPace}
+
+        YÊU CẦU ĐẦU RA: Trả về JSON theo đúng Schema, tính toán 'estimatedCost' là 0 cho các điểm tự do và đúng giá hệ thống cho các điểm chính thức.";
     }
 }
