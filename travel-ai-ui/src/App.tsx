@@ -23,6 +23,7 @@ import UserPreferences from './pages/Preferences/UserPreferences';
 import Timeline from './pages/Planner/Timeline';
 import Profile from './pages/Profile/Profile';
 import ManageAvailability from './pages/partner/ManageAvailability';
+import PartnerDashboard from './pages/partner/PartnerDashboard';
 import ManagePartnerServices from './pages/partner/ManagePartnerServices';
 import PartnerOrders from './pages/partner/PartnerOrders';
 import PartnerReviews from './pages/partner/PartnerReviews';
@@ -78,6 +79,14 @@ function App() {
           }
         />
 
+        <Route
+          path="/partner/dashboard"
+          element={
+            <ProtectedRoute allowedRoles={['partner']}>
+              <MainLayout><PartnerDashboard /></MainLayout>
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/partner/services"
           element={

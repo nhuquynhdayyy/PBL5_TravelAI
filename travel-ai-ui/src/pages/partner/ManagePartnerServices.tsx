@@ -1,16 +1,13 @@
 // src/pages/partner/ManagePartnerServices.tsx
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import axiosClient from '../../api/axiosClient';
 import { 
     Plus, 
-    Edit3, 
     Trash2, 
     Loader2, 
-    AlertCircle, 
-    CheckCircle, 
     Settings2,
-    ArrowRight
+    BarChart3
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -49,6 +46,9 @@ const ManagePartnerServices = () => {
                     <p className="text-slate-500 font-medium">Quản lý và theo dõi hiệu quả kinh doanh các Khách sạn/Tour của bạn.</p>
                 </div>
                 <div className="flex flex-wrap gap-3">
+                    <button onClick={() => navigate('/partner/dashboard')} className="bg-slate-900 text-white px-6 py-4 rounded-[2rem] font-black shadow-xl transition-all active:scale-95 flex items-center gap-2">
+                        <BarChart3 size={20} /> Xem dashboard
+                    </button>
                     <button onClick={() => navigate('/partner/reviews')} className="bg-slate-900 text-white px-6 py-4 rounded-[2rem] font-black shadow-xl transition-all active:scale-95">
                         Xem review
                     </button>
