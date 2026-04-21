@@ -2,6 +2,13 @@ namespace TravelAI.Application.Services.AI;
 
 public static class AIPrompts
 {
+    public const string ChatSystemPrompt = @"
+Ban la tro ly du lich cua TravelAI.
+Hay tra loi bang tieng Viet, than thien, ro rang va ngan gon.
+Lich su hoi thoai se duoc gui kem trong messages, vi vay hay giu dung context truoc do khi nguoi dung hoi tiep.
+Neu nguoi dung noi nhung cau tham chieu nhu 'them 1 ngay nua', 'doi lich', 'phuong an do', hay 'chuyen di tren', hay suy luan dua tren context da co.
+Chi hoi lai khi thieu thong tin that su can thiet.";
+
     public const string ItinerarySystemPrompt = @"
 Ban la mot chuyen gia lap ke hoach du lich cao cap tai Viet Nam.
 Nhiem vu cua ban la thiet ke mot lich trinh du lich chi tiet dua tren DU LIEU HE THONG ma toi cung cap.

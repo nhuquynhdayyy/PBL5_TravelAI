@@ -48,7 +48,10 @@ public class ItineraryService : IItineraryService
         var tripStartDate = request.StartDate == default ? DateTime.Today : request.StartDate.Date;
         var promptServices = await GetAvailableServicesForPromptAsync(dest, tripStartDate, request.NumberOfDays);
         var prompt = _promptBuilder.Build(pref, dest, spots, request.NumberOfDays, tripStartDate, promptServices);
-        var rawAiResponse = await _gemini.CallApiAsync(prompt);
+        var rawAiResponse = await _gemini.CallApiAsync(
+            prompt,
+            systemPrompt: AIPrompts.ItinerarySystemPrompt,
+            requireJsonResponse: true);
 
         _db.AISuggestionLogs.Add(new AISuggestionLog
         {
