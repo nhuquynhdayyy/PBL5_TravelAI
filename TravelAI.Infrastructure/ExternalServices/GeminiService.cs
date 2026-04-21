@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using TravelAI.Application.DTOs.Chat;
+using TravelAI.Application.Services.AI;
 
 namespace TravelAI.Infrastructure.ExternalServices;
 
@@ -67,6 +68,18 @@ public class GeminiService
             }";
         if (isDevMode)
         {
+            if (requireJsonResponse && string.Equals(systemPrompt, AIPrompts.IntentClassifierSystemPrompt, StringComparison.Ordinal))
+            {
+                return """
+                {
+                  "intent": "general_question",
+                  "destination": null,
+                  "days": null,
+                  "budget": null
+                }
+                """;
+            }
+
             return requireJsonResponse
                 ? jsonMockResponse
                 : "TravelAI dev mode: please configure Groq:ApiKey to enable chat responses.";

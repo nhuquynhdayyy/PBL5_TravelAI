@@ -12,9 +12,26 @@ public class ChatRequest
     public List<ChatMessage> History { get; set; } = new();
 }
 
+public class ChatIntentAnalysis
+{
+    public string Intent { get; set; } = "general_question";
+    public string? Destination { get; set; }
+    public int? Days { get; set; }
+    public decimal? Budget { get; set; }
+}
+
+public class ChatServiceItem
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+    public string? Location { get; set; }
+    public string ServiceType { get; set; } = string.Empty;
+}
+
 public class ChatResponse
 {
     public string Text { get; set; } = string.Empty;
-    public string Type { get; set; } = "text"; // text, itinerary, hotel, booking
-    public object? Data { get; set; } // Chứa list hotels hoặc timeline
+    public string Type { get; set; } = "text"; // text, itinerary, hotel, service, booking
+    public object? Data { get; set; }
 }

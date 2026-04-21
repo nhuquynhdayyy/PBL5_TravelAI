@@ -11,7 +11,7 @@ type ChatHistoryMessage = {
 type ChatboxMessage = {
   text: string;
   sender: 'user' | 'ai';
-  type: 'text' | 'itinerary' | 'hotel' | 'booking';
+  type: 'text' | 'itinerary' | 'hotel' | 'service' | 'booking';
   data?: any;
   includeInHistory?: boolean;
 };
@@ -124,13 +124,14 @@ const Chatbox = () => {
                     </div>
                   )}
 
-                  {msg.type === 'hotel' && (
+                  {(msg.type === 'hotel' || msg.type === 'service') && (
                     <div className="mt-3 space-y-2">
                       {msg.data.map((h: any) => (
                         <div key={h.id} className="flex gap-2 p-2 bg-slate-50 rounded-xl border">
                           <div className="w-12 h-12 bg-slate-200 rounded-lg shrink-0"></div>
                           <div className="text-[11px]">
                             <p className="font-bold">{h.name}</p>
+                            {h.location && <p className="text-slate-400">{h.location}</p>}
                             <p className="text-blue-500">{h.price.toLocaleString()}₫</p>
                           </div>
                         </div>
