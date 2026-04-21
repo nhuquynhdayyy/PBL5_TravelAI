@@ -115,8 +115,8 @@ function App() {
 
         {/* ─── 6. FALLBACK ─── */}
         {/* Nếu gõ đường dẫn không tồn tại hoặc không đủ quyền, tự động đá về trang chủ */}
-        <Route path="*" element={<Navigate to="/" replace />} />
         <Route path="/itinerary/latest" element={<MainLayout><Timeline /></MainLayout>} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <Chatbox />
     </>

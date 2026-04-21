@@ -1,4 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using TravelAI.Application.DTOs.AI;
+using TravelAI.Application.Interfaces;
+using TravelAI.Infrastructure.ExternalServices;
+using TravelAI.Infrastructure.Persistence;
 using TravelAI.Application.DTOs.Chat;
 
 namespace TravelAI.WebAPI.Controllers;
@@ -7,33 +12,49 @@ namespace TravelAI.WebAPI.Controllers;
 [Route("api/[controller]")]
 public class ChatController : ControllerBase
 {
+    private readonly ApplicationDbContext _db;
+    private readonly IItineraryService _itineraryService;
+    private readonly GeminiService _aiService; // Hoặc GroqService
+
+    public ChatController(ApplicationDbContext db, IItineraryService itineraryService, GeminiService aiService)
+    {
+        _db = db;
+        _itineraryService = itineraryService;
+        _aiService = aiService;
+    }
+
     [HttpPost]
     public async Task<IActionResult> GetAIResponse([FromBody] ChatRequest request)
     {
-        string msg = request.Message.ToLower();
-        var response = new ChatResponse();
+        // 1. Nhờ AI phân tích xem User đang nhắc đến tỉnh nào
+        string intentPrompt = $@"Phân tích tin nhắn này của người dùng: '{request.Message}'. 
+        Hãy trả về duy nhất tên tỉnh thành Việt Nam xuất hiện trong câu (ví dụ: Hà Nội, Đà Nẵng). 
+        Nếu không nhắc đến tỉnh nào, trả về 'none'.";
+        
+        string detectedDestName = await _aiService.CallApiAsync(intentPrompt);
+        detectedDestName = detectedDestName.Trim().Replace(".", "");
 
-        if (msg.Contains("lịch trình") || msg.Contains("đi đâu")) {
-            response.Text = "Đây là lịch trình Đà Nẵng 3 ngày tôi gợi ý cho bạn:";
-            response.Type = "itinerary";
-            response.Data = new { destination = "Đà Nẵng", days = 3 }; // Gắn link tới trang Timeline của bạn
-        }
-        else if (msg.Contains("khách sạn") || msg.Contains("hotel")) {
-            response.Text = "Tôi tìm thấy một số khách sạn tốt tại Đà Nẵng:";
-            response.Type = "hotel";
-            response.Data = new[] {
-                new { id = 1, name = "Mường Thanh Luxury", price = 1500000, img = "/uploads/h1.jpg" },
-                new { id = 2, name = "InterContinental", price = 5000000, img = "/uploads/h2.jpg" }
-            };
-        }
-        else if (msg.Contains("đặt") || msg.Contains("book")) {
-            response.Text = "Vui lòng xác nhận thông tin đặt chỗ:";
-            response.Type = "booking";
-        }
-        else {
-            response.Text = "Chào bạn! Tôi là TravelAI. Bạn muốn lên lịch trình hay tìm khách sạn?";
+        // 2. Tra cứu trong Database xem hệ thống có tỉnh đó không
+        var destination = await _db.Destinations
+            .FirstOrDefaultAsync(d => d.Name.Contains(detectedDestName));
+
+        // 3. Nếu tìm thấy tỉnh và user muốn xem lịch trình
+        if (destination != null && (request.Message.Contains("lịch trình") || request.Message.Contains("plan")))
+        {
+            // Tự động gọi Itinerary Service đã làm ở các buổi trước
+            var userId = 1; // Giả định user ID 1, hoặc lấy từ Token
+            var genReq = new GenerateItineraryRequest(destination.DestinationId, 3); // Mặc định 3 ngày
+            var itinerary = await _itineraryService.GenerateAndLogItineraryAsync(userId, genReq);
+
+            return Ok(new {
+                text = $"Tôi đã lập xong lịch trình cho chuyến đi {destination.Name} của bạn!",
+                type = "itinerary",
+                data = itinerary
+            });
         }
 
-        return Ok(response);
+        // 4. Nếu không phải lịch trình, trả về phản hồi tự nhiên từ AI
+        string generalResponse = await _aiService.CallApiAsync(request.Message);
+        return Ok(new { text = generalResponse, type = "text" });
     }
 }

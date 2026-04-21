@@ -1,9 +1,9 @@
 // src/pages/ServiceDetail.tsx
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axiosClient from '../api/axiosClient';
-import { ArrowLeft, MapPin, Star, Hotel, Compass, Info, Wifi, Waves, Utensils, Loader2, Calendar, Users, Zap } from 'lucide-react';
+import { ArrowLeft, MapPin, Star, Loader2, Calendar, Users, Zap } from 'lucide-react';
 
 const ServiceDetail = () => {
     const { id } = useParams();
@@ -16,6 +16,7 @@ const ServiceDetail = () => {
     // --- STATE ĐẶT CHỖ ---
     const [selectedDate, setSelectedDate] = useState('');
     const [quantity, setQuantity] = useState(1);
+    const [actualPrice, setActualPrice] = useState<number>(service?.basePrice ?? 0);
 
     useEffect(() => {
         const fetchDetail = async () => {
@@ -28,6 +29,43 @@ const ServiceDetail = () => {
         };
         fetchDetail();
     }, [id]);
+
+    useEffect(() => {
+        setActualPrice(service?.basePrice ?? 0);
+    }, [service?.basePrice]);
+
+    useEffect(() => {
+        if (!service) {
+            return;
+        }
+
+        if (!selectedDate) {
+            setActualPrice(service.basePrice ?? 0);
+            return;
+        }
+
+        let isActive = true;
+
+        axiosClient.get(`/availability/check/${service.serviceId}`, {
+            params: { date: selectedDate, qty: 1 }
+        }).then(res => {
+            if (!isActive) {
+                return;
+            }
+
+            setActualPrice(res.data?.price ?? service.basePrice ?? 0);
+        }).catch(() => {
+            if (!isActive) {
+                return;
+            }
+
+            setActualPrice(service.basePrice ?? 0);
+        });
+
+        return () => {
+            isActive = false;
+        };
+    }, [selectedDate, service?.serviceId, service?.basePrice]);
 
     const handleBooking = async () => {
         if (!selectedDate) {
@@ -102,7 +140,7 @@ const ServiceDetail = () => {
                         <div className="mb-6">
                             <p className="text-slate-400 text-xs font-black uppercase tracking-widest mb-1">Giá mỗi lượt từ</p>
                             <div className="flex items-baseline gap-1">
-                                <span className="text-4xl font-black text-blue-600">{new Intl.NumberFormat('vi-VN').format(service.basePrice)}₫</span>
+                                <span className="text-4xl font-black text-blue-600">{new Intl.NumberFormat('vi-VN').format(actualPrice)}₫</span>
                                 <span className="text-slate-400 font-bold text-sm">/ khách</span>
                             </div>
                         </div>
@@ -134,7 +172,7 @@ const ServiceDetail = () => {
                             <div className="bg-blue-50 p-6 rounded-3xl">
                                 <div className="flex justify-between items-center text-blue-900 font-bold mb-1">
                                     <span>Tổng cộng:</span>
-                                    <span className="text-xl font-black">{new Intl.NumberFormat('vi-VN').format(service.basePrice * quantity)}₫</span>
+                                    <span className="text-xl font-black">{new Intl.NumberFormat('vi-VN').format(actualPrice * quantity)}₫</span>
                                 </div>
                                 <p className="text-[10px] text-blue-400 font-bold uppercase">Đã bao gồm thuế và phí dịch vụ</p>
                             </div>

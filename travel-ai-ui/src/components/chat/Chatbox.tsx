@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MessageCircle, X, Send, Bot, User, Map, Hotel, CalendarCheck } from 'lucide-react';
 import axiosClient from '../../api/axiosClient';
+import { useNavigate } from 'react-router-dom';
 
 const Chatbox = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -10,7 +11,7 @@ const Chatbox = () => {
   ]);
   const [isTyping, setIsTyping] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
-
+  const navigate = useNavigate();
   const scrollToBottom = () => chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   useEffect(() => { scrollToBottom(); }, [messages]);
 
@@ -64,9 +65,17 @@ const Chatbox = () => {
                   
                   {/* RENDER THEO LOẠI (TYPE) */}
                   {msg.type === 'itinerary' && (
-                    <button onClick={() => window.location.href='/itinerary/latest'} className="mt-3 w-full py-2 bg-blue-50 text-blue-600 rounded-xl font-bold flex items-center justify-center gap-2">
-                      <Map size={16}/> Xem Timeline
-                    </button>
+                    <div className="mt-4 p-4 bg-blue-50 rounded-2xl border border-blue-100">
+                      <p className="text-[11px] font-black text-blue-400 uppercase mb-2">AI Itinerary Ready</p>
+                      <h4 className="font-bold text-slate-800 mb-3">{msg.data?.tripTitle}</h4>
+                      
+                      <button 
+                        onClick={() => navigate('/itinerary/latest', { state: { data: msg.data } })}
+                        className="w-full py-2.5 bg-blue-600 text-white rounded-xl font-black text-xs shadow-lg flex items-center justify-center gap-2 hover:bg-blue-700 transition-all"
+                      >
+                        <Map size={14}/> MỞ TIMELINE CHI TIẾT
+                      </button>
+                    </div>
                   )}
 
                   {msg.type === 'hotel' && (

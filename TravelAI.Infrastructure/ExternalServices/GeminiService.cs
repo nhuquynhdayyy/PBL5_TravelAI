@@ -21,7 +21,7 @@ public class GeminiService
     
     public async Task<string> CallApiAsync(string prompt) 
     {
-        bool isDevMode = false; 
+        bool isDevMode = string.IsNullOrWhiteSpace(_apiKey);
         string jsonMockResponse = @"
         {
             ""tripTitle"": ""Hành trình khám phá Đà Nẵng tuyệt vời"",
