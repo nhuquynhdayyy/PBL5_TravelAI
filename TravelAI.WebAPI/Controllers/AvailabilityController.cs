@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 using TravelAI.Application.Interfaces;
 using TravelAI.Infrastructure.Persistence;
 
@@ -41,8 +43,23 @@ public class AvailabilityController : ControllerBase
     }
 
     [HttpPost("set")]
+    [Authorize(Roles = "Partner,Admin")]
     public async Task<IActionResult> SetAvailability([FromBody] SetAvailabilityRequest request)
     {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        var service = await _context.Services.FindAsync(request.ServiceId);
+
+        if (service == null)
+        {
+            return NotFound();
+        }
+
+        var isAdmin = User.IsInRole("Admin");
+        if (!isAdmin && service.PartnerId != userId)
+        {
+            return Forbid();
+        }
+
         var success = await _availabilityService.SetAvailabilityAsync(
             request.ServiceId, request.Date, request.Price, request.Stock);
 
