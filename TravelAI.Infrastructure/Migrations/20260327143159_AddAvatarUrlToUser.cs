@@ -10,19 +10,26 @@ namespace TravelAI.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<string>(
-                name: "AvatarUrl",
-                table: "Users",
-                type: "nvarchar(max)",
-                nullable: true);
+            migrationBuilder.Sql(
+                """
+                IF COL_LENGTH('Users', 'AvatarUrl') IS NULL
+                BEGIN
+                    ALTER TABLE [Users]
+                    ADD [AvatarUrl] nvarchar(max) NULL;
+                END
+                """);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "AvatarUrl",
-                table: "Users");
+            migrationBuilder.Sql(
+                """
+                IF COL_LENGTH('Users', 'AvatarUrl') IS NOT NULL
+                BEGIN
+                    ALTER TABLE [Users] DROP COLUMN [AvatarUrl];
+                END
+                """);
         }
     }
 }

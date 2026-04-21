@@ -10,6 +10,8 @@ public class ReviewConfiguration : IEntityTypeConfiguration<Review>
     {
         builder.HasKey(r => r.ReviewId);
         builder.Property(r => r.Comment).HasMaxLength(500);
+        builder.Property(r => r.ReplyText).HasMaxLength(1000);
+        builder.HasIndex(r => new { r.ServiceId, r.UserId }).IsUnique();
 
         builder.HasOne(r => r.Service)
                .WithMany(s => s.Reviews)

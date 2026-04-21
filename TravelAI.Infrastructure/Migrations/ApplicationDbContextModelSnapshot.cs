@@ -407,6 +407,10 @@ namespace TravelAI.Infrastructure.Migrations
                     b.Property<int>("Rating")
                         .HasColumnType("int");
 
+                    b.Property<string>("ReplyText")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
                     b.Property<int>("ServiceId")
                         .HasColumnType("int");
 
@@ -415,7 +419,8 @@ namespace TravelAI.Infrastructure.Migrations
 
                     b.HasKey("ReviewId");
 
-                    b.HasIndex("ServiceId");
+                    b.HasIndex("ServiceId", "UserId")
+                        .IsUnique();
 
                     b.HasIndex("UserId");
 

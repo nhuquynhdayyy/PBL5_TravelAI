@@ -48,9 +48,14 @@ const ManagePartnerServices = () => {
                     <h1 className="text-4xl font-black text-slate-900 tracking-tight">DỊCH VỤ CỦA TÔI</h1>
                     <p className="text-slate-500 font-medium">Quản lý và theo dõi hiệu quả kinh doanh các Khách sạn/Tour của bạn.</p>
                 </div>
-                <button onClick={() => navigate('/partner/services/add')} className="bg-blue-600 text-white px-8 py-4 rounded-[2rem] font-black shadow-xl flex items-center gap-2 transition-all active:scale-95">
-                    <Plus size={22} /> Đăng dịch vụ mới
-                </button>
+                <div className="flex flex-wrap gap-3">
+                    <button onClick={() => navigate('/partner/reviews')} className="bg-slate-900 text-white px-6 py-4 rounded-[2rem] font-black shadow-xl transition-all active:scale-95">
+                        Xem review
+                    </button>
+                    <button onClick={() => navigate('/partner/services/add')} className="bg-blue-600 text-white px-8 py-4 rounded-[2rem] font-black shadow-xl flex items-center gap-2 transition-all active:scale-95">
+                        <Plus size={22} /> Đăng dịch vụ mới
+                    </button>
+                </div>
             </div>
 
             {/* Content Area */}
