@@ -1,7 +1,7 @@
 // src/components/layout/Header.tsx
 
 import React, { useState, useEffect } from 'react';
-import { Menu, X, Plane, Search, LogOut, LayoutDashboard, Store, User, ChevronDown, Hotel, Compass } from 'lucide-react';
+import { Menu, X, Plane, Search, LogOut, LayoutDashboard, Store, User, ChevronDown, Hotel, Compass, ClipboardList } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 
 const Header: React.FC = () => {
@@ -90,9 +90,14 @@ const Header: React.FC = () => {
 
             {/* PARTNER MENU */}
             {role === 'partner' && (
-              <Link to="/partner/services" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
-                <Store size={14} /> MY SERVICES
-              </Link>
+              <>
+                <Link to="/partner/services" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
+                  <Store size={14} /> MY SERVICES
+                </Link>
+                <Link to="/partner/orders" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
+                  <ClipboardList size={14} /> MY ORDERS
+                </Link>
+              </>
             )}
 
             {/* ADMIN MENU */}

@@ -51,7 +51,7 @@ public class BookingsController : ControllerBase
         });
     }
 
-    [HttpGet("{id}")]
+    [HttpGet("{id:int}")]
     public async Task<IActionResult> GetById(int id)
     {
         var booking = await _context.Bookings
@@ -75,6 +75,34 @@ public class BookingsController : ControllerBase
             checkInDate = item?.CheckInDate,
             quantity = item?.Quantity
         });
+    }
+
+    [HttpGet("partner-orders")]
+    [Authorize(Roles = "Partner")]
+    public async Task<IActionResult> GetPartnerOrders()
+    {
+        var partnerId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+        var orders = await _context.BookingItems
+            .AsNoTracking()
+            .Include(bi => bi.Service)
+            .Include(bi => bi.Booking)
+                .ThenInclude(b => b.User)
+            .Where(bi => bi.Service.PartnerId == partnerId)
+            .Select(bi => new
+            {
+                bookingId = bi.BookingId,
+                serviceName = bi.Service.Name,
+                customerName = bi.Booking.User.FullName,
+                checkInDate = bi.CheckInDate,
+                quantity = bi.Quantity,
+                totalAmount = bi.PriceAtBooking * bi.Quantity,
+                status = bi.Booking.Status
+            })
+            .OrderByDescending(x => x.checkInDate)
+            .ToListAsync();
+
+        return Ok(orders);
     }
 
     [HttpPost("{id}/confirm")]

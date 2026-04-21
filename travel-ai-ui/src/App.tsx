@@ -28,6 +28,7 @@ import BookingSuccess from './pages/customer/BookingSuccess';
 import ManagePartnerServices from './pages/partner/ManagePartnerServices';
 import ServiceForm from './pages/Admin/ServiceForm'; 
 import ManageAvailability from './pages/partner/ManageAvailability';
+import PartnerOrders from './pages/partner/PartnerOrders';
 import ServiceConsole from './pages/partner/ServiceConsole'; // Trang quản trị chi tiết 1 dịch vụ
 
 // --- TRANG ADMIN (QUẢN TRỊ VIÊN) ---
@@ -93,6 +94,7 @@ function App() {
             
             {/* Thiết lập lịch mở bán và giá */}
             <Route path="/partner/availability" element={<MainLayout><ManageAvailability /></MainLayout>} />
+            <Route path="/partner/orders" element={<MainLayout><PartnerOrders /></MainLayout>} />
           </>
         )}
 

@@ -23,6 +23,11 @@ const Timeline: React.FC = () => {
     };
     
     const handleSave = async () => {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            navigate('/login', { state: { from: '/itinerary/latest' }, replace: false });
+            return;
+        }
         try {
             const response = await axiosClient.post('/itinerary/save', data); // 'data' là JSON AI vừa trả về
             if (response.data.success) {
