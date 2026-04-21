@@ -1,122 +1,176 @@
-// src/App.tsx
-import { Routes, Route, Navigate } from 'react-router-dom';
-import MainLayout from './layouts/MainLayout';
-import Timeline from './pages/Planner/Timeline';
-
-// --- TRANG AUTHENTICATION ---
-import Login from './pages/auth/Login';
-import Register from './pages/auth/Register';
-
-// --- TRANG CUSTOMER (PUBLIC AREA) ---
-import Destinations from './pages/Destinations';
-import DestinationDetail from './pages/DestinationDetail';
-import SpotList from './pages/Destinations/SpotList';
-import SpotDetail from './pages/SpotDetail';
-import Profile from './pages/Profile/Profile';
-import UserPreferences from './pages/Preferences/UserPreferences';
+import { Navigate, Route, Routes } from 'react-router-dom';
+import Chatbox from './components/chat/Chatbox';
 import HomeSearch from './components/HomeSearch';
-
-// Import các trang Service theo phân loại
-import Services from './pages/Services'; // Trang chung
-import HotelsPage from './pages/customer/HotelsPage'; // Trang chuyên Khách sạn
-import ToursPage from './pages/customer/ToursPage';   // Trang chuyên Tour
-import ServiceDetail from './pages/ServiceDetail';   // Xem chi tiết để đặt chỗ
-import Checkout from './pages/customer/Checkout';     
-import BookingSuccess from './pages/customer/BookingSuccess';
-
-// --- TRANG PARTNER (KÊNH NGƯỜI BÁN) ---
-import ManagePartnerServices from './pages/partner/ManagePartnerServices';
-import ServiceForm from './pages/Admin/ServiceForm'; 
-import ManageAvailability from './pages/partner/ManageAvailability';
-import PartnerOrders from './pages/partner/PartnerOrders';
-import ServiceConsole from './pages/partner/ServiceConsole'; // Trang quản trị chi tiết 1 dịch vụ
-
-// --- TRANG ADMIN (QUẢN TRỊ VIÊN) ---
+import ProtectedRoute from './components/ProtectedRoute';
+import MainLayout from './layouts/MainLayout';
 import AdminManageServices from './pages/Admin/AdminManageServices';
 import DestinationForm from './pages/Admin/DestinationForm';
 import EditDestination from './pages/Admin/EditDestination';
-import SpotForm from './pages/Admin/SpotForm';
 import EditSpot from './pages/Admin/EditSpot';
-
-
-import Chatbox from './components/chat/Chatbox';
+import ServiceForm from './pages/Admin/ServiceForm';
+import SpotForm from './pages/Admin/SpotForm';
+import Login from './pages/auth/Login';
+import Register from './pages/auth/Register';
+import BookingSuccess from './pages/customer/BookingSuccess';
+import Checkout from './pages/customer/Checkout';
+import HotelsPage from './pages/customer/HotelsPage';
+import MyBookings from './pages/customer/MyBookings';
+import ToursPage from './pages/customer/ToursPage';
+import DestinationDetail from './pages/DestinationDetail';
+import Destinations from './pages/Destinations';
+import SpotList from './pages/Destinations/SpotList';
+import UserPreferences from './pages/Preferences/UserPreferences';
+import Timeline from './pages/Planner/Timeline';
+import Profile from './pages/Profile/Profile';
+import ManageAvailability from './pages/partner/ManageAvailability';
+import ManagePartnerServices from './pages/partner/ManagePartnerServices';
+import PartnerOrders from './pages/partner/PartnerOrders';
+import ServiceConsole from './pages/partner/ServiceConsole';
+import ServiceDetail from './pages/ServiceDetail';
+import Services from './pages/Services';
+import SpotDetail from './pages/SpotDetail';
 
 function App() {
-  // Lấy thông tin người dùng từ LocalStorage
-  const userStr = localStorage.getItem('user');
-  const user = userStr ? JSON.parse(userStr) : null;
-  const role = user?.roleName?.toLowerCase();
-
   return (
     <>
       <Routes>
-        {/* ─── 1. TRANG CHỦ ─── */}
-        <Route path="/" element={
-          <MainLayout>
-            <div className="py-10 px-4">
-              <div className="max-w-2xl mx-auto text-center mb-6">
-                <h1 className="text-4xl font-black text-slate-900 tracking-tight">Chào mừng tới TravelAI</h1>
-                <p className="mt-2 text-slate-500 font-medium">Khám phá các điểm đến tuyệt vời cùng sự hỗ trợ của AI</p>
+        <Route
+          path="/"
+          element={
+            <MainLayout>
+              <div className="py-10 px-4">
+                <div className="mx-auto mb-6 max-w-2xl text-center">
+                  <h1 className="text-4xl font-black tracking-tight text-slate-900">
+                    Chào mừng tới TravelAI
+                  </h1>
+                  <p className="mt-2 font-medium text-slate-500">
+                    Khám phá các điểm đến tuyệt vời cùng sự hỗ trợ của AI
+                  </p>
+                </div>
+                <HomeSearch />
               </div>
-              <HomeSearch />
-            </div>
-            <Destinations />
-          </MainLayout>
-        } />
+              <Destinations />
+            </MainLayout>
+          }
+        />
 
-        {/* ─── 2. PUBLIC DÀNH CHO CUSTOMER ─── */}
         <Route path="/destinations" element={<MainLayout><Destinations /></MainLayout>} />
         <Route path="/destinations/:id" element={<MainLayout><DestinationDetail /></MainLayout>} />
         <Route path="/destinations/:id/spots" element={<MainLayout><SpotList /></MainLayout>} />
         <Route path="/spots" element={<MainLayout><SpotList /></MainLayout>} />
         <Route path="/spots/:id" element={<MainLayout><SpotDetail /></MainLayout>} />
-        
-        {/* Phân tách Khách sạn và Tour */}
         <Route path="/services" element={<MainLayout><Services /></MainLayout>} />
         <Route path="/hotels" element={<MainLayout><HotelsPage /></MainLayout>} />
         <Route path="/tours" element={<MainLayout><ToursPage /></MainLayout>} />
         <Route path="/services/:id" element={<MainLayout><ServiceDetail /></MainLayout>} />
         <Route path="/checkout/:bookingId" element={<MainLayout><Checkout /></MainLayout>} />
-        <Route path="/booking-success/:bookingId" element={<MainLayout><BookingSuccess /></MainLayout>} />
+        <Route
+          path="/booking-success/:bookingId"
+          element={<MainLayout><BookingSuccess /></MainLayout>}
+        />
+        <Route
+          path="/my-bookings"
+          element={
+            <ProtectedRoute allowedRoles={['customer']}>
+              <MainLayout><MyBookings /></MainLayout>
+            </ProtectedRoute>
+          }
+        />
 
-        {/* ─── 3. PARTNER AREA (PROTECTED) ─── */}
-        {role === 'partner' && (
-          <>
-            {/* Quản lý danh sách dịch vụ của tôi */}
-            <Route path="/partner/services" element={<MainLayout><ManagePartnerServices /></MainLayout>} />
-            
-            {/* Thêm/Sửa thông tin cơ bản */}
-            <Route path="/partner/services/add" element={<MainLayout><ServiceForm /></MainLayout>} />
-            <Route path="/partner/services/edit/:id" element={<MainLayout><ServiceForm /></MainLayout>} />
-            
-            {/* Quản trị chi tiết từng dịch vụ (Console) */}
-            <Route path="/partner/services/:id/manage" element={<MainLayout><ServiceConsole /></MainLayout>} />
-            
-            {/* Thiết lập lịch mở bán và giá */}
-            <Route path="/partner/availability" element={<MainLayout><ManageAvailability /></MainLayout>} />
-            <Route path="/partner/orders" element={<MainLayout><PartnerOrders /></MainLayout>} />
-          </>
-        )}
+        <Route
+          path="/partner/services"
+          element={
+            <ProtectedRoute allowedRoles={['partner']}>
+              <MainLayout><ManagePartnerServices /></MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/partner/services/add"
+          element={
+            <ProtectedRoute allowedRoles={['partner']}>
+              <MainLayout><ServiceForm /></MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/partner/services/edit/:id"
+          element={
+            <ProtectedRoute allowedRoles={['partner']}>
+              <MainLayout><ServiceForm /></MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/partner/services/:id/manage"
+          element={
+            <ProtectedRoute allowedRoles={['partner']}>
+              <MainLayout><ServiceConsole /></MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/partner/availability"
+          element={
+            <ProtectedRoute allowedRoles={['partner']}>
+              <MainLayout><ManageAvailability /></MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/partner/orders"
+          element={
+            <ProtectedRoute allowedRoles={['partner']}>
+              <MainLayout><PartnerOrders /></MainLayout>
+            </ProtectedRoute>
+          }
+        />
 
-        {/* ─── 4. ADMIN AREA (PROTECTED) ─── */}
-        {role === 'admin' && (
-          <>
-            <Route path="/admin/destinations/add" element={<MainLayout><DestinationForm /></MainLayout>} />
-            <Route path="/admin/destinations/edit/:id" element={<MainLayout><EditDestination /></MainLayout>} />
-            <Route path="/admin/spots/add" element={<MainLayout><SpotForm /></MainLayout>} />
-            <Route path="/admin/spots/edit/:id" element={<MainLayout><EditSpot /></MainLayout>} />
-            <Route path="/admin/services" element={<MainLayout><AdminManageServices /></MainLayout>} />
-          </>
-        )}
+        <Route
+          path="/admin/destinations/add"
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <MainLayout><DestinationForm /></MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/destinations/edit/:id"
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <MainLayout><EditDestination /></MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/spots/add"
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <MainLayout><SpotForm /></MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/spots/edit/:id"
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <MainLayout><EditSpot /></MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/services"
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <MainLayout><AdminManageServices /></MainLayout>
+            </ProtectedRoute>
+          }
+        />
 
-        {/* ─── 5. USER AREA & AUTH ─── */}
         <Route path="/profile" element={<MainLayout><Profile /></MainLayout>} />
         <Route path="/preferences" element={<MainLayout><UserPreferences /></MainLayout>} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-
-        {/* ─── 6. FALLBACK ─── */}
-        {/* Nếu gõ đường dẫn không tồn tại hoặc không đủ quyền, tự động đá về trang chủ */}
         <Route path="/itinerary/latest" element={<MainLayout><Timeline /></MainLayout>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

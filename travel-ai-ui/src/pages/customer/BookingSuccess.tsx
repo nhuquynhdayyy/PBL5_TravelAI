@@ -1,9 +1,9 @@
 // src/pages/customer/BookingSuccess.tsx
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
-import { CheckCircle, Printer, Home, Calendar, Users, CreditCard, Loader2, Download } from 'lucide-react';
+import { CheckCircle, Printer, Home, Calendar, Users, Loader2 } from 'lucide-react';
 
 const BookingSuccess = () => {
     const { bookingId } = useParams();
@@ -102,6 +102,12 @@ const BookingSuccess = () => {
 
             {/* CÁC NÚT HÀNH ĐỘNG */}
             <div className="mt-12 flex flex-col sm:flex-row gap-4">
+                <button 
+                    onClick={() => navigate('/my-bookings')}
+                    className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black text-sm flex items-center justify-center gap-2 hover:bg-blue-700 transition-all active:scale-95"
+                >
+                    XEM BOOKINGS CUA TOI
+                </button>
                 <button 
                     onClick={() => navigate('/')}
                     className="flex-1 py-4 bg-slate-900 text-white rounded-2xl font-black text-sm flex items-center justify-center gap-2 hover:bg-black transition-all active:scale-95"
