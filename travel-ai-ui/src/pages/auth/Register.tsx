@@ -10,6 +10,7 @@ const Register = () => {
     password: '', 
     fullName: '' 
   });
+  const [isPartner, setIsPartner] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -18,7 +19,10 @@ const Register = () => {
     setLoading(true);
     try {
       // Gọi API Register từ Backend
-      const { data } = await axiosClient.post('/auth/register', formData);
+      const { data } = await axiosClient.post('/auth/register', {
+        ...formData,
+        isPartner
+      });
       
       // Lưu thông tin vào LocalStorage sau khi đăng ký thành công (Backend trả về token luôn)
       localStorage.setItem('token', data.token);
@@ -90,6 +94,17 @@ const Register = () => {
               />
             </div>
           </div>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isPartner}
+              onChange={e => setIsPartner(e.target.checked)}
+            />
+            <span className="text-sm font-medium text-slate-600">
+              Đăng ký với tư cách Đối tác cung cấp dịch vụ
+            </span>
+          </label>
 
           <button 
             disabled={loading} 

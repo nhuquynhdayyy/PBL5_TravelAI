@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -6,7 +7,6 @@ using System.Text;
 using TravelAI.Application.DTOs.Auth;
 using TravelAI.Domain.Entities;
 using TravelAI.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
 
 namespace TravelAI.Infrastructure.Services;
 
@@ -23,19 +23,45 @@ public class AuthService
 
     public async Task<AuthResponse?> RegisterAsync(RegisterRequest request)
     {
-        if (await _context.Users.AnyAsync(u => u.Email == request.Email)) return null;
-
-        var user = new User
+        if (await _context.Users.AnyAsync(u => u.Email == request.Email))
         {
-            Email = request.Email,
-            FullName = request.FullName,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
-            RoleId = 3, // Mặc định là Customer
-            CreatedAt = DateTime.UtcNow
-        };
+            return null;
+        }
 
-        _context.Users.Add(user);
-        await _context.SaveChangesAsync();
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+
+        try
+        {
+            var user = new User
+            {
+                Email = request.Email,
+                FullName = request.FullName,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+                RoleId = request.IsPartner ? 2 : 3,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.Users.Add(user);
+            await _context.SaveChangesAsync();
+
+            if (request.IsPartner)
+            {
+                _context.PartnerProfiles.Add(new PartnerProfile
+                {
+                    UserId = user.UserId,
+                    BusinessName = request.FullName
+                });
+
+                await _context.SaveChangesAsync();
+            }
+
+            await transaction.CommitAsync();
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
 
         return await LoginAsync(new LoginRequest(request.Email, request.Password));
     }
@@ -46,11 +72,13 @@ public class AuthService
             .FirstOrDefaultAsync(u => u.Email == request.Email);
 
         if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+        {
             return null;
+        }
 
         var token = GenerateJwtToken(user);
-        
-        return new AuthResponse(token, user.FullName, user.Email, user.Role.RoleName); 
+
+        return new AuthResponse(token, user.FullName, user.Email, user.Role.RoleName);
     }
 
     private string GenerateJwtToken(User user)

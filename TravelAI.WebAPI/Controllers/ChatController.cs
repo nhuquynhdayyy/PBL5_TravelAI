@@ -5,6 +5,7 @@ using TravelAI.Application.Interfaces;
 using TravelAI.Infrastructure.ExternalServices;
 using TravelAI.Infrastructure.Persistence;
 using TravelAI.Application.DTOs.Chat;
+using System.Security.Claims;
 
 namespace TravelAI.WebAPI.Controllers;
 
@@ -42,7 +43,8 @@ public class ChatController : ControllerBase
         if (destination != null && (request.Message.Contains("lịch trình") || request.Message.Contains("plan")))
         {
             // Tự động gọi Itinerary Service đã làm ở các buổi trước
-            var userId = 1; // Giả định user ID 1, hoặc lấy từ Token
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            var userId = userIdClaim != null ? int.Parse(userIdClaim.Value) : 0;
             var genReq = new GenerateItineraryRequest(destination.DestinationId, 3); // Mặc định 3 ngày
             var itinerary = await _itineraryService.GenerateAndLogItineraryAsync(userId, genReq);
 
