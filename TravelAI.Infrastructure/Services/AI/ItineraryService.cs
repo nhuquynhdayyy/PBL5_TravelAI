@@ -44,7 +44,8 @@ public class ItineraryService : IItineraryService
             .Where(s => s.DestinationId == request.DestinationId)
             .ToListAsync();
 
-        var prompt = _promptBuilder.Build(pref, dest, spots, request.NumberOfDays);
+        var tripStartDate = request.StartDate == default ? DateTime.Today : request.StartDate.Date;
+        var prompt = _promptBuilder.Build(pref, dest, spots, request.NumberOfDays, tripStartDate);
         var rawAiResponse = await _gemini.CallApiAsync(prompt);
 
         _db.AISuggestionLogs.Add(new AISuggestionLog
@@ -56,7 +57,17 @@ public class ItineraryService : IItineraryService
         });
 
         await _db.SaveChangesAsync();
-        return _parserService.ParseAndValidate(rawAiResponse);
+
+        var parsed = _parserService.ParseAndValidate(rawAiResponse);
+        if (parsed == null)
+        {
+            return null;
+        }
+
+        parsed.StartDate = tripStartDate;
+        parsed.EndDate = tripStartDate.AddDays(parsed.Days.Count);
+
+        return parsed;
     }
 
     public async Task<int> SaveItineraryAsync(int userId, ItineraryResponseDto dto)
@@ -65,15 +76,18 @@ public class ItineraryService : IItineraryService
 
         try
         {
-            var tripStartDate = DateTime.Today;
-            var totalDays = Math.Max(dto.Days.Count, 1);
+            var tripStartDate = dto.StartDate == default ? DateTime.Today : dto.StartDate.Date;
+            if (dto.Days.Count == 0)
+            {
+                throw new InvalidOperationException("Itinerary phai co it nhat mot ngay de luu.");
+            }
 
             var itinerary = new Itinerary
             {
                 UserId = userId,
                 Title = dto.TripTitle,
                 StartDate = tripStartDate,
-                EndDate = tripStartDate.AddDays(totalDays),
+                EndDate = tripStartDate.AddDays(dto.Days.Count),
                 EstimatedCost = dto.TotalEstimatedCost,
                 Status = Domain.Enums.ItineraryStatus.Confirmed
             };
@@ -84,10 +98,11 @@ public class ItineraryService : IItineraryService
             var order = 1;
             foreach (var day in dto.Days.OrderBy(d => d.Day))
             {
-                var dayCursor = tripStartDate.AddDays(Math.Max(day.Day - 1, 0)).AddHours(8);
+                var activities = day.Activities.ToList();
 
-                foreach (var act in day.Activities)
+                for (var index = 0; index < activities.Count; index++)
                 {
+                    var act = activities[index];
                     var spot = await _db.TouristSpots
                         .FirstOrDefaultAsync(s => s.Name.Contains(act.Location) || act.Title.Contains(s.Name));
 
@@ -95,9 +110,11 @@ public class ItineraryService : IItineraryService
                         .FirstOrDefaultAsync(s => s.Name.Contains(act.Title));
 
                     var durationMinutes = spot?.AvgTimeSpent > 0 ? spot.AvgTimeSpent : 120;
-                    var startTime = dayCursor;
-                    var endTime = dayCursor.AddMinutes(durationMinutes);
-                    dayCursor = endTime.AddMinutes(30);
+                    var startTime = tripStartDate
+                        .AddDays(Math.Max(day.Day - 1, 0))
+                        .Date
+                        .AddHours(8 + index * 3);
+                    var endTime = startTime.AddMinutes(durationMinutes);
 
                     _db.ItineraryItems.Add(new ItineraryItem
                     {
@@ -134,6 +151,8 @@ public class ItineraryService : IItineraryService
                 ItineraryId = i.ItineraryId,
                 TripTitle = i.Title,
                 Destination = i.Title,
+                StartDate = i.StartDate,
+                EndDate = i.EndDate,
                 TotalEstimatedCost = i.EstimatedCost
             })
             .ToListAsync();
@@ -172,6 +191,8 @@ public class ItineraryService : IItineraryService
             ItineraryId = itinerary.ItineraryId,
             TripTitle = itinerary.Title,
             Destination = ResolveDestinationName(orderedItems, itinerary.Title),
+            StartDate = itinerary.StartDate,
+            EndDate = itinerary.EndDate,
             TotalEstimatedCost = totalEstimatedCost,
             Days = days
         };
