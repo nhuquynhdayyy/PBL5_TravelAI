@@ -41,7 +41,21 @@ const Timeline: React.FC = () => {
         </div>
     );
 
-    if (!data) return <div className="text-center p-20 font-bold text-slate-400">Chưa có lịch trình nào được tạo.</div>;
+    if (!data) return (
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 text-center">
+            <div className="text-6xl">🗺️</div>
+            <h2 className="text-2xl font-black text-slate-800">Chưa có lịch trình nào</h2>
+            <p className="text-slate-400 max-w-sm">
+                Hãy chọn một điểm đến và để AI lên kế hoạch cho chuyến đi của bạn!
+            </p>
+            <button 
+                onClick={() => navigate('/destinations')}
+                className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-black hover:bg-blue-700"
+            >
+                Khám phá điểm đến →
+            </button>
+        </div>
+    );
 
     return (
         <div className="max-w-5xl mx-auto px-4 py-8 mb-20 animate-in fade-in duration-1000">

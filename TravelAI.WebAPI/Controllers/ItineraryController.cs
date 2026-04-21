@@ -37,4 +37,14 @@ public class ItineraryController : ControllerBase {
         var result = await _service.GetMyTripsAsync(userId);
         return Ok(new { success = true, data = result });
     }
+
+    [HttpGet("{id:int}")]
+    public async Task<IActionResult> GetById(int id)
+    {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        var result = await _service.GetByIdAsync(id, userId);
+        return result != null
+            ? Ok(new { success = true, data = result })
+            : NotFound();
+    }
 }

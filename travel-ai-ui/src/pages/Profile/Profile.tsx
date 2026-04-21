@@ -122,6 +122,16 @@ const Profile: React.FC = () => {
     window.location.reload();
   };
 
+  const handleOpenTrip = async (itineraryId: number) => {
+    try {
+      const detail = await axiosClient.get(`/itinerary/${itineraryId}`);
+      navigate('/itinerary/latest', { state: { data: detail.data.data } });
+    } catch (err) {
+      console.error('Loi lay chi tiet lich trinh:', err);
+      alert('Khong the tai lai lich trinh luc nay.');
+    }
+  };
+
 
   if (loading) return (
     <MainLayout>
@@ -286,7 +296,11 @@ const Profile: React.FC = () => {
                 {myTrips.length > 0 ? (
                     <div className="space-y-4">
                         {myTrips.map((trip, index) => (
-                            <div key={index} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-xl transition-all cursor-pointer group">
+                            <div
+                                key={trip.itineraryId ?? index}
+                                onClick={() => handleOpenTrip(trip.itineraryId)}
+                                className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-xl transition-all cursor-pointer group"
+                            >
                                 <div className="flex justify-between items-center">
                                     <div className="flex-1">
                                         <h3 className="font-bold text-lg text-slate-800 group-hover:text-blue-600 transition-colors">

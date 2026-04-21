@@ -3,6 +3,12 @@ using System.Text.Json.Serialization;
 namespace TravelAI.Application.DTOs.AI;
 
 public class ItineraryResponseDto {
+    [JsonPropertyName("itineraryId")]
+    public int ItineraryId { get; set; }
+
+    [JsonPropertyName("itinerary_id")]
+    public int ItineraryIdAlias { get => ItineraryId; set => ItineraryId = value; }
+
     [JsonPropertyName("tripTitle")]
     public string TripTitle { get; set; } = "";
 
