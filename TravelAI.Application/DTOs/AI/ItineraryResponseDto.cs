@@ -69,4 +69,10 @@ public class ActivityDto {
 
     [JsonPropertyName("estimated_cost")]
     public decimal EstimatedCostAlias { get => EstimatedCost; set => EstimatedCost = value; }
+
+    [JsonPropertyName("serviceId")]
+    public int? ServiceId { get; set; }
+
+    [JsonPropertyName("service_id")]
+    public int? ServiceIdAlias { get => ServiceId; set => ServiceId = value; }
 }

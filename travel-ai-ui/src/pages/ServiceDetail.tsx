@@ -1,20 +1,22 @@
 // src/pages/ServiceDetail.tsx
 
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import axiosClient from '../api/axiosClient';
 import { ArrowLeft, MapPin, Star, Loader2, Calendar, Users, Zap } from 'lucide-react';
 
 const ServiceDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
+    const preselectedDate = new URLSearchParams(location.search).get('date') ?? '';
     const [service, setService] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [bookingLoading, setBookingLoading] = useState(false);
     const [activeImg, setActiveImg] = useState(0);
 
     // --- STATE ĐẶT CHỖ ---
-    const [selectedDate, setSelectedDate] = useState('');
+    const [selectedDate, setSelectedDate] = useState(preselectedDate);
     const [quantity, setQuantity] = useState(1);
     const [actualPrice, setActualPrice] = useState<number>(service?.basePrice ?? 0);
 
@@ -33,6 +35,12 @@ const ServiceDetail = () => {
     useEffect(() => {
         setActualPrice(service?.basePrice ?? 0);
     }, [service?.basePrice]);
+
+    useEffect(() => {
+        if (preselectedDate) {
+            setSelectedDate(preselectedDate);
+        }
+    }, [preselectedDate]);
 
     useEffect(() => {
         if (!service) {

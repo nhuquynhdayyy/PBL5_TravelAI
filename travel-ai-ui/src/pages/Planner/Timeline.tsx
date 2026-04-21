@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
     ArrowLeft,
     Calendar,
@@ -11,7 +11,8 @@ import {
     Moon,
     Share2,
     Sparkles,
-    Sun
+    Sun,
+    Zap
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
@@ -24,7 +25,8 @@ const parseLocalDate = (value?: string) => {
     const datePart = value.split('T')[0];
     const [year, month, day] = datePart.split('-').map(Number);
 
-    if (!year || !month || !day) {
+    if (!year || !month || !day)
+    {
         return null;
     }
 
@@ -38,6 +40,13 @@ const formatDateLabel = (date: Date) =>
         month: '2-digit',
         year: 'numeric'
     }).format(date);
+
+const toInputDateValue = (date: Date) => {
+    const year = date.getFullYear();
+    const month = `${date.getMonth() + 1}`.padStart(2, '0');
+    const day = `${date.getDate()}`.padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
 
 const Timeline: React.FC = () => {
     const navigate = useNavigate();
@@ -69,6 +78,36 @@ const Timeline: React.FC = () => {
         date.setDate(date.getDate() + Math.max(dayNumber - 1, 0));
         return date;
     };
+
+    const getServiceId = (activity: any) => activity?.serviceId ?? activity?.service_id ?? null;
+
+    const openServiceDetail = (activity: any, dayDate: Date | null) => {
+        const serviceId = getServiceId(activity);
+        if (!serviceId) {
+            return;
+        }
+
+        const query = dayDate ? `?date=${toInputDateValue(dayDate)}` : '';
+        navigate(`/services/${serviceId}${query}`);
+    };
+
+    const firstBookableActivity = useMemo(() => {
+        if (!data?.days?.length) {
+            return null;
+        }
+
+        for (const day of data.days) {
+            const dayDate = getDayDate(day.day);
+
+            for (const activity of day.activities ?? []) {
+                if (getServiceId(activity)) {
+                    return { activity, dayDate };
+                }
+            }
+        }
+
+        return null;
+    }, [data, tripStartDate]);
 
     const tripLastDayDate = tripStartDate
         ? getDayDate(Math.max(data?.days?.length ?? 1, 1))
@@ -185,60 +224,83 @@ const Timeline: React.FC = () => {
                             </div>
 
                             <div className="relative ml-6 space-y-10 border-l-4 border-dashed border-slate-200 pl-10">
-                                {day.activities.map((act: any, idx: number) => (
-                                    <div key={idx} className="group relative">
-                                        <div className={`absolute -left-[58px] top-6 z-20 flex size-10 items-center justify-center rounded-full border-4 border-white text-white shadow-lg transition-all duration-500 group-hover:scale-125 ${
-                                            idx === 0 ? 'bg-orange-400' : idx === 1 ? 'bg-blue-500' : 'bg-indigo-600'
-                                        }`}>
-                                            {getActivityIcon(idx)}
-                                        </div>
+                                {(day.activities ?? []).map((activity: any, idx: number) => {
+                                    const serviceId = getServiceId(activity);
 
-                                        <div className="group/card relative overflow-hidden rounded-[2.5rem] border border-slate-100 bg-white p-8 shadow-sm transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl">
-                                            <div className="absolute right-0 top-0 p-4 opacity-0 transition-opacity group-hover/card:opacity-100">
-                                                <Sparkles className="size-20 rotate-12 text-blue-500/20" />
+                                    return (
+                                        <div key={idx} className="group relative">
+                                            <div className={`absolute -left-[58px] top-6 z-20 flex size-10 items-center justify-center rounded-full border-4 border-white text-white shadow-lg transition-all duration-500 group-hover:scale-125 ${
+                                                idx === 0 ? 'bg-orange-400' : idx === 1 ? 'bg-blue-500' : 'bg-indigo-600'
+                                            }`}>
+                                                {getActivityIcon(idx)}
                                             </div>
 
-                                            <div className="relative z-10 flex flex-col justify-between gap-6 md:flex-row">
-                                                <div className="flex-1">
-                                                    <div className="mb-3 flex items-center gap-2">
-                                                        <span className="rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-blue-500">
-                                                            {idx === 0 ? 'Buổi sáng' : idx === 1 ? 'Buổi chiều' : 'Buổi tối'}
-                                                        </span>
-                                                    </div>
-                                                    <h3 className="mb-3 text-2xl font-black leading-tight text-slate-800 transition-colors group-hover/card:text-blue-600">
-                                                        {act.title}
-                                                    </h3>
-                                                    <p className="mb-6 font-medium leading-relaxed text-slate-500">
-                                                        {act.description}
-                                                    </p>
+                                            <div className="group/card relative overflow-hidden rounded-[2.5rem] border border-slate-100 bg-white p-8 shadow-sm transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl">
+                                                <div className="absolute right-0 top-0 p-4 opacity-0 transition-opacity group-hover/card:opacity-100">
+                                                    <Sparkles className="size-20 rotate-12 text-blue-500/20" />
+                                                </div>
 
-                                                    <div className="flex flex-wrap gap-4">
-                                                        <div className="flex items-center gap-1.5 rounded-xl border border-slate-100 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-400">
-                                                            <MapPin size={14} className="text-red-400" /> {act.location}
+                                                <div className="relative z-10 flex flex-col justify-between gap-6 md:flex-row">
+                                                    <div className="flex-1">
+                                                        <div className="mb-3 flex items-center gap-2">
+                                                            <span className="rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-blue-500">
+                                                                {idx === 0 ? 'Buổi sáng' : idx === 1 ? 'Buổi chiều' : 'Buổi tối'}
+                                                            </span>
+                                                            {serviceId && (
+                                                                <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-emerald-600">
+                                                                    Dịch vụ thật
+                                                                </span>
+                                                            )}
                                                         </div>
-                                                        <div className="flex items-center gap-1.5 rounded-xl border border-slate-100 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-400">
-                                                            <Clock size={14} className="text-blue-400" /> {act.duration}
-                                                        </div>
-                                                        {dayDate && (
-                                                            <div className="flex items-center gap-1.5 rounded-xl border border-blue-100 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-600">
-                                                                <Calendar size={14} /> {formatDateLabel(dayDate)}
+                                                        <h3 className="mb-3 text-2xl font-black leading-tight text-slate-800 transition-colors group-hover/card:text-blue-600">
+                                                            {activity.title}
+                                                        </h3>
+                                                        <p className="mb-6 font-medium leading-relaxed text-slate-500">
+                                                            {activity.description}
+                                                        </p>
+
+                                                        <div className="flex flex-wrap gap-4">
+                                                            <div className="flex items-center gap-1.5 rounded-xl border border-slate-100 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-400">
+                                                                <MapPin size={14} className="text-red-400" /> {activity.location}
                                                             </div>
+                                                            <div className="flex items-center gap-1.5 rounded-xl border border-slate-100 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-400">
+                                                                <Clock size={14} className="text-blue-400" /> {activity.duration}
+                                                            </div>
+                                                            {dayDate && (
+                                                                <div className="flex items-center gap-1.5 rounded-xl border border-blue-100 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-600">
+                                                                    <Calendar size={14} /> {formatDateLabel(dayDate)}
+                                                                </div>
+                                                            )}
+                                                            {serviceId && (
+                                                                <div className="flex items-center gap-1.5 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-600">
+                                                                    service_id: {serviceId}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex shrink-0 items-end justify-end gap-3 md:flex-col">
+                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">
+                                                            Chi phí dự kiến
+                                                        </p>
+                                                        <div className="rounded-2xl bg-slate-900 px-5 py-2.5 text-lg font-black text-white shadow-lg">
+                                                            ~{new Intl.NumberFormat('vi-VN').format(activity.estimatedCost)}₫
+                                                        </div>
+                                                        {serviceId && (
+                                                            <button
+                                                                onClick={() => openServiceDetail(activity, dayDate)}
+                                                                className="inline-flex items-center gap-2 rounded-2xl bg-emerald-500 px-5 py-3 text-sm font-black text-white shadow-lg transition-all hover:bg-emerald-400"
+                                                            >
+                                                                <Zap size={16} />
+                                                                ĐẶT NGAY
+                                                            </button>
                                                         )}
                                                     </div>
                                                 </div>
-
-                                                <div className="flex shrink-0 items-end justify-end gap-2 md:flex-col">
-                                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">
-                                                        Chi phí dự kiến
-                                                    </p>
-                                                    <div className="rounded-2xl bg-slate-900 px-5 py-2.5 text-lg font-black text-white shadow-lg">
-                                                        ~{new Intl.NumberFormat('vi-VN').format(act.estimatedCost)}₫
-                                                    </div>
-                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </div>
                     );
@@ -260,8 +322,12 @@ const Timeline: React.FC = () => {
                     >
                         LƯU VÀO TÀI KHOẢN
                     </button>
-                    <button className="rounded-2xl border-2 border-white/20 bg-blue-500 px-10 py-4 font-black text-white transition-all hover:bg-blue-400 active:scale-95">
-                        ĐẶT TOÀN BỘ DỊCH VỤ
+                    <button
+                        onClick={() => firstBookableActivity && openServiceDetail(firstBookableActivity.activity, firstBookableActivity.dayDate)}
+                        disabled={!firstBookableActivity}
+                        className="rounded-2xl border-2 border-white/20 bg-blue-500 px-10 py-4 font-black text-white transition-all hover:bg-blue-400 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        ĐẶT NGAY
                     </button>
                 </div>
             </div>
