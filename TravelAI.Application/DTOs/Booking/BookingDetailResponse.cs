@@ -10,4 +10,8 @@ public class BookingDetailResponse
     public int Status { get; set; }
     public string? PaymentMethod { get; set; }
     public DateTime CreatedAt { get; set; }
+    public decimal RefundedAmount { get; set; }
+    public decimal EstimatedRefundAmount { get; set; }
+    public bool CanCancel { get; set; }
+    public string CancelPolicy { get; set; } = string.Empty;
 }
