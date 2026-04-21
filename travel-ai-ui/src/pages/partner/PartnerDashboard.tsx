@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
     BarChart3,
+    Building2,
     CalendarRange,
     DollarSign,
     Loader2,
@@ -17,6 +18,7 @@ import {
     XAxis,
     YAxis
 } from 'recharts';
+import { Link } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
 
 type RevenueByService = {
@@ -160,6 +162,12 @@ const PartnerDashboard = () => {
                     </div>
 
                     <div className="flex flex-col sm:flex-row gap-3">
+                        <Link
+                            to="/partner/profile"
+                            className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-blue-50 text-blue-700 font-black text-sm hover:bg-blue-100 transition-all"
+                        >
+                            <Building2 size={18} /> Ho so doanh nghiep
+                        </Link>
                         <label className="flex flex-col gap-2 text-sm font-bold text-slate-600">
                             Tu ngay
                             <input

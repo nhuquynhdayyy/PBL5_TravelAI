@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TravelAI.Application.DTOs.Partner;
+using TravelAI.Domain.Entities;
 using TravelAI.Domain.Enums;
 using TravelAI.Infrastructure.Persistence;
 
@@ -18,6 +19,68 @@ public class PartnerController : ControllerBase
     public PartnerController(ApplicationDbContext context)
     {
         _context = context;
+    }
+
+    [HttpGet("profile")]
+    public async Task<IActionResult> GetProfile()
+    {
+        var partnerIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (partnerIdClaim == null)
+        {
+            return Unauthorized(new { message = "Vui long dang nhap!" });
+        }
+
+        var partnerId = int.Parse(partnerIdClaim.Value);
+
+        var profile = await _context.PartnerProfiles
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.UserId == partnerId);
+
+        if (profile == null)
+        {
+            return Ok(new PartnerProfileDto());
+        }
+
+        return Ok(MapToPartnerProfileDto(profile));
+    }
+
+    [HttpPut("profile")]
+    public async Task<IActionResult> UpdateProfile([FromBody] PartnerProfileDto request)
+    {
+        var partnerIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (partnerIdClaim == null)
+        {
+            return Unauthorized(new { message = "Vui long dang nhap!" });
+        }
+
+        var partnerId = int.Parse(partnerIdClaim.Value);
+
+        var profile = await _context.PartnerProfiles
+            .FirstOrDefaultAsync(item => item.UserId == partnerId);
+
+        if (profile == null)
+        {
+            profile = new PartnerProfile
+            {
+                UserId = partnerId
+            };
+            _context.PartnerProfiles.Add(profile);
+        }
+
+        profile.BusinessName = (request.BusinessName ?? string.Empty).Trim();
+        profile.TaxCode = NormalizeOptionalText(request.TaxCode);
+        profile.BankAccount = NormalizeOptionalText(request.BankAccount);
+        profile.Address = NormalizeOptionalText(request.Address);
+        profile.Description = NormalizeOptionalText(request.Description);
+
+        if (string.IsNullOrWhiteSpace(profile.BusinessName))
+        {
+            return BadRequest(new { message = "Ten doanh nghiep khong duoc de trong." });
+        }
+
+        await _context.SaveChangesAsync();
+
+        return Ok(MapToPartnerProfileDto(profile));
     }
 
     [HttpGet("revenue-summary")]
@@ -141,5 +204,27 @@ public class PartnerController : ControllerBase
         };
 
         return Ok(response);
+    }
+
+    private static PartnerProfileDto MapToPartnerProfileDto(PartnerProfile profile)
+    {
+        return new PartnerProfileDto
+        {
+            BusinessName = profile.BusinessName,
+            TaxCode = profile.TaxCode,
+            BankAccount = profile.BankAccount,
+            Address = profile.Address,
+            Description = profile.Description
+        };
+    }
+
+    private static string? NormalizeOptionalText(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return value.Trim();
     }
 }
