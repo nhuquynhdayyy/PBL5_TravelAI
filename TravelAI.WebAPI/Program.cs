@@ -64,6 +64,49 @@ builder.Services.AddScoped<PromptBuilder>();
 
 var app = builder.Build();
 
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    dbContext.Database.Migrate();
+    dbContext.Database.ExecuteSqlRaw(
+        """
+        IF COL_LENGTH('Reviews', 'ReplyText') IS NULL
+        BEGIN
+            ALTER TABLE [Reviews]
+            ADD [ReplyText] nvarchar(1000) NULL;
+        END
+
+        IF NOT EXISTS (
+            SELECT 1
+            FROM sys.indexes
+            WHERE name = 'IX_Reviews_ServiceId_UserId'
+              AND object_id = OBJECT_ID('Reviews')
+        )
+        BEGIN
+            IF EXISTS (
+                SELECT 1
+                FROM sys.indexes
+                WHERE name = 'IX_Reviews_ServiceId'
+                  AND object_id = OBJECT_ID('Reviews')
+            )
+            BEGIN
+                DROP INDEX [IX_Reviews_ServiceId] ON [Reviews];
+            END
+
+            IF NOT EXISTS (
+                SELECT ServiceId, UserId
+                FROM Reviews
+                GROUP BY ServiceId, UserId
+                HAVING COUNT(*) > 1
+            )
+            BEGIN
+                CREATE UNIQUE INDEX [IX_Reviews_ServiceId_UserId]
+                ON [Reviews]([ServiceId], [UserId]);
+            END
+        END
+        """);
+}
+
 // --- 5. Cấu hình Pipeline ---
 if (app.Environment.IsDevelopment())
 {

@@ -23,8 +23,11 @@ import UserPreferences from './pages/Preferences/UserPreferences';
 import Timeline from './pages/Planner/Timeline';
 import Profile from './pages/Profile/Profile';
 import ManageAvailability from './pages/partner/ManageAvailability';
+import PartnerDashboard from './pages/partner/PartnerDashboard';
+import PartnerProfile from './pages/partner/PartnerProfile';
 import ManagePartnerServices from './pages/partner/ManagePartnerServices';
 import PartnerOrders from './pages/partner/PartnerOrders';
+import PartnerReviews from './pages/partner/PartnerReviews';
 import ServiceConsole from './pages/partner/ServiceConsole';
 import ServiceDetail from './pages/ServiceDetail';
 import Services from './pages/Services';
@@ -78,6 +81,22 @@ function App() {
         />
 
         <Route
+          path="/partner/dashboard"
+          element={
+            <ProtectedRoute allowedRoles={['partner']}>
+              <MainLayout><PartnerDashboard /></MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/partner/profile"
+          element={
+            <ProtectedRoute allowedRoles={['partner']}>
+              <MainLayout><PartnerProfile /></MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/partner/services"
           element={
             <ProtectedRoute allowedRoles={['partner']}>
@@ -122,6 +141,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['partner']}>
               <MainLayout><PartnerOrders /></MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/partner/reviews"
+          element={
+            <ProtectedRoute allowedRoles={['partner']}>
+              <MainLayout><PartnerReviews /></MainLayout>
             </ProtectedRoute>
           }
         />
