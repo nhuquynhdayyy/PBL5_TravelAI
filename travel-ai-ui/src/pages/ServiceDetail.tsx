@@ -113,46 +113,10 @@ const getApiErrorMessage = (err: any, fallback: string) => {
 };
 
 const ServiceDetail = () => {
-    const { id } = useParams();
-    const navigate = useNavigate();
-    const location = useLocation();
-    const preselectedDate = new URLSearchParams(location.search).get('date') ?? '';
-    const [service, setService] = useState<any>(null);
-    const [loading, setLoading] = useState(true);
-    const [bookingLoading, setBookingLoading] = useState(false);
-    const [activeImg, setActiveImg] = useState(0);
-
-    // --- STATE ĐẶT CHỖ ---
-    const [selectedDate, setSelectedDate] = useState(preselectedDate);
-    const [quantity, setQuantity] = useState(1);
-    const [actualPrice, setActualPrice] = useState<number>(service?.basePrice ?? 0);
-
-    useEffect(() => {
-        const fetchDetail = async () => {
-            try {
-                setLoading(true);
-                const res = await axiosClient.get(`/services/${id}`);
-                setService(res.data);
-            } catch (err) { console.error(err); }
-            finally { setLoading(false); }
-        };
-        fetchDetail();
-    }, [id]);
-
-    useEffect(() => {
-        setActualPrice(service?.basePrice ?? 0);
-    }, [service?.basePrice]);
-
-    useEffect(() => {
-        if (preselectedDate) {
-            setSelectedDate(preselectedDate);
-        }
-    }, [preselectedDate]);
-
-    useEffect(() => {
-        if (!service) {
-            return;
-        }
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const preselectedDate = new URLSearchParams(location.search).get('date') ?? '';
 
   const [service, setService] = useState<ServiceDetailDto | null>(null);
   const [loading, setLoading] = useState(true);
@@ -162,7 +126,7 @@ const ServiceDetail = () => {
   const [replySubmittingId, setReplySubmittingId] = useState<number | null>(null);
   const [activeImg, setActiveImg] = useState(0);
 
-  const [selectedDate, setSelectedDate] = useState('');
+  const [selectedDate, setSelectedDate] = useState(preselectedDate);
   const [quantity, setQuantity] = useState(1);
   const [actualPrice, setActualPrice] = useState(0);
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
@@ -237,17 +201,11 @@ const ServiceDetail = () => {
         params: { date: selectedDate, qty: 1 }
       })
       .then((res) => {
-        if (!isActive) {
-          return;
-        }
-
+        if (!isActive) return;
         setActualPrice(res.data?.price ?? service.basePrice ?? 0);
       })
       .catch(() => {
-        if (!isActive) {
-          return;
-        }
-
+        if (!isActive) return;
         setActualPrice(service.basePrice ?? 0);
       });
 
@@ -257,9 +215,7 @@ const ServiceDetail = () => {
   }, [selectedDate, service]);
 
   const handleBooking = async () => {
-    if (!service) {
-      return;
-    }
+    if (!service) return;
 
     if (!selectedDate) {
       alert('Vui lòng chọn ngày bạn muốn sử dụng dịch vụ!');
@@ -292,9 +248,7 @@ const ServiceDetail = () => {
   };
 
   const handleSubmitReview = async () => {
-    if (!service) {
-      return;
-    }
+    if (!service) return;
 
     try {
       setReviewSubmitting(true);
@@ -357,6 +311,7 @@ const ServiceDetail = () => {
       </button>
 
       <div className="grid grid-cols-1 gap-12 lg:grid-cols-3">
+        {/* LEFT: Images + Info */}
         <div className="space-y-8 lg:col-span-2">
           <div className="h-[500px] overflow-hidden rounded-[3rem] border-8 border-white shadow-2xl">
             <img
@@ -398,6 +353,7 @@ const ServiceDetail = () => {
           </div>
         </div>
 
+        {/* RIGHT: Booking Card */}
         <div className="lg:col-span-1">
           <div className="sticky top-32 rounded-[3rem] border border-slate-50 bg-white p-8 text-left shadow-2xl">
             <div className="mb-6">
@@ -472,6 +428,7 @@ const ServiceDetail = () => {
         </div>
       </div>
 
+      {/* Reviews Section */}
       <section className="mt-16 rounded-[3rem] border border-slate-100 bg-white p-8 shadow-sm md:p-10">
         <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -552,7 +509,9 @@ const ServiceDetail = () => {
                       {renderStars(review.rating)}
                     </div>
 
-                    <p className="mt-4 leading-relaxed text-slate-700">{review.comment || 'Khách hàng chưa để lại bình luận.'}</p>
+                    <p className="mt-4 leading-relaxed text-slate-700">
+                      {review.comment || 'Khách hàng chưa để lại bình luận.'}
+                    </p>
 
                     {review.replyText && (
                       <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-4">
