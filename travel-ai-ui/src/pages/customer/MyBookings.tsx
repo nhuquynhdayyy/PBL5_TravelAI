@@ -23,6 +23,10 @@ type CustomerBooking = {
   status: BookingStatus;
   paymentMethod: string | null;
   createdAt: string;
+  refundedAmount: number;
+  estimatedRefundAmount: number;
+  canCancel: boolean;
+  cancelPolicy: string;
 };
 
 const statusMap: Record<number, { label: string; className: string }> = {
@@ -70,6 +74,54 @@ function formatPaymentMethod(paymentMethod: string | null) {
   return paymentMethod;
 }
 
+function canCancelBooking(booking: CustomerBooking) {
+  if (typeof booking.canCancel === 'boolean') {
+    return booking.canCancel;
+  }
+
+  const statusKey = resolveStatusKey(booking.status);
+
+  if (statusKey === 1) {
+    return true;
+  }
+
+  if (statusKey !== 2) {
+    return false;
+  }
+
+  return new Date(booking.checkInDate).getTime() > Date.now() + 24 * 60 * 60 * 1000;
+}
+
+function getCancelPolicy(booking: CustomerBooking) {
+  if (booking.cancelPolicy?.trim()) {
+    return booking.cancelPolicy;
+  }
+
+  const statusKey = resolveStatusKey(booking.status);
+
+  if (statusKey === 1) {
+    return 'Booking dang cho thanh toan, he thong se giai phong cho da giu.';
+  }
+
+  if (statusKey === 2) {
+    return canCancelBooking(booking)
+      ? 'Huy truoc 24 gio: hoan 100% gia tri thanh toan.'
+      : 'Chi duoc huy booking da thanh toan khi check-in con hon 24 gio.';
+  }
+
+  return 'Booking hien tai khong ho tro huy.';
+}
+
+function getEstimatedRefundAmount(booking: CustomerBooking) {
+  if (typeof booking.estimatedRefundAmount === 'number' && booking.estimatedRefundAmount > 0) {
+    return booking.estimatedRefundAmount;
+  }
+
+  return resolveStatusKey(booking.status) === 2 && canCancelBooking(booking)
+    ? booking.totalAmount
+    : 0;
+}
+
 const MyBookings = () => {
   const navigate = useNavigate();
   const [bookings, setBookings] = useState<CustomerBooking[]>([]);
@@ -97,28 +149,48 @@ const MyBookings = () => {
   const pendingBookings = bookings.filter((booking) => resolveStatusKey(booking.status) === 1).length;
   const paidBookings = bookings.filter((booking) => resolveStatusKey(booking.status) === 2).length;
 
-  const updateBookingStatus = (bookingId: number, status: number) => {
+  const updateBooking = (bookingId: number, changes: Partial<CustomerBooking>) => {
     setBookings((current) =>
       current.map((booking) =>
-        booking.bookingId === bookingId ? { ...booking, status } : booking,
+        booking.bookingId === bookingId ? { ...booking, ...changes } : booking,
       ),
     );
 
     setSelectedBooking((current) =>
-      current && current.bookingId === bookingId ? { ...current, status } : current,
+      current && current.bookingId === bookingId ? { ...current, ...changes } : current,
     );
   };
 
-  const handleCancelBooking = async (bookingId: number) => {
-    const confirmed = window.confirm('Ban co chac muon huy booking nay khong?');
+  const handleCancelBooking = async (booking: CustomerBooking) => {
+    const estimatedRefundAmount = getEstimatedRefundAmount(booking);
+    const cancelPolicy = getCancelPolicy(booking);
+
+    const refundMessage = estimatedRefundAmount > 0
+      ? `So tien hoan du kien: ${currencyFormatter.format(estimatedRefundAmount)}d`
+      : 'Booking chua thanh toan, he thong se giai phong cho da giu.';
+
+    const confirmed = window.confirm(
+      `Ban co chac muon huy booking nay khong?\n${refundMessage}\n${cancelPolicy}`,
+    );
+
     if (!confirmed) {
       return;
     }
 
     try {
-      setCancellingId(bookingId);
-      await axiosClient.post(`/bookings/${bookingId}/cancel`);
-      updateBookingStatus(bookingId, 4);
+      setCancellingId(booking.bookingId);
+      const res = await axiosClient.post(`/bookings/${booking.bookingId}/cancel`);
+      const refundAmount = Number(res.data?.refundAmount ?? 0);
+
+      updateBooking(booking.bookingId, {
+        status: 4,
+        canCancel: false,
+        refundedAmount: refundAmount,
+        estimatedRefundAmount: 0,
+        cancelPolicy: String(res.data?.refundPolicy ?? 'Booking da duoc huy.'),
+      });
+
+      alert(`Da huy booking thanh cong. So tien hoan lai: ${currencyFormatter.format(refundAmount)}d`);
     } catch (error) {
       console.error('Loi huy booking:', error);
       alert('Khong the huy booking luc nay.');
@@ -196,7 +268,7 @@ const MyBookings = () => {
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
           {bookings.map((booking) => {
             const status = getStatusMeta(booking.status);
-            const isPending = resolveStatusKey(booking.status) === 1;
+            const canCancel = canCancelBooking(booking);
             const isCancelling = cancellingId === booking.bookingId;
 
             return (
@@ -256,15 +328,24 @@ const MyBookings = () => {
                   </div>
                 </div>
 
+                {booking.refundedAmount > 0 && (
+                  <div className="mt-4 rounded-2xl bg-sky-50 p-4 text-sm text-sky-700">
+                    <span className="font-black uppercase tracking-[0.18em] text-[10px]">Da hoan tien</span>
+                    <div className="mt-1 text-lg font-black">
+                      {currencyFormatter.format(booking.refundedAmount)}d
+                    </div>
+                  </div>
+                )}
+
                 <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
                   <span className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
                     Bam vao the de xem chi tiet
                   </span>
-                  {isPending && (
+                  {canCancel && (
                     <button
                       onClick={(event) => {
                         event.stopPropagation();
-                        handleCancelBooking(booking.bookingId);
+                        handleCancelBooking(booking);
                       }}
                       disabled={isCancelling}
                       className="inline-flex items-center justify-center rounded-xl bg-rose-50 px-4 py-2 text-xs font-black text-rose-600 transition-all hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-70"
@@ -365,12 +446,37 @@ const MyBookings = () => {
                   {currencyFormatter.format(selectedBooking.totalAmount)}d
                 </p>
               </div>
+
+              <div className="rounded-2xl bg-slate-50 p-5 md:col-span-2">
+                <p className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                  Chinh sach huy
+                </p>
+                <p className="font-bold text-slate-800">{getCancelPolicy(selectedBooking)}</p>
+              </div>
             </div>
 
+            {selectedBooking.refundedAmount > 0 && (
+              <div className="mb-6 rounded-2xl bg-sky-50 p-5 text-sky-700">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em]">Tien da hoan</p>
+                <p className="mt-2 text-2xl font-black">
+                  {currencyFormatter.format(selectedBooking.refundedAmount)}d
+                </p>
+              </div>
+            )}
+
+            {canCancelBooking(selectedBooking) && getEstimatedRefundAmount(selectedBooking) > 0 && (
+              <div className="mb-6 rounded-2xl bg-emerald-50 p-5 text-emerald-700">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em]">Hoan tien du kien</p>
+                <p className="mt-2 text-2xl font-black">
+                  {currencyFormatter.format(getEstimatedRefundAmount(selectedBooking))}d
+                </p>
+              </div>
+            )}
+
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-              {resolveStatusKey(selectedBooking.status) === 1 && (
+              {canCancelBooking(selectedBooking) && (
                 <button
-                  onClick={() => handleCancelBooking(selectedBooking.bookingId)}
+                  onClick={() => handleCancelBooking(selectedBooking)}
                   disabled={cancellingId === selectedBooking.bookingId}
                   className="rounded-2xl bg-rose-50 px-5 py-3 text-sm font-black text-rose-600 transition-all hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-70"
                 >

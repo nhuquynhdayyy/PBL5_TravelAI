@@ -18,6 +18,18 @@ public class ItineraryResponseDto {
     [JsonPropertyName("destination")]
     public string Destination { get; set; } = "";
 
+    [JsonPropertyName("startDate")]
+    public DateTime StartDate { get; set; }
+
+    [JsonPropertyName("start_date")]
+    public DateTime StartDateAlias { get => StartDate; set => StartDate = value; }
+
+    [JsonPropertyName("endDate")]
+    public DateTime EndDate { get; set; }
+
+    [JsonPropertyName("end_date")]
+    public DateTime EndDateAlias { get => EndDate; set => EndDate = value; }
+
     [JsonPropertyName("totalEstimatedCost")]
     public decimal TotalEstimatedCost { get; set; }
 
@@ -57,4 +69,10 @@ public class ActivityDto {
 
     [JsonPropertyName("estimated_cost")]
     public decimal EstimatedCostAlias { get => EstimatedCost; set => EstimatedCost = value; }
+
+    [JsonPropertyName("serviceId")]
+    public int? ServiceId { get; set; }
+
+    [JsonPropertyName("service_id")]
+    public int? ServiceIdAlias { get => ServiceId; set => ServiceId = value; }
 }

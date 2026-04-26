@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
   Calendar,
@@ -10,6 +9,7 @@ import {
   Users,
   Zap
 } from 'lucide-react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import axiosClient from '../api/axiosClient';
 
 type ServiceDetailDto = {
@@ -113,8 +113,46 @@ const getApiErrorMessage = (err: any, fallback: string) => {
 };
 
 const ServiceDetail = () => {
-  const { id } = useParams();
-  const navigate = useNavigate();
+    const { id } = useParams();
+    const navigate = useNavigate();
+    const location = useLocation();
+    const preselectedDate = new URLSearchParams(location.search).get('date') ?? '';
+    const [service, setService] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
+    const [bookingLoading, setBookingLoading] = useState(false);
+    const [activeImg, setActiveImg] = useState(0);
+
+    // --- STATE ĐẶT CHỖ ---
+    const [selectedDate, setSelectedDate] = useState(preselectedDate);
+    const [quantity, setQuantity] = useState(1);
+    const [actualPrice, setActualPrice] = useState<number>(service?.basePrice ?? 0);
+
+    useEffect(() => {
+        const fetchDetail = async () => {
+            try {
+                setLoading(true);
+                const res = await axiosClient.get(`/services/${id}`);
+                setService(res.data);
+            } catch (err) { console.error(err); }
+            finally { setLoading(false); }
+        };
+        fetchDetail();
+    }, [id]);
+
+    useEffect(() => {
+        setActualPrice(service?.basePrice ?? 0);
+    }, [service?.basePrice]);
+
+    useEffect(() => {
+        if (preselectedDate) {
+            setSelectedDate(preselectedDate);
+        }
+    }, [preselectedDate]);
+
+    useEffect(() => {
+        if (!service) {
+            return;
+        }
 
   const [service, setService] = useState<ServiceDetailDto | null>(null);
   const [loading, setLoading] = useState(true);

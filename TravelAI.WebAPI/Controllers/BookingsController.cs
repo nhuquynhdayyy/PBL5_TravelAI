@@ -42,6 +42,7 @@ public class BookingsController : ControllerBase
             .Include(b => b.BookingItems)
                 .ThenInclude(bi => bi.Service)
             .Include(b => b.Payments)
+                .ThenInclude(payment => payment.Refunds)
             .OrderByDescending(b => b.CreatedAt)
             .ToListAsync();
 
@@ -87,6 +88,7 @@ public class BookingsController : ControllerBase
             .Include(b => b.BookingItems)
                 .ThenInclude(bi => bi.Service)
             .Include(b => b.Payments)
+                .ThenInclude(payment => payment.Refunds)
             .FirstOrDefaultAsync(b => b.BookingId == id);
 
         if (booking == null)
@@ -225,6 +227,8 @@ public class BookingsController : ControllerBase
 
         var booking = await _context.Bookings
             .Include(b => b.BookingItems)
+            .Include(b => b.Payments)
+                .ThenInclude(payment => payment.Refunds)
             .FirstOrDefaultAsync(b => b.BookingId == id && b.UserId == userId);
 
         if (booking == null)
@@ -232,9 +236,19 @@ public class BookingsController : ControllerBase
             return NotFound(new { message = "Khong tim thay don hang." });
         }
 
-        if (booking.Status != BookingStatus.Pending)
+        var evaluation = EvaluateCancellationPolicy(booking, DateTime.UtcNow);
+        if (!evaluation.CanCancel)
         {
-            return BadRequest(new { message = "Chi co the huy don hang dang cho thanh toan." });
+            return BadRequest(new { message = evaluation.PolicyMessage });
+        }
+
+        var latestPayment = booking.Payments
+            .OrderByDescending(payment => payment.PaymentTime)
+            .FirstOrDefault();
+
+        if (booking.Status == BookingStatus.Paid && latestPayment == null)
+        {
+            return BadRequest(new { message = "Khong tim thay giao dich thanh toan de tao hoan tien." });
         }
 
         var serviceIds = booking.BookingItems
@@ -261,7 +275,28 @@ public class BookingsController : ControllerBase
                 continue;
             }
 
-            availability.HeldCount = Math.Max(0, availability.HeldCount - item.Quantity);
+            if (booking.Status == BookingStatus.Pending)
+            {
+                availability.HeldCount = Math.Max(0, availability.HeldCount - item.Quantity);
+            }
+            else
+            {
+                availability.BookedCount = Math.Max(0, availability.BookedCount - item.Quantity);
+            }
+        }
+
+        var refundAmount = evaluation.EstimatedRefundAmount;
+
+        if (latestPayment != null && refundAmount > 0)
+        {
+            _context.Refunds.Add(new Refund
+            {
+                PaymentId = latestPayment.PaymentId,
+                RefundAmount = refundAmount,
+                RefundRef = Guid.NewGuid().ToString("N")[..12].ToUpper(),
+                Reason = evaluation.PolicyMessage,
+                RefundTime = DateTime.UtcNow
+            });
         }
 
         booking.Status = BookingStatus.Cancelled;
@@ -272,18 +307,25 @@ public class BookingsController : ControllerBase
         {
             success = true,
             message = "Da huy don hang thanh cong.",
-            status = (int)booking.Status
+            status = (int)booking.Status,
+            refundAmount,
+            refundPolicy = evaluation.PolicyMessage
         });
     }
 
     private static BookingDetailResponse MapToBookingDetail(Booking booking)
     {
+        var evaluation = EvaluateCancellationPolicy(booking, DateTime.UtcNow);
         var item = booking.BookingItems
             .OrderBy(bi => bi.ItemId)
             .FirstOrDefault();
 
         var latestPayment = booking.Payments
             .OrderByDescending(payment => payment.PaymentTime)
+            .FirstOrDefault();
+        var latestRefund = booking.Payments
+            .SelectMany(payment => payment.Refunds)
+            .OrderByDescending(refund => refund.RefundTime)
             .FirstOrDefault();
 
         return new BookingDetailResponse
@@ -295,7 +337,11 @@ public class BookingsController : ControllerBase
             TotalAmount = booking.TotalAmount,
             Status = (int)booking.Status,
             PaymentMethod = latestPayment?.Method,
-            CreatedAt = booking.CreatedAt
+            CreatedAt = booking.CreatedAt,
+            RefundedAmount = latestRefund?.RefundAmount ?? 0,
+            EstimatedRefundAmount = evaluation.EstimatedRefundAmount,
+            CanCancel = evaluation.CanCancel,
+            CancelPolicy = evaluation.PolicyMessage
         };
     }
 
@@ -312,7 +358,68 @@ public class BookingsController : ControllerBase
             TotalAmount = detail.TotalAmount,
             Status = detail.Status,
             PaymentMethod = detail.PaymentMethod,
-            CreatedAt = detail.CreatedAt
+            CreatedAt = detail.CreatedAt,
+            RefundedAmount = detail.RefundedAmount,
+            EstimatedRefundAmount = detail.EstimatedRefundAmount,
+            CanCancel = detail.CanCancel,
+            CancelPolicy = detail.CancelPolicy
         };
     }
+
+    private static CancellationEvaluation EvaluateCancellationPolicy(Booking booking, DateTime nowUtc)
+    {
+        if (booking.Status == BookingStatus.Cancelled)
+        {
+            return new CancellationEvaluation(false, 0, "Don hang nay da bi huy truoc do.");
+        }
+
+        if (booking.Status == BookingStatus.Refunded)
+        {
+            return new CancellationEvaluation(false, 0, "Don hang nay da duoc hoan tien truoc do.");
+        }
+
+        var hasRefund = booking.Payments.Any(payment => payment.Refunds.Any());
+        if (hasRefund)
+        {
+            return new CancellationEvaluation(false, 0, "Don hang nay da co giao dich hoan tien.");
+        }
+
+        if (booking.Status == BookingStatus.Pending)
+        {
+            return new CancellationEvaluation(true, 0, "Booking dang cho thanh toan, he thong se giai phong cho giu.");
+        }
+
+        if (booking.Status != BookingStatus.Paid)
+        {
+            return new CancellationEvaluation(false, 0, "Trang thai hien tai khong ho tro huy booking.");
+        }
+
+        var earliestCheckInDate = booking.BookingItems
+            .Select(item => item.CheckInDate)
+            .DefaultIfEmpty(booking.CreatedAt)
+            .Min();
+
+        if (earliestCheckInDate <= nowUtc.AddHours(24))
+        {
+            return new CancellationEvaluation(false, 0, "Chi duoc huy booking da thanh toan khi check-in con hon 24 gio.");
+        }
+
+        var refundAmount = booking.Payments
+            .OrderByDescending(payment => payment.PaymentTime)
+            .Select(payment => payment.Amount)
+            .FirstOrDefault();
+
+        if (refundAmount <= 0)
+        {
+            refundAmount = booking.TotalAmount;
+        }
+
+        return new CancellationEvaluation(
+            true,
+            refundAmount,
+            "Huy truoc 24 gio: hoan 100% gia tri thanh toan."
+        );
+    }
+
+    private sealed record CancellationEvaluation(bool CanCancel, decimal EstimatedRefundAmount, string PolicyMessage);
 }

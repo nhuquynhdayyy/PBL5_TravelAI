@@ -4,6 +4,7 @@ using TravelAI.Application.DTOs.AI;
 using TravelAI.Application.Interfaces;
 using TravelAI.Application.Services.AI;
 using TravelAI.Domain.Entities;
+using TravelAI.Domain.Enums;
 using TravelAI.Infrastructure.ExternalServices;
 using TravelAI.Infrastructure.Persistence;
 
@@ -36,7 +37,7 @@ public class ItineraryService : IItineraryService
             ?? new UserPreference
             {
                 TravelStyle = "Kham pha tong hop",
-                BudgetLevel = TravelAI.Domain.Enums.BudgetLevel.Medium
+                BudgetLevel = BudgetLevel.Medium
             };
 
         var spots = await _db.TouristSpots
@@ -44,8 +45,13 @@ public class ItineraryService : IItineraryService
             .Where(s => s.DestinationId == request.DestinationId)
             .ToListAsync();
 
-        var prompt = _promptBuilder.Build(pref, dest, spots, request.NumberOfDays);
-        var rawAiResponse = await _gemini.CallApiAsync(prompt);
+        var tripStartDate = request.StartDate == default ? DateTime.Today : request.StartDate.Date;
+        var promptServices = await GetAvailableServicesForPromptAsync(dest, tripStartDate, request.NumberOfDays);
+        var prompt = _promptBuilder.Build(pref, dest, spots, request.NumberOfDays, tripStartDate, promptServices);
+        var rawAiResponse = await _gemini.CallApiAsync(
+            prompt,
+            systemPrompt: AIPrompts.ItinerarySystemPrompt,
+            requireJsonResponse: true);
 
         _db.AISuggestionLogs.Add(new AISuggestionLog
         {
@@ -56,7 +62,17 @@ public class ItineraryService : IItineraryService
         });
 
         await _db.SaveChangesAsync();
-        return _parserService.ParseAndValidate(rawAiResponse);
+
+        var parsed = _parserService.ParseAndValidate(rawAiResponse);
+        if (parsed == null)
+        {
+            return null;
+        }
+
+        parsed.StartDate = tripStartDate;
+        parsed.EndDate = tripStartDate.AddDays(parsed.Days.Count);
+
+        return parsed;
     }
 
     public async Task<int> SaveItineraryAsync(int userId, ItineraryResponseDto dto)
@@ -65,39 +81,64 @@ public class ItineraryService : IItineraryService
 
         try
         {
-            var tripStartDate = DateTime.Today;
-            var totalDays = Math.Max(dto.Days.Count, 1);
+            var tripStartDate = dto.StartDate == default ? DateTime.Today : dto.StartDate.Date;
+            if (dto.Days.Count == 0)
+            {
+                throw new InvalidOperationException("Itinerary phai co it nhat mot ngay de luu.");
+            }
 
             var itinerary = new Itinerary
             {
                 UserId = userId,
                 Title = dto.TripTitle,
                 StartDate = tripStartDate,
-                EndDate = tripStartDate.AddDays(totalDays),
+                EndDate = tripStartDate.AddDays(dto.Days.Count),
                 EstimatedCost = dto.TotalEstimatedCost,
-                Status = Domain.Enums.ItineraryStatus.Confirmed
+                Status = ItineraryStatus.Confirmed
             };
 
             _db.Itineraries.Add(itinerary);
             await _db.SaveChangesAsync();
 
+            var requestedServiceIds = dto.Days
+                .SelectMany(day => day.Activities)
+                .Where(activity => activity.ServiceId.HasValue)
+                .Select(activity => activity.ServiceId!.Value)
+                .Distinct()
+                .ToList();
+
+            var servicesById = requestedServiceIds.Count == 0
+                ? new Dictionary<int, Service>()
+                : await _db.Services
+                    .Include(service => service.TouristSpot)
+                    .Include(service => service.ServiceSpots)
+                        .ThenInclude(serviceSpot => serviceSpot.TouristSpot)
+                    .Where(service => requestedServiceIds.Contains(service.ServiceId))
+                    .ToDictionaryAsync(service => service.ServiceId);
+
+            var spotCandidates = await _db.TouristSpots
+                .AsNoTracking()
+                .ToListAsync();
+
             var order = 1;
             foreach (var day in dto.Days.OrderBy(d => d.Day))
             {
-                var dayCursor = tripStartDate.AddDays(Math.Max(day.Day - 1, 0)).AddHours(8);
+                var activities = day.Activities.ToList();
 
-                foreach (var act in day.Activities)
+                for (var index = 0; index < activities.Count; index++)
                 {
-                    var spot = await _db.TouristSpots
-                        .FirstOrDefaultAsync(s => s.Name.Contains(act.Location) || act.Title.Contains(s.Name));
+                    var activity = activities[index];
+                    servicesById.TryGetValue(activity.ServiceId ?? 0, out var service);
 
-                    var service = await _db.Services
-                        .FirstOrDefaultAsync(s => s.Name.Contains(act.Title));
+                    var spot = ResolvePrimarySpot(service)
+                        ?? spotCandidates.FirstOrDefault(candidate => IsPotentialSpotMatch(candidate, activity));
 
-                    var durationMinutes = spot?.AvgTimeSpent > 0 ? spot.AvgTimeSpent : 120;
-                    var startTime = dayCursor;
-                    var endTime = dayCursor.AddMinutes(durationMinutes);
-                    dayCursor = endTime.AddMinutes(30);
+                    var durationMinutes = ResolveDurationMinutes(service, spot);
+                    var startTime = tripStartDate
+                        .AddDays(Math.Max(day.Day - 1, 0))
+                        .Date
+                        .AddHours(8 + index * 3);
+                    var endTime = startTime.AddMinutes(durationMinutes);
 
                     _db.ItineraryItems.Add(new ItineraryItem
                     {
@@ -134,6 +175,8 @@ public class ItineraryService : IItineraryService
                 ItineraryId = i.ItineraryId,
                 TripTitle = i.Title,
                 Destination = i.Title,
+                StartDate = i.StartDate,
+                EndDate = i.EndDate,
                 TotalEstimatedCost = i.EstimatedCost
             })
             .ToListAsync();
@@ -150,6 +193,11 @@ public class ItineraryService : IItineraryService
                 .ThenInclude(item => item.Service)
                     .ThenInclude(service => service!.TouristSpot)
                         .ThenInclude(spot => spot!.Destination)
+            .Include(i => i.Items)
+                .ThenInclude(item => item.Service)
+                    .ThenInclude(service => service!.ServiceSpots)
+                        .ThenInclude(serviceSpot => serviceSpot.TouristSpot)
+                            .ThenInclude(spot => spot!.Destination)
             .FirstOrDefaultAsync(i => i.ItineraryId == id && i.UserId == userId);
 
         if (itinerary == null)
@@ -172,9 +220,73 @@ public class ItineraryService : IItineraryService
             ItineraryId = itinerary.ItineraryId,
             TripTitle = itinerary.Title,
             Destination = ResolveDestinationName(orderedItems, itinerary.Title),
+            StartDate = itinerary.StartDate,
+            EndDate = itinerary.EndDate,
             TotalEstimatedCost = totalEstimatedCost,
             Days = days
         };
+    }
+
+    private async Task<List<PromptServiceOption>> GetAvailableServicesForPromptAsync(Destination destination, DateTime tripStartDate, int totalDays)
+    {
+        var tripDates = Enumerable.Range(0, Math.Max(totalDays, 1))
+            .Select(offset => tripStartDate.Date.AddDays(offset))
+            .ToHashSet();
+
+        var candidateServices = await _db.Services
+            .AsNoTracking()
+            .Include(service => service.TouristSpot)
+            .Include(service => service.ServiceSpots)
+                .ThenInclude(serviceSpot => serviceSpot.TouristSpot)
+            .Include(service => service.Availabilities)
+            .Where(service => service.IsActive
+                && (service.ServiceType == ServiceType.Hotel || service.ServiceType == ServiceType.Tour)
+                && ((service.TouristSpot != null && service.TouristSpot.DestinationId == destination.DestinationId)
+                    || service.ServiceSpots.Any(serviceSpot => serviceSpot.TouristSpot.DestinationId == destination.DestinationId)))
+            .ToListAsync();
+
+        var promptServices = candidateServices
+            .Select(service =>
+            {
+                var matchingAvailabilities = service.Availabilities
+                    .Where(availability => IsAvailabilityUsable(service.ServiceType, availability, tripStartDate.Date, tripDates))
+                    .OrderBy(availability => availability.Date)
+                    .ToList();
+
+                if (matchingAvailabilities.Count == 0)
+                {
+                    return null;
+                }
+
+                var primarySpot = ResolvePrimarySpot(service);
+                var price = matchingAvailabilities.FirstOrDefault(availability => availability.Price > 0)?.Price
+                    ?? service.BasePrice;
+
+                return new PromptServiceOption
+                {
+                    ServiceId = service.ServiceId,
+                    Name = service.Name,
+                    ServiceType = service.ServiceType,
+                    Location = primarySpot?.Name ?? destination.Name,
+                    Description = service.Description,
+                    Price = price,
+                    PriceUnit = service.ServiceType == ServiceType.Hotel ? "dem" : "nguoi",
+                    AvailableDates = matchingAvailabilities
+                        .Select(availability => availability.Date.Date)
+                        .Distinct()
+                        .ToList()
+                };
+            })
+            .Where(service => service != null)
+            .Select(service => service!)
+            .GroupBy(service => service.ServiceType)
+            .SelectMany(group => group
+                .OrderBy(service => service.Price)
+                .ThenBy(service => service.Name)
+                .Take(group.Key == ServiceType.Hotel ? 6 : 10))
+            .ToList();
+
+        return promptServices;
     }
 
     private static List<DayPlanDto> BuildDayPlans(Itinerary itinerary, List<ItineraryItem> orderedItems)
@@ -242,22 +354,23 @@ public class ItineraryService : IItineraryService
 
     private static ActivityDto MapActivity(ItineraryItem item)
     {
-        var spot = item.TouristSpot ?? item.Service?.TouristSpot;
         var service = item.Service;
+        var spot = ResolvePrimarySpot(item);
         var durationMinutes = (int)Math.Max((item.EndTime - item.StartTime).TotalMinutes, 0);
 
         if (durationMinutes <= 0)
         {
-            durationMinutes = spot?.AvgTimeSpent > 0 ? spot.AvgTimeSpent : 120;
+            durationMinutes = ResolveDurationMinutes(service, spot);
         }
 
         return new ActivityDto
         {
-            Title = spot?.Name ?? service?.Name ?? $"Activity {item.ActivityOrder.ToString(CultureInfo.InvariantCulture)}",
+            Title = service?.Name ?? spot?.Name ?? $"Activity {item.ActivityOrder.ToString(CultureInfo.InvariantCulture)}",
             Location = spot?.Name ?? service?.Name ?? "Custom activity",
-            Description = spot?.Description ?? service?.Description ?? "No description available.",
-            Duration = FormatDuration(durationMinutes),
-            EstimatedCost = service?.BasePrice ?? 0
+            Description = service?.Description ?? spot?.Description ?? "No description available.",
+            Duration = FormatDuration(durationMinutes, service?.ServiceType),
+            EstimatedCost = service?.BasePrice ?? 0,
+            ServiceId = service?.ServiceId
         };
     }
 
@@ -265,8 +378,7 @@ public class ItineraryService : IItineraryService
     {
         foreach (var item in items)
         {
-            var destinationName = item.TouristSpot?.Destination?.Name
-                ?? item.Service?.TouristSpot?.Destination?.Name;
+            var destinationName = ResolvePrimarySpot(item)?.Destination?.Name;
 
             if (!string.IsNullOrWhiteSpace(destinationName))
             {
@@ -277,8 +389,82 @@ public class ItineraryService : IItineraryService
         return fallback;
     }
 
-    private static string FormatDuration(int totalMinutes)
+    private static TouristSpot? ResolvePrimarySpot(ItineraryItem item)
+        => ResolvePrimarySpot(item.Service, item.TouristSpot);
+
+    private static TouristSpot? ResolvePrimarySpot(Service? service, TouristSpot? fallbackSpot = null)
     {
+        if (fallbackSpot != null)
+        {
+            return fallbackSpot;
+        }
+
+        if (service?.TouristSpot != null)
+        {
+            return service.TouristSpot;
+        }
+
+        return service?.ServiceSpots
+            .OrderBy(serviceSpot => serviceSpot.VisitOrder)
+            .Select(serviceSpot => serviceSpot.TouristSpot)
+            .FirstOrDefault();
+    }
+
+    private static int ResolveDurationMinutes(Service? service, TouristSpot? spot)
+    {
+        if (service?.ServiceType == ServiceType.Hotel)
+        {
+            return 12 * 60;
+        }
+
+        return spot?.AvgTimeSpent > 0 ? spot.AvgTimeSpent : 120;
+    }
+
+    private static bool IsAvailabilityUsable(
+        ServiceType serviceType,
+        ServiceAvailability availability,
+        DateTime tripStartDate,
+        HashSet<DateTime> tripDates)
+    {
+        if (GetRemainingStock(availability) <= 0)
+        {
+            return false;
+        }
+
+        var availabilityDate = availability.Date.Date;
+        return serviceType == ServiceType.Hotel
+            ? availabilityDate == tripStartDate
+            : tripDates.Contains(availabilityDate);
+    }
+
+    private static int GetRemainingStock(ServiceAvailability availability)
+        => availability.TotalStock - availability.BookedCount - availability.HeldCount;
+
+    private static bool IsPotentialSpotMatch(TouristSpot candidate, ActivityDto activity)
+    {
+        return ContainsIgnoreCase(candidate.Name, activity.Location)
+            || ContainsIgnoreCase(activity.Location, candidate.Name)
+            || ContainsIgnoreCase(candidate.Name, activity.Title)
+            || ContainsIgnoreCase(activity.Title, candidate.Name);
+    }
+
+    private static bool ContainsIgnoreCase(string? source, string? target)
+    {
+        if (string.IsNullOrWhiteSpace(source) || string.IsNullOrWhiteSpace(target))
+        {
+            return false;
+        }
+
+        return source.Contains(target, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string FormatDuration(int totalMinutes, ServiceType? serviceType = null)
+    {
+        if (serviceType == ServiceType.Hotel)
+        {
+            return "1 night";
+        }
+
         if (totalMinutes <= 0)
         {
             return "Flexible";

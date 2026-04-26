@@ -2,7 +2,8 @@ using Microsoft.Extensions.Configuration;
 using System.Net.Http.Headers; 
 using System.Text;
 using System.Text.Json;
-using TravelAI.Application.Services.AI; 
+using TravelAI.Application.DTOs.Chat;
+using TravelAI.Application.Services.AI;
 
 namespace TravelAI.Infrastructure.ExternalServices;
 
@@ -19,7 +20,11 @@ public class GeminiService
         _apiUrl = config["Groq:ApiUrl"] ?? "https://api.groq.com/openai/v1/chat/completions";
     }
     
-    public async Task<string> CallApiAsync(string prompt) 
+    public async Task<string> CallApiAsync(
+        string prompt,
+        List<ChatMessage>? history = null,
+        string? systemPrompt = null,
+        bool requireJsonResponse = false) 
     {
         bool isDevMode = string.IsNullOrWhiteSpace(_apiKey);
         string jsonMockResponse = @"
@@ -59,20 +64,38 @@ public class GeminiService
                     }
                 ]
                 }
-            ]
+                ]
             }";
-        if (isDevMode) {
-            return jsonMockResponse;
+        if (isDevMode)
+        {
+            if (requireJsonResponse && string.Equals(systemPrompt, AIPrompts.IntentClassifierSystemPrompt, StringComparison.Ordinal))
+            {
+                return """
+                {
+                  "intent": "general_question",
+                  "destination": null,
+                  "days": null,
+                  "budget": null
+                }
+                """;
+            }
+
+            return requireJsonResponse
+                ? jsonMockResponse
+                : "TravelAI dev mode: please configure Groq:ApiKey to enable chat responses.";
         }
 
-        var requestBody = new {
-            model = "llama-3.3-70b-versatile",
-            messages = new object[] { 
-                new { role = "system", content = AIPrompts.ItinerarySystemPrompt },
-                new { role = "user", content = prompt }
-            },
-            response_format = new { type = "json_object" }
+        var messages = BuildMessages(prompt, history, systemPrompt);
+        var requestBody = new Dictionary<string, object?>
+        {
+            ["model"] = "llama-3.3-70b-versatile",
+            ["messages"] = messages
         };
+
+        if (requireJsonResponse)
+        {
+            requestBody["response_format"] = new { type = "json_object" };
+        }
 
         _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
         
@@ -99,5 +122,47 @@ public class GeminiService
         {
             return $"{{\"error\": \"Connection Error: {ex.Message}\"}}";
         }
+    }
+
+    private static List<object> BuildMessages(
+        string prompt,
+        IEnumerable<ChatMessage>? history,
+        string? systemPrompt)
+    {
+        var messages = new List<object>();
+
+        if (!string.IsNullOrWhiteSpace(systemPrompt))
+        {
+            messages.Add(new { role = "system", content = systemPrompt });
+        }
+
+        if (history != null)
+        {
+            foreach (var item in history)
+            {
+                if (string.IsNullOrWhiteSpace(item.Content))
+                {
+                    continue;
+                }
+
+                messages.Add(new
+                {
+                    role = NormalizeRole(item.Role),
+                    content = item.Content.Trim()
+                });
+            }
+        }
+
+        messages.Add(new { role = "user", content = prompt.Trim() });
+        return messages;
+    }
+
+    private static string NormalizeRole(string? role)
+    {
+        return role?.Trim().ToLowerInvariant() switch
+        {
+            "assistant" => "assistant",
+            _ => "user"
+        };
     }
 }
