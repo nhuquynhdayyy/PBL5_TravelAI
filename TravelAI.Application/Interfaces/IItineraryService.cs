@@ -5,4 +5,5 @@ public interface IItineraryService {
     Task<int> SaveItineraryAsync(int userId, ItineraryResponseDto dto);
     Task<IEnumerable<ItineraryResponseDto>> GetMyTripsAsync(int userId);
     Task<ItineraryResponseDto?> GetByIdAsync(int id, int userId);
+    Task<ItineraryResponseDto?> OptimizeItineraryAsync(int id, int userId);
 }

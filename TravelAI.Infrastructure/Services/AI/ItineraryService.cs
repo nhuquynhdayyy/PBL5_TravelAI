@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Text.Encodings.Web;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using TravelAI.Application.DTOs.AI;
 using TravelAI.Application.Interfaces;
@@ -262,6 +264,106 @@ public class ItineraryService : IItineraryService
             TotalEstimatedCost = totalEstimatedCost,
             Days = days
         };
+    }
+
+    public async Task<ItineraryResponseDto?> OptimizeItineraryAsync(int id, int userId)
+    {
+        var itinerary = await _db.Itineraries
+            .Include(i => i.Items)
+                .ThenInclude(item => item.TouristSpot)
+            .Include(i => i.Items)
+                .ThenInclude(item => item.Service)
+                    .ThenInclude(service => service!.TouristSpot)
+            .Include(i => i.Items)
+                .ThenInclude(item => item.Service)
+                    .ThenInclude(service => service!.ServiceSpots)
+                        .ThenInclude(serviceSpot => serviceSpot.TouristSpot)
+            .FirstOrDefaultAsync(i => i.ItineraryId == id && i.UserId == userId);
+
+        if (itinerary == null)
+        {
+            return null;
+        }
+
+        var optimizableItems = itinerary.Items
+            .Select(item => new
+            {
+                Item = item,
+                Spot = ResolvePrimarySpot(item)
+            })
+            .Where(item => item.Spot != null
+                && item.Spot.Latitude != 0
+                && item.Spot.Longitude != 0)
+            .OrderBy(item => item.Item.StartTime)
+            .ThenBy(item => item.Item.ActivityOrder)
+            .ToList();
+
+        if (optimizableItems.Count < 2)
+        {
+            throw new InvalidOperationException("Lich trinh can it nhat 2 dia diem co toa do de toi uu.");
+        }
+
+        var promptItems = optimizableItems
+            .Select(item => new OptimizePromptItem(
+                item.Item.ItemId,
+                item.Spot!.Name,
+                item.Spot.Latitude,
+                item.Spot.Longitude,
+                ResolveDurationMinutes(item.Item.Service, item.Spot)))
+            .ToList();
+
+        var promptJson = JsonSerializer.Serialize(promptItems, new JsonSerializerOptions
+        {
+            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        });
+
+        var prompt = $@"Sap xep lai thu tu tham quan cac dia diem sau de toi uu lo trinh di chuyen, tranh di long vong:
+{promptJson}
+
+Tra ve JSON duy nhat theo format:
+{{ ""order"": [itemId1, itemId2, itemId3] }}
+Chi dung cac itemId da cung cap, khong them markdown hay giai thich.";
+
+        var rawAiResponse = await _gemini.CallApiAsync(
+            prompt,
+            systemPrompt: "Ban la bo toi uu lo trinh du lich. Chi tra ve JSON hop le.",
+            requireJsonResponse: true);
+
+        if (GeminiService.TryExtractErrorMessage(rawAiResponse, out var aiError))
+        {
+            throw new InvalidOperationException(aiError);
+        }
+
+        var orderedItemIds = ParseOptimizedItemIds(rawAiResponse, promptItems.Select(item => item.ItemId).ToHashSet());
+        if (orderedItemIds.Count != promptItems.Count)
+        {
+            orderedItemIds = BuildNearestNeighborOrder(promptItems);
+        }
+
+        var itemsById = optimizableItems.ToDictionary(item => item.Item.ItemId, item => item.Item);
+        var originalSlots = optimizableItems
+            .Select(item => new
+            {
+                item.Item.StartTime,
+                Duration = item.Item.EndTime > item.Item.StartTime
+                    ? item.Item.EndTime - item.Item.StartTime
+                    : TimeSpan.FromMinutes(ResolveDurationMinutes(item.Item.Service, item.Spot))
+            })
+            .ToList();
+
+        for (var index = 0; index < orderedItemIds.Count; index++)
+        {
+            var item = itemsById[orderedItemIds[index]];
+            var slot = originalSlots[index];
+            item.ActivityOrder = index + 1;
+            item.StartTime = slot.StartTime;
+            item.EndTime = slot.StartTime.Add(slot.Duration);
+        }
+
+        await _db.SaveChangesAsync();
+
+        return await GetByIdAsync(id, userId);
     }
 
     private async Task<List<PromptServiceOption>> GetAvailableServicesForPromptAsync(Destination destination, DateTime tripStartDate, int totalDays)
@@ -560,4 +662,113 @@ Yeu cau:
 
         return $"AI tra ve du lieu khong dung dinh dang lich trinh JSON. Preview: {preview}";
     }
+
+    private static List<int> ParseOptimizedItemIds(string rawJson, HashSet<int> validItemIds)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(rawJson);
+            var root = document.RootElement;
+            var orderElement = ResolveOrderElement(root);
+
+            if (orderElement.ValueKind != JsonValueKind.Array)
+            {
+                return new List<int>();
+            }
+
+            var result = new List<int>();
+            foreach (var element in orderElement.EnumerateArray())
+            {
+                var itemId = ReadItemId(element);
+                if (itemId.HasValue && validItemIds.Contains(itemId.Value) && !result.Contains(itemId.Value))
+                {
+                    result.Add(itemId.Value);
+                }
+            }
+
+            return result;
+        }
+        catch (JsonException)
+        {
+            return new List<int>();
+        }
+    }
+
+    private static JsonElement ResolveOrderElement(JsonElement root)
+    {
+        if (root.ValueKind == JsonValueKind.Array)
+        {
+            return root;
+        }
+
+        foreach (var propertyName in new[] { "order", "orderedItemIds", "ordered_item_ids", "items", "route" })
+        {
+            if (root.TryGetProperty(propertyName, out var value))
+            {
+                return value;
+            }
+        }
+
+        return default;
+    }
+
+    private static int? ReadItemId(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.Number && element.TryGetInt32(out var numericId))
+        {
+            return numericId;
+        }
+
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var propertyName in new[] { "itemId", "item_id", "id" })
+            {
+                if (element.TryGetProperty(propertyName, out var value)
+                    && value.ValueKind == JsonValueKind.Number
+                    && value.TryGetInt32(out var objectId))
+                {
+                    return objectId;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static List<int> BuildNearestNeighborOrder(List<OptimizePromptItem> items)
+    {
+        var remaining = items
+            .OrderBy(item => item.ItemId)
+            .ToList();
+        var ordered = new List<OptimizePromptItem> { remaining[0] };
+        remaining.RemoveAt(0);
+
+        while (remaining.Count > 0)
+        {
+            var current = ordered[^1];
+            var next = remaining
+                .OrderBy(item => CalculateDistance(current.Lat, current.Lng, item.Lat, item.Lng))
+                .ThenBy(item => item.ItemId)
+                .First();
+
+            ordered.Add(next);
+            remaining.Remove(next);
+        }
+
+        return ordered.Select(item => item.ItemId).ToList();
+    }
+
+    private static double CalculateDistance(double lat1, double lng1, double lat2, double lng2)
+    {
+        var dLat = lat1 - lat2;
+        var dLng = lng1 - lng2;
+        return (dLat * dLat) + (dLng * dLng);
+    }
+
+    private sealed record OptimizePromptItem(
+        int ItemId,
+        string Name,
+        double Lat,
+        double Lng,
+        int EstimatedTime);
 }

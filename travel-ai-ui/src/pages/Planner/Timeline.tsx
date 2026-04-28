@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
     ArrowLeft,
     Calendar,
@@ -48,11 +48,40 @@ const toInputDateValue = (date: Date) => {
     return `${year}-${month}-${day}`;
 };
 
+type TimelineActivity = {
+    title?: string;
+    location?: string;
+    description?: string;
+    duration?: string;
+    estimatedCost?: number;
+    serviceId?: number | null;
+    service_id?: number | null;
+};
+
+type TimelineDay = {
+    day: number;
+    activities?: TimelineActivity[];
+};
+
+type TimelineData = {
+    itineraryId?: number;
+    itinerary_id?: number;
+    tripTitle?: string;
+    destination?: string;
+    startDate?: string;
+    start_date?: string;
+    endDate?: string;
+    end_date?: string;
+    totalEstimatedCost?: number;
+    days?: TimelineDay[];
+};
+
 const Timeline: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const [data] = useState<any>(location.state?.data || null);
+    const [data, setData] = useState<TimelineData | null>(location.state?.data || null);
     const [loading] = useState(false);
+    const [optimizing, setOptimizing] = useState(false);
 
     const tripStartDate = parseLocalDate(data?.startDate ?? data?.start_date);
     const tripEndDate = parseLocalDate(data?.endDate ?? data?.end_date);
@@ -69,7 +98,7 @@ const Timeline: React.FC = () => {
         return <Moon className="size-5" />;
     };
 
-    const getDayDate = (dayNumber: number) => {
+    const getDayDate = useCallback((dayNumber: number) => {
         if (!tripStartDate) {
             return null;
         }
@@ -77,11 +106,12 @@ const Timeline: React.FC = () => {
         const date = new Date(tripStartDate);
         date.setDate(date.getDate() + Math.max(dayNumber - 1, 0));
         return date;
-    };
+    }, [tripStartDate]);
 
-    const getServiceId = (activity: any) => activity?.serviceId ?? activity?.service_id ?? null;
+    const getServiceId = (activity: TimelineActivity) => activity?.serviceId ?? activity?.service_id ?? null;
+    const getItineraryId = () => data?.itineraryId ?? data?.itinerary_id ?? null;
 
-    const openServiceDetail = (activity: any, dayDate: Date | null) => {
+    const openServiceDetail = (activity: TimelineActivity, dayDate: Date | null) => {
         const serviceId = getServiceId(activity);
         if (!serviceId) {
             return;
@@ -107,7 +137,7 @@ const Timeline: React.FC = () => {
         }
 
         return null;
-    }, [data, tripStartDate]);
+    }, [data, getDayDate]);
 
     const tripLastDayDate = tripStartDate
         ? getDayDate(Math.max(data?.days?.length ?? 1, 1))
@@ -131,6 +161,34 @@ const Timeline: React.FC = () => {
         } catch (error) {
             console.error(error);
             alert('Không thể lưu lịch trình lúc này.');
+        }
+    };
+
+    const handleOptimize = async () => {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            navigate('/login', { state: { from: '/itinerary/latest' }, replace: false });
+            return;
+        }
+
+        const itineraryId = getItineraryId();
+        if (!itineraryId) {
+            alert('Hay luu lich trinh truoc khi toi uu lo trinh.');
+            return;
+        }
+
+        try {
+            setOptimizing(true);
+            const response = await axiosClient.post(`/itinerary/${itineraryId}/optimize`);
+            if (response.data.success && response.data.data) {
+                setData(response.data.data);
+            }
+        } catch (error: unknown) {
+            console.error(error);
+            const apiError = error as { response?: { data?: { message?: string } } };
+            alert(apiError.response?.data?.message ?? 'Khong the toi uu lo trinh luc nay.');
+        } finally {
+            setOptimizing(false);
         }
     };
 
@@ -181,7 +239,7 @@ const Timeline: React.FC = () => {
                             <MapPin size={14} className="text-blue-500" /> {data.destination}
                         </span>
                         <span className="flex items-center gap-1 rounded-lg border border-green-100 bg-green-50 px-3 py-1 text-xs font-bold uppercase tracking-widest text-green-600">
-                            <DollarSign size={14} /> Tổng chi phí: {new Intl.NumberFormat('vi-VN').format(data.totalEstimatedCost)}₫
+                            <DollarSign size={14} /> Tổng chi phí: {new Intl.NumberFormat('vi-VN').format(data.totalEstimatedCost ?? 0)}₫
                         </span>
                         {tripStartDate && (
                             <span className="flex items-center gap-1 rounded-lg border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-bold uppercase tracking-widest text-blue-600">
@@ -193,7 +251,15 @@ const Timeline: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex flex-wrap gap-3">
+                    <button
+                        onClick={handleOptimize}
+                        disabled={optimizing}
+                        className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-5 py-4 text-sm font-black text-white shadow-sm transition-all hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        <Sparkles size={18} />
+                        {optimizing ? 'Dang toi uu...' : 'Toi uu lo trinh'}
+                    </button>
                     <button className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:bg-slate-50">
                         <Download size={20} />
                     </button>
@@ -204,7 +270,7 @@ const Timeline: React.FC = () => {
             </div>
 
             <div className="space-y-16">
-                {data.days.map((day: any) => {
+                {(data.days ?? []).map((day) => {
                     const dayDate = getDayDate(day.day);
 
                     return (
@@ -224,7 +290,7 @@ const Timeline: React.FC = () => {
                             </div>
 
                             <div className="relative ml-6 space-y-10 border-l-4 border-dashed border-slate-200 pl-10">
-                                {(day.activities ?? []).map((activity: any, idx: number) => {
+                                {(day.activities ?? []).map((activity, idx) => {
                                     const serviceId = getServiceId(activity);
 
                                     return (
@@ -284,7 +350,7 @@ const Timeline: React.FC = () => {
                                                             Chi phí dự kiến
                                                         </p>
                                                         <div className="rounded-2xl bg-slate-900 px-5 py-2.5 text-lg font-black text-white shadow-lg">
-                                                            ~{new Intl.NumberFormat('vi-VN').format(activity.estimatedCost)}₫
+                                                            ~{new Intl.NumberFormat('vi-VN').format(activity.estimatedCost ?? 0)}₫
                                                         </div>
                                                         {serviceId && (
                                                             <button

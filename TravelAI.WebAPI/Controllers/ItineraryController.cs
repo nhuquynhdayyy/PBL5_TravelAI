@@ -60,4 +60,22 @@ public class ItineraryController : ControllerBase {
             ? Ok(new { success = true, data = result })
             : NotFound();
     }
+
+    [HttpPost("{id:int}/optimize")]
+    public async Task<IActionResult> Optimize(int id)
+    {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+        try
+        {
+            var result = await _service.OptimizeItineraryAsync(id, userId);
+            return result != null
+                ? Ok(new { success = true, data = result })
+                : NotFound();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
 }
