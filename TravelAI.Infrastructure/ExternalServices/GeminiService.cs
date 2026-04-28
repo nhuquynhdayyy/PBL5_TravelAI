@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using System.Net;
 using System.Net.Http.Headers; 
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using TravelAI.Application.DTOs.Chat;
@@ -106,6 +107,82 @@ public class GeminiService
         catch (Exception ex)
         {
             return $"{{\"error\": \"Connection Error: {ex.Message}\"}}";
+        }
+    }
+
+    public async IAsyncEnumerable<string> StreamChatAsync(
+        string prompt,
+        List<ChatMessage>? history = null,
+        string? systemPrompt = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(_apiKey))
+        {
+            const string devResponse = "TravelAI dev mode: please configure Groq:ApiKey to enable streaming chat responses.";
+            foreach (var token in devResponse.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                yield return token + " ";
+                await Task.Delay(45, cancellationToken);
+            }
+
+            yield break;
+        }
+
+        var messages = BuildMessages(prompt, history, systemPrompt);
+        _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
+
+        var requestBody = new Dictionary<string, object?>
+        {
+            ["model"] = _model,
+            ["messages"] = messages,
+            ["stream"] = true
+        };
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, _apiUrl)
+        {
+            Content = new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json")
+        };
+
+        using var response = await _http.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var rawError = await response.Content.ReadAsStringAsync(cancellationToken);
+            yield return $"Groq API Error: {response.StatusCode}. {rawError}";
+            yield break;
+        }
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var reader = new StreamReader(stream);
+
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            var line = await reader.ReadLineAsync(cancellationToken);
+            if (line == null)
+            {
+                yield break;
+            }
+
+            if (string.IsNullOrWhiteSpace(line) || !line.StartsWith("data:", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var payload = line["data:".Length..].Trim();
+            if (payload == "[DONE]")
+            {
+                yield break;
+            }
+
+            var token = TryReadStreamingToken(payload);
+            if (!string.IsNullOrEmpty(token))
+            {
+                yield return token;
+            }
         }
     }
 
@@ -224,6 +301,36 @@ public class GeminiService
             "assistant" => "assistant",
             _ => "user"
         };
+    }
+
+    private static string? TryReadStreamingToken(string payload)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(payload);
+            var choice = document.RootElement.GetProperty("choices")[0];
+
+            if (!choice.TryGetProperty("delta", out var delta)
+                || !delta.TryGetProperty("content", out var content)
+                || content.ValueKind != JsonValueKind.String)
+            {
+                return null;
+            }
+
+            return content.GetString();
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+        catch (KeyNotFoundException)
+        {
+            return null;
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
     }
 
     private sealed record GroqCallResult(

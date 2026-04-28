@@ -12,8 +12,20 @@ type ChatboxMessage = {
   text: string;
   sender: 'user' | 'ai';
   type: 'text' | 'itinerary' | 'hotel' | 'service' | 'booking';
-  data?: any;
+  data?: ItineraryData | ServiceItem[];
   includeInHistory?: boolean;
+};
+
+type ItineraryData = {
+  tripTitle?: string;
+  [key: string]: unknown;
+};
+
+type ServiceItem = {
+  id: number;
+  name: string;
+  location?: string;
+  price: number;
 };
 
 const initialMessage: ChatboxMessage = {
@@ -45,6 +57,73 @@ const Chatbox = () => {
         content: msg.text.trim(),
       }));
 
+  const isServiceList = (data: ChatboxMessage['data']): data is ServiceItem[] =>
+    Array.isArray(data);
+
+  const shouldUseRichChat = (message: string) => {
+    const normalized = message.toLowerCase();
+    return [
+      'lich trinh',
+      'lịch trình',
+      'itinerary',
+      'khach san',
+      'khách sạn',
+      'hotel',
+      'tour',
+      'gia',
+      'giá',
+      'bao nhieu',
+      'bao nhiêu',
+    ].some(keyword => normalized.includes(keyword));
+  };
+
+  const readSseStream = async (
+    response: Response,
+    onToken: (token: string) => void,
+  ) => {
+    const reader = response.body?.getReader();
+    if (!reader) {
+      return;
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const events = buffer.split('\n\n');
+      buffer = events.pop() ?? '';
+
+      for (const event of events) {
+        if (event.startsWith('event: done')) {
+          return;
+        }
+
+        const dataLine = event
+          .split('\n')
+          .find(line => line.startsWith('data:'));
+
+        if (!dataLine) {
+          continue;
+        }
+
+        const payload = dataLine.slice(5).trim();
+        if (!payload) {
+          continue;
+        }
+
+        try {
+          onToken(JSON.parse(payload));
+        } catch {
+          onToken(payload);
+        }
+      }
+    }
+  };
+
   const handleSend = async () => {
     const trimmedInput = input.trim();
     if (!trimmedInput) return;
@@ -57,6 +136,42 @@ const Chatbox = () => {
     setIsTyping(true);
 
     try {
+      if (!shouldUseRichChat(trimmedInput)) {
+        const aiMessage: ChatboxMessage = { text: '', sender: 'ai', type: 'text' };
+        setMessages(prev => [...prev, aiMessage]);
+
+        const token = localStorage.getItem('token');
+        const response = await fetch('http://localhost:5134/api/chat/stream', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            message: trimmedInput,
+            history,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Streaming request failed.');
+        }
+
+        setIsTyping(false);
+        await readSseStream(response, (tokenText) => {
+          setMessages(prev => {
+            const next = [...prev];
+            const last = next[next.length - 1];
+            next[next.length - 1] = {
+              ...last,
+              text: `${last.text}${tokenText}`,
+            };
+            return next;
+          });
+        });
+        return;
+      }
+
       const { data } = await axiosClient.post('/chat', {
         message: trimmedInput,
         history,
@@ -113,7 +228,9 @@ const Chatbox = () => {
                   {msg.type === 'itinerary' && (
                     <div className="mt-4 p-4 bg-blue-50 rounded-2xl border border-blue-100">
                       <p className="text-[11px] font-black text-blue-400 uppercase mb-2">AI Itinerary Ready</p>
-                      <h4 className="font-bold text-slate-800 mb-3">{msg.data?.tripTitle}</h4>
+                      <h4 className="font-bold text-slate-800 mb-3">
+                        {msg.data && !Array.isArray(msg.data) ? msg.data.tripTitle : ''}
+                      </h4>
 
                       <button
                         onClick={() => navigate('/itinerary/latest', { state: { data: msg.data } })}
@@ -126,7 +243,7 @@ const Chatbox = () => {
 
                   {(msg.type === 'hotel' || msg.type === 'service') && (
                     <div className="mt-3 space-y-2">
-                      {msg.data.map((h: any) => (
+                      {isServiceList(msg.data) && msg.data.map((h) => (
                         <div key={h.id} className="flex gap-2 p-2 bg-slate-50 rounded-xl border">
                           <div className="w-12 h-12 bg-slate-200 rounded-lg shrink-0"></div>
                           <div className="text-[11px]">

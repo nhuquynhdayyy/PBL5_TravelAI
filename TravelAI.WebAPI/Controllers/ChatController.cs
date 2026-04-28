@@ -37,6 +37,38 @@ public class ChatController : ControllerBase
         _aiService = aiService;
     }
 
+    [HttpPost("stream")]
+    public async Task Stream([FromBody] ChatRequest request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.Message))
+        {
+            Response.StatusCode = StatusCodes.Status400BadRequest;
+            await Response.WriteAsync("data: Message is required.\n\n", cancellationToken);
+            return;
+        }
+
+        Response.Headers.ContentType = "text/event-stream; charset=utf-8";
+        Response.Headers.CacheControl = "no-cache";
+        Response.Headers.Connection = "keep-alive";
+
+        var history = (request.History ?? new List<ChatMessage>())
+            .Where(message => !string.IsNullOrWhiteSpace(message.Content))
+            .ToList();
+
+        await foreach (var token in _aiService.StreamChatAsync(
+            request.Message,
+            history,
+            AIPrompts.ChatSystemPrompt,
+            cancellationToken))
+        {
+            await Response.WriteAsync($"data: {JsonSerializer.Serialize(token)}\n\n", cancellationToken);
+            await Response.Body.FlushAsync(cancellationToken);
+        }
+
+        await Response.WriteAsync("event: done\ndata: {}\n\n", cancellationToken);
+        await Response.Body.FlushAsync(cancellationToken);
+    }
+
     [HttpPost]
     public async Task<IActionResult> GetAIResponse([FromBody] ChatRequest request)
     {
