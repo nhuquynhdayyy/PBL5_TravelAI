@@ -13,15 +13,12 @@ public class ServicesController : ControllerBase
     private readonly IServiceService _service;
     private readonly IWebHostEnvironment _env;
 
-    // 1. HÀM KHỞI TẠO (Constructor) - Phải trùng tên Class và KHÔNG có kiểu trả về
     public ServicesController(IServiceService service, IWebHostEnvironment env)
     {
         _service = service;
         _env = env;
     }
 
-    // 2. DÀNH CHO CUSTOMER (TRANG PUBLIC)
-    // URL: GET /api/services/public?type=0
     [HttpGet("public")]
     [AllowAnonymous]
     public async Task<IActionResult> GetPublic([FromQuery] int? type)
@@ -30,8 +27,6 @@ public class ServicesController : ControllerBase
         return Ok(data);
     }
 
-    // 3. DÀNH CHO PARTNER (QUẢN LÝ DỊCH VỤ CỦA TÔI)
-    // URL: GET /api/services/my-services
     [HttpGet("my-services")]
     [Authorize(Roles = "Partner")]
     public async Task<IActionResult> GetMyServices()
@@ -41,8 +36,6 @@ public class ServicesController : ControllerBase
         return Ok(data);
     }
 
-    // 4. DÀNH CHO ADMIN (QUẢN TRỊ TOÀN HỆ THỐNG)
-    // URL: GET /api/services/admin-all
     [HttpGet("admin-all")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> AdminGetAll()
@@ -51,51 +44,94 @@ public class ServicesController : ControllerBase
         return Ok(data);
     }
 
-    // 5. ADMIN DUYỆT HOẶC KHÓA DỊCH VỤ
-    // URL: PATCH /api/services/1/toggle
     [HttpPatch("{id}/toggle")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> ToggleStatus(int id)
     {
         var success = await _service.ToggleStatusAsync(id);
-        if (!success) return NotFound();
-        return Ok(new { success = true, message = "Đã cập nhật trạng thái!" });
+        if (!success)
+        {
+            return NotFound();
+        }
+
+        return Ok(new { success = true, message = "Da cap nhat trang thai." });
     }
 
-    // 6. XEM CHI TIẾT DỊCH VỤ (DÙNG CHUNG)
     [HttpGet("{id}")]
+    [AllowAnonymous]
     public async Task<IActionResult> GetById(int id)
     {
-        var res = await _service.GetByIdAsync(id);
-        return res == null ? NotFound() : Ok(res);
+        var result = await _service.GetByIdAsync(id);
+        if (result == null)
+        {
+            return NotFound();
+        }
+
+        if (result.IsActive)
+        {
+            return Ok(result);
+        }
+
+        if (!User.Identity?.IsAuthenticated ?? true)
+        {
+            return NotFound();
+        }
+
+        var role = User.FindFirst(ClaimTypes.Role)?.Value;
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var userId = int.TryParse(userIdClaim, out var parsedUserId) ? parsedUserId : 0;
+        var canAccessInactive =
+            string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase) ||
+            (string.Equals(role, "Partner", StringComparison.OrdinalIgnoreCase) && result.PartnerId == userId);
+
+        return canAccessInactive ? Ok(result) : NotFound();
     }
 
-    // 7. TẠO MỚI DỊCH VỤ (DÀNH CHO PARTNER)
     [HttpPost]
     [Authorize(Roles = "Partner,Admin")]
     public async Task<IActionResult> CreateService([FromForm] CreateServiceRequest request)
     {
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-        var result = await _service.CreateAsync(userId, request, _env.WebRootPath);
-        return Ok(result);
+        try
+        {
+            var result = await _service.CreateAsync(userId, request, _env.WebRootPath);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
-    // 8. CẬP NHẬT DỊCH VỤ (CHỈ CHỦ SỞ HỮU MỚI ĐƯỢC SỬA)
     [HttpPut("{id}")]
     [Authorize(Roles = "Partner,Admin")]
     public async Task<IActionResult> UpdateService(int id, [FromForm] CreateServiceRequest request)
     {
-        var success = await _service.UpdateAsync(id, request, _env.WebRootPath);
-        if (!success) return BadRequest(new { message = "Cập nhật thất bại!" });
-        return Ok(new { success = true, message = "Đã cập nhật thành công!" });
+        try
+        {
+            var success = await _service.UpdateAsync(id, request, _env.WebRootPath);
+            if (!success)
+            {
+                return BadRequest(new { message = "Cap nhat that bai." });
+            }
+
+            return Ok(new
+            {
+                success = true,
+                message = "Da cap nhat thanh cong. Dich vu da quay lai trang thai cho duyet."
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
-    // 9. XÓA DỊCH VỤ
     [HttpDelete("{id}")]
     [Authorize(Roles = "Partner,Admin")]
     public async Task<IActionResult> DeleteService(int id)
     {
         var success = await _service.DeleteAsync(id, _env.WebRootPath);
-        return success ? Ok(new { message = "Đã xóa!" }) : NotFound();
+        return success ? Ok(new { message = "Da xoa." }) : NotFound();
     }
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock, MapPin, DollarSign, Calendar, Info } from 'lucide-react';
+import { Clock, MapPin, DollarSign, Info, Sparkles } from 'lucide-react';
 
 interface Props {
   data: any; 
@@ -107,7 +107,4 @@ const AIItineraryResult: React.FC<Props> = ({ data }) => {
     </div>
   );
 };
-
-import { Sparkles } from 'lucide-react';
-
 export default AIItineraryResult;

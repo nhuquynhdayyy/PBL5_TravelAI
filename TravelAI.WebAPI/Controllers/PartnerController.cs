@@ -15,10 +15,12 @@ namespace TravelAI.WebAPI.Controllers;
 public class PartnerController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly IWebHostEnvironment _environment;
 
-    public PartnerController(ApplicationDbContext context)
+    public PartnerController(ApplicationDbContext context, IWebHostEnvironment environment)
     {
         _context = context;
+        _environment = environment;
     }
 
     [HttpGet("profile")]
@@ -45,7 +47,8 @@ public class PartnerController : ControllerBase
     }
 
     [HttpPut("profile")]
-    public async Task<IActionResult> UpdateProfile([FromBody] PartnerProfileDto request)
+    [RequestSizeLimit(20_000_000)]
+    public async Task<IActionResult> UpdateProfile([FromForm] UpdatePartnerProfileRequest request)
     {
         var partnerIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
         if (partnerIdClaim == null)
@@ -72,11 +75,32 @@ public class PartnerController : ControllerBase
         profile.BankAccount = NormalizeOptionalText(request.BankAccount);
         profile.Address = NormalizeOptionalText(request.Address);
         profile.Description = NormalizeOptionalText(request.Description);
+        profile.ContactPhone = NormalizeOptionalText(request.ContactPhone);
 
         if (string.IsNullOrWhiteSpace(profile.BusinessName))
         {
             return BadRequest(new { message = "Ten doanh nghiep khong duoc de trong." });
         }
+
+        if (string.IsNullOrWhiteSpace(profile.ContactPhone))
+        {
+            return BadRequest(new { message = "So dien thoai lien he khong duoc de trong." });
+        }
+
+        if (request.BusinessLicenseFile != null)
+        {
+            profile.BusinessLicenseUrl = await SaveBusinessLicenseAsync(request.BusinessLicenseFile);
+        }
+
+        if (string.IsNullOrWhiteSpace(profile.BusinessLicenseUrl))
+        {
+            return BadRequest(new { message = "Vui long tai len giay phep kinh doanh." });
+        }
+
+        profile.VerificationStatus = PartnerVerificationStatus.Pending;
+        profile.ReviewNote = null;
+        profile.SubmittedAt = DateTime.UtcNow;
+        profile.ReviewedAt = null;
 
         await _context.SaveChangesAsync();
 
@@ -206,6 +230,23 @@ public class PartnerController : ControllerBase
         return Ok(response);
     }
 
+    private async Task<string> SaveBusinessLicenseAsync(IFormFile file)
+    {
+        var folderPath = Path.Combine(_environment.WebRootPath, "uploads", "partner-documents");
+        if (!Directory.Exists(folderPath))
+        {
+            Directory.CreateDirectory(folderPath);
+        }
+
+        var fileName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+        var filePath = Path.Combine(folderPath, fileName);
+
+        await using var stream = new FileStream(filePath, FileMode.Create);
+        await file.CopyToAsync(stream);
+
+        return $"/uploads/partner-documents/{fileName}";
+    }
+
     private static PartnerProfileDto MapToPartnerProfileDto(PartnerProfile profile)
     {
         return new PartnerProfileDto
@@ -214,7 +255,14 @@ public class PartnerController : ControllerBase
             TaxCode = profile.TaxCode,
             BankAccount = profile.BankAccount,
             Address = profile.Address,
-            Description = profile.Description
+            Description = profile.Description,
+            ContactPhone = profile.ContactPhone,
+            BusinessLicenseUrl = profile.BusinessLicenseUrl,
+            VerificationStatus = profile.VerificationStatus.ToString(),
+            ReviewNote = profile.ReviewNote,
+            SubmittedAt = profile.SubmittedAt,
+            ReviewedAt = profile.ReviewedAt,
+            CanCreateServices = profile.VerificationStatus == PartnerVerificationStatus.Approved
         };
     }
 

@@ -8,7 +8,6 @@ using TravelAI.Application.Interfaces;
 using TravelAI.Application.Services;
 using TravelAI.Domain.Interfaces;     
 using TravelAI.Infrastructure.Repositories; 
-using TravelAI.Application.Interfaces;
 using TravelAI.Infrastructure.Services.AI;
 using TravelAI.Infrastructure.ExternalServices;
 using TravelAI.Application.Services.AI;

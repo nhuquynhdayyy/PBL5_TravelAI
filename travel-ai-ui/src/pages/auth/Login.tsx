@@ -15,7 +15,7 @@ const Login = () => {
       const { data } = await axiosClient.post('/auth/login', formData);
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data));
-      navigate('/');
+      navigate(data.roleName?.toLowerCase() === 'partner' ? '/partner/profile' : '/');
       window.location.reload();
     } catch (err: any) {
       alert(err.response?.data || "Login failed");
