@@ -10,8 +10,11 @@ import {
     Loader2,
     MapPin,
     Plus,
+    ReceiptText,
     Search,
-    Sparkles
+    Sparkles,
+    Users,
+    Wallet
 } from 'lucide-react';
 import axiosClient from '../api/axiosClient';
 import SpotCard from '../components/SpotCard';
@@ -20,6 +23,17 @@ const getTodayInputValue = () => {
     const now = new Date();
     const timezoneOffset = now.getTimezoneOffset() * 60000;
     return new Date(now.getTime() - timezoneOffset).toISOString().split('T')[0];
+};
+
+type BudgetBreakdownItem = {
+    category: string;
+    amount: number;
+    note: string;
+};
+
+type BudgetEstimate = {
+    total: number;
+    breakdown: BudgetBreakdownItem[];
 };
 
 const DestinationDetail: React.FC = () => {
@@ -40,6 +54,10 @@ const DestinationDetail: React.FC = () => {
     const [aiLoading, setAiLoading] = useState(false);
     const [days, setDays] = useState<number>(1);
     const [startDate, setStartDate] = useState<string>(getTodayInputValue());
+    const [budgetPeople, setBudgetPeople] = useState<number>(2);
+    const [budgetStyle, setBudgetStyle] = useState<string>('Trung binh');
+    const [budgetLoading, setBudgetLoading] = useState(false);
+    const [budgetEstimate, setBudgetEstimate] = useState<BudgetEstimate | null>(null);
 
     const handleGenerateAI = async () => {
         try {
@@ -84,6 +102,51 @@ const DestinationDetail: React.FC = () => {
             setAiLoading(false);
         }
     };
+
+    const handleEstimateBudget = async () => {
+        try {
+            setBudgetLoading(true);
+
+            const response = await axiosClient.post('/ai/estimate-budget', {
+                destination: dest.name,
+                days,
+                people: budgetPeople,
+                travel_style: budgetStyle
+            });
+
+            setBudgetEstimate(response.data.data || response.data);
+        } catch (error) {
+            console.error(error);
+            const message = typeof error === 'object' && error !== null && 'response' in error
+                ? (() => {
+                    const response = (error as {
+                        response?: {
+                            data?: {
+                                message?: string;
+                            } | string;
+                        };
+                    }).response;
+
+                    if (typeof response?.data === 'string') {
+                        return response.data;
+                    }
+
+                    return response?.data?.message || 'Khong uoc tinh duoc ngan sach luc nay.';
+                })()
+                : 'Khong uoc tinh duoc ngan sach luc nay.';
+
+            alert(message);
+        } finally {
+            setBudgetLoading(false);
+        }
+    };
+
+    const formatCurrency = (value: number) =>
+        new Intl.NumberFormat('vi-VN', {
+            style: 'currency',
+            currency: 'VND',
+            maximumFractionDigits: 0
+        }).format(value);
 
     const getImageUrl = (url: string) => {
         if (!url) {
@@ -419,6 +482,125 @@ const DestinationDetail: React.FC = () => {
                                 <>BẮT ĐẦU NGAY</>
                             )}
                         </button>
+                    </div>
+
+                    <div className="rounded-[32px] border border-blue-100 bg-white p-6 shadow-sm">
+                        <div className="mb-5 flex items-start justify-between gap-3">
+                            <div>
+                                <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-blue-500">
+                                    AI Budget Estimator
+                                </p>
+                                <h3 className="text-xl font-black text-slate-900">Ước tính ngân sách</h3>
+                            </div>
+                            <div className="flex size-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+                                <Wallet size={22} />
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                    Điểm đến
+                                </label>
+                                <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-700">
+                                    <MapPin size={16} className="text-red-400" />
+                                    {dest.name}
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                        Số ngày
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        max={30}
+                                        value={days}
+                                        onChange={(event) => setDays(Math.max(1, Number(event.target.value) || 1))}
+                                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 outline-none transition-all focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                        Số người
+                                    </label>
+                                    <div className="flex items-center gap-2 rounded-2xl border border-slate-200 px-3 py-3">
+                                        <Users size={16} className="text-slate-400" />
+                                        <input
+                                            type="number"
+                                            min={1}
+                                            max={50}
+                                            value={budgetPeople}
+                                            onChange={(event) => setBudgetPeople(Math.max(1, Number(event.target.value) || 1))}
+                                            className="w-full text-sm font-bold text-slate-700 outline-none"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                    Phong cách
+                                </label>
+                                <select
+                                    value={budgetStyle}
+                                    onChange={(event) => setBudgetStyle(event.target.value)}
+                                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 outline-none transition-all focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                                >
+                                    <option value="Tiet kiem">Tiết kiệm</option>
+                                    <option value="Trung binh">Trung bình</option>
+                                    <option value="Cao cap">Cao cấp</option>
+                                </select>
+                            </div>
+
+                            <button
+                                onClick={handleEstimateBudget}
+                                disabled={budgetLoading}
+                                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 py-3.5 text-sm font-black text-white transition-all hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                {budgetLoading ? (
+                                    <>
+                                        <Loader2 size={18} className="animate-spin" />
+                                        Đang ước tính...
+                                    </>
+                                ) : (
+                                    <>
+                                        <ReceiptText size={18} />
+                                        Ước tính chi phí
+                                    </>
+                                )}
+                            </button>
+                        </div>
+
+                        {budgetEstimate && (
+                            <div className="mt-6 overflow-hidden rounded-2xl border border-slate-100">
+                                <div className="bg-blue-50 px-4 py-3">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-blue-500">
+                                        Tổng ngân sách
+                                    </p>
+                                    <p className="text-2xl font-black text-slate-900">
+                                        {formatCurrency(budgetEstimate.total)}
+                                    </p>
+                                </div>
+
+                                <div className="divide-y divide-slate-100">
+                                    {budgetEstimate.breakdown.map((item) => (
+                                        <div key={item.category} className="grid grid-cols-[1fr_auto] gap-3 px-4 py-3">
+                                            <div>
+                                                <p className="text-sm font-black text-slate-800">{item.category}</p>
+                                                <p className="mt-1 text-xs leading-relaxed text-slate-500">{item.note}</p>
+                                            </div>
+                                            <p className="whitespace-nowrap text-sm font-black text-blue-600">
+                                                {formatCurrency(item.amount)}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
