@@ -44,11 +44,20 @@ public class DayPlanDto {
     [JsonPropertyName("day")]
     public int Day { get; set; }
 
+    [JsonPropertyName("dayNumber")]
+    public int DayAlias { get => Day; set => Day = value; }
+
     [JsonPropertyName("daily_cost")]
     public decimal DailyCost { get; set; }
 
+    [JsonPropertyName("dailyCost")]
+    public decimal DailyCostAlias { get => DailyCost; set => DailyCost = value; }
+
     [JsonPropertyName("activities")]
     public List<ActivityDto> Activities { get; set; } = new();
+
+    [JsonPropertyName("items")]
+    public List<ActivityDto> ActivitiesAlias { get => Activities; set => Activities = value; }
 }
 
 public class ActivityDto {

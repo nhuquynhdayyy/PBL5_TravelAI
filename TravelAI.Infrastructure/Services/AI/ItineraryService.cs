@@ -27,17 +27,29 @@ public class ItineraryService : IItineraryService
 
     public async Task<ItineraryResponseDto?> GenerateAndLogItineraryAsync(int userId, GenerateItineraryRequest request)
     {
+        if (request.DestinationId <= 0)
+        {
+            throw new InvalidOperationException("Destination khong hop le.");
+        }
+
+        if (request.NumberOfDays <= 0)
+        {
+            throw new InvalidOperationException("So ngay phai lon hon 0.");
+        }
+
         var dest = await _db.Destinations.FindAsync(request.DestinationId);
         if (dest == null)
         {
-            return null;
+            throw new InvalidOperationException("Khong tim thay diem den de tao lich trinh.");
         }
 
         var pref = await _db.UserPreferences.FirstOrDefaultAsync(u => u.UserId == userId)
             ?? new UserPreference
             {
                 TravelStyle = "Kham pha tong hop",
-                BudgetLevel = BudgetLevel.Medium
+                BudgetLevel = BudgetLevel.Medium,
+                TravelPace = TravelPace.Balanced,
+                CuisinePref = "Khong co yeu cau dac biet"
             };
 
         var spots = await _db.TouristSpots
@@ -53,20 +65,45 @@ public class ItineraryService : IItineraryService
             systemPrompt: AIPrompts.ItinerarySystemPrompt,
             requireJsonResponse: true);
 
-        _db.AISuggestionLogs.Add(new AISuggestionLog
+        var aiLog = new AISuggestionLog
         {
             UserId = userId,
             UserPrompt = prompt,
             AiResponseJson = rawAiResponse,
             CreatedAt = DateTime.UtcNow
-        });
+        };
+
+        _db.AISuggestionLogs.Add(aiLog);
 
         await _db.SaveChangesAsync();
+
+        if (GeminiService.TryExtractErrorMessage(rawAiResponse, out var aiError))
+        {
+            throw new InvalidOperationException(aiError);
+        }
 
         var parsed = _parserService.ParseAndValidate(rawAiResponse);
         if (parsed == null)
         {
-            return null;
+            var repairedResponse = await TryRepairItineraryResponseAsync(rawAiResponse, dest.Name, request.NumberOfDays);
+
+            if (!string.IsNullOrWhiteSpace(repairedResponse))
+            {
+                aiLog.AiResponseJson = $"ORIGINAL RESPONSE:{Environment.NewLine}{rawAiResponse}{Environment.NewLine}{Environment.NewLine}REPAIRED RESPONSE:{Environment.NewLine}{repairedResponse}";
+                await _db.SaveChangesAsync();
+
+                if (GeminiService.TryExtractErrorMessage(repairedResponse, out var repairError))
+                {
+                    throw new InvalidOperationException(repairError);
+                }
+
+                parsed = _parserService.ParseAndValidate(repairedResponse);
+            }
+        }
+
+        if (parsed == null)
+        {
+            throw new InvalidOperationException(BuildInvalidJsonMessage(rawAiResponse));
         }
 
         parsed.StartDate = tripStartDate;
@@ -484,5 +521,43 @@ public class ItineraryService : IItineraryService
         }
 
         return $"{hours.ToString(CultureInfo.InvariantCulture)} hours {minutes.ToString(CultureInfo.InvariantCulture)} minutes";
+    }
+
+    private async Task<string?> TryRepairItineraryResponseAsync(string rawAiResponse, string destinationName, int requestedDays)
+    {
+        if (string.IsNullOrWhiteSpace(rawAiResponse))
+        {
+            return null;
+        }
+
+        var repairPrompt = $@"Chuan hoa noi dung lich trinh sau thanh JSON hop le theo schema TravelAI:
+
+{rawAiResponse}
+
+Yeu cau:
+- Destination la {destinationName}.
+- Uu tien giu dung noi dung goc va tong so ngay gan voi {requestedDays}.
+- Moi activity phai co: title, location, description, duration, estimatedCost, service_id.
+- Khong them markdown hay giai thich.";
+
+        return await _gemini.CallApiAsync(
+            repairPrompt,
+            systemPrompt: AIPrompts.ItineraryRepairSystemPrompt,
+            requireJsonResponse: true);
+    }
+
+    private static string BuildInvalidJsonMessage(string rawAiResponse)
+    {
+        var preview = rawAiResponse
+            .Replace("\r", " ", StringComparison.Ordinal)
+            .Replace("\n", " ", StringComparison.Ordinal)
+            .Trim();
+
+        if (preview.Length > 220)
+        {
+            preview = preview[..220] + "...";
+        }
+
+        return $"AI tra ve du lieu khong dung dinh dang lich trinh JSON. Preview: {preview}";
     }
 }

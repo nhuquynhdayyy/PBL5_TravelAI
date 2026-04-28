@@ -195,7 +195,14 @@ function App() {
         />
 
         <Route path="/profile" element={<MainLayout><Profile /></MainLayout>} />
-        <Route path="/preferences" element={<MainLayout><UserPreferences /></MainLayout>} />
+        <Route
+          path="/preferences"
+          element={
+            <ProtectedRoute allowedRoles={['customer', 'partner', 'admin']}>
+              <MainLayout><UserPreferences /></MainLayout>
+            </ProtectedRoute>
+          }
+        />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/itinerary/latest" element={<MainLayout><Timeline /></MainLayout>} />

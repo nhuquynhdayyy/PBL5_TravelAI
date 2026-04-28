@@ -22,6 +22,10 @@ public class PromptBuilder
         var serviceOptions = availableServices?.ToList() ?? new List<PromptServiceOption>();
         var hotelLines = BuildServiceLines(serviceOptions.Where(service => service.ServiceType == ServiceType.Hotel));
         var tourLines = BuildServiceLines(serviceOptions.Where(service => service.ServiceType == ServiceType.Tour));
+        var travelStyle = FormatTravelStyle(pref.TravelStyle);
+        var budgetLevel = FormatBudgetLevel(pref.BudgetLevel);
+        var travelPace = FormatTravelPace(pref.TravelPace);
+        var cuisinePreference = FormatCuisinePreference(pref.CuisinePref);
 
         return $@"Ban la chuyen gia lap ke hoach du lich. Hay lap lich trinh {days} ngay tai {dest.Name}.
 Chuyen di bat dau tu ngay {startDate:dd/MM/yyyy}. Day la moc ngay bat dau co dinh cho ca hanh trinh.
@@ -45,10 +49,18 @@ Khach san:
 Tour:
 {tourLines}
 
-### THONG TIN KHACH HANG:
-- Phong cach: {pref.TravelStyle}
-- Ngan sach: {pref.BudgetLevel}
-- Nhip do: {pref.TravelPace}
+### THONG TIN NGUOI DUNG:
+- Phong cach: {travelStyle}
+- Ngan sach: {budgetLevel}
+- Nhip do: {travelPace}
+- Am thuc: {cuisinePreference}
+
+### YEU CAU CA NHAN HOA:
+- Hay lap lich trinh PHU HOP voi toan bo so thich tren.
+- Neu nguoi dung uu tien nghi duong va ngan sach cao, hay uu tien cac goi nghi duong, resort, spa va cac trai nghiem thoai mai.
+- Neu nguoi dung uu tien kham pha va ngan sach thap, hay uu tien cac lua chon tiet kiem, linh hoat, trai nghiem dia phuong va di chuyen don gian.
+- Nhip do moi ngay phai phu hop voi so thich ve toc do chuyen di.
+- Goi y an uong va diem dung chan phai phu hop voi so thich am thuc neu co.
 
 YEU CAU DAU RA: Tra ve JSON theo dung schema, tinh toan 'estimatedCost' la 0 cho cac diem tu do va dung gia he thong cho cac diem chinh thuc. Moi activity phai co field service_id. Lich trinh phai khop voi ngay bat dau da cung cap.";
     }
@@ -72,5 +84,41 @@ YEU CAU DAU RA: Tra ve JSON theo dung schema, tinh toan 'estimatedCost' la 0 cho
 
             return $"- service_id: {service.ServiceId.ToString(CultureInfo.InvariantCulture)} | {service.Name} | {service.Price.ToString("0.##", CultureInfo.InvariantCulture)} VND/{service.PriceUnit} | dia diem: {service.Location} | ngay kha dung: {dates}{description}";
         }));
+    }
+
+    private static string FormatTravelStyle(string? travelStyle)
+    {
+        return string.IsNullOrWhiteSpace(travelStyle)
+            ? "Khong co yeu cau dac biet"
+            : travelStyle.Trim();
+    }
+
+    private static string FormatBudgetLevel(BudgetLevel budgetLevel)
+    {
+        return budgetLevel switch
+        {
+            BudgetLevel.Low => "Tiet kiem",
+            BudgetLevel.Medium => "Trung binh",
+            BudgetLevel.High => "Cao cap",
+            _ => budgetLevel.ToString()
+        };
+    }
+
+    private static string FormatTravelPace(TravelPace travelPace)
+    {
+        return travelPace switch
+        {
+            TravelPace.Relaxed => "Thong tha",
+            TravelPace.Balanced => "Can bang",
+            TravelPace.FastPaced => "Day dac",
+            _ => travelPace.ToString()
+        };
+    }
+
+    private static string FormatCuisinePreference(string? cuisinePreference)
+    {
+        return string.IsNullOrWhiteSpace(cuisinePreference)
+            ? "Khong co yeu cau dac biet"
+            : cuisinePreference.Trim();
     }
 }

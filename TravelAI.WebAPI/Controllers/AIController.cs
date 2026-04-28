@@ -45,40 +45,7 @@ public class AIController : ControllerBase
 
             // 3. Gọi PromptBuilder để tạo câu lệnh
             var builder = new PromptBuilder();
-            // Giả sử lịch trình mặc định là 3 ngày
-            string finalPrompt = BuildItineraryPrompt(builder, pref, dest, spots, 3);
-
-            // Local helper to build a fallback prompt so we don't depend on a missing API on PromptBuilder.
-            // This can be replaced later with the real PromptBuilder method when available.
-            string BuildItineraryPrompt(PromptBuilder b, UserPreference p, Destination d, List<TouristSpot> s, int days)
-            {
-                var sb = new System.Text.StringBuilder();
-                sb.AppendLine($"Itinerary for {(d?.Name ?? "Unknown destination")} - {days} day(s)");
-                if (p != null)
-                {
-                    sb.AppendLine($"Travel style: {p.TravelStyle}");
-                    sb.AppendLine($"Budget level: {p.BudgetLevel}");
-                }
-
-                if (s != null && s.Count > 0)
-                {
-                    sb.AppendLine("Suggested spots:");
-                    foreach (var spot in s)
-                    {
-                        var spotName = string.IsNullOrWhiteSpace(spot.Name) ? "Unnamed spot" : spot.Name;
-                        var spotDesc = string.IsNullOrWhiteSpace(spot.Description) ? "" : $" - {spot.Description}";
-                        sb.AppendLine($"- {spotName}{spotDesc}");
-                    }
-                }
-                else
-                {
-                    sb.AppendLine("No spots found for this destination.");
-                }
-
-                // Optionally include a simple summary from the PromptBuilder instance if needed,
-                // for now we don't rely on any missing members.
-                return sb.ToString();
-            }
+            string finalPrompt = builder.Build(pref, dest, spots, 3, DateTime.Today);
 
             // 4. Trả về kết quả để đọc trên Swagger
             return Ok(new

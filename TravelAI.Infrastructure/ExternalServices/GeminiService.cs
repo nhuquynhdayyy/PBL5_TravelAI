@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Configuration;
+using System.Net;
 using System.Net.Http.Headers; 
 using System.Text;
 using System.Text.Json;
@@ -12,12 +13,14 @@ public class GeminiService
     private readonly HttpClient _http;
     private readonly string _apiKey;
     private readonly string _apiUrl;
+    private readonly string _model;
 
     public GeminiService(HttpClient http, IConfiguration config) 
     {
         _http = http;
         _apiKey = config["Groq:ApiKey"] ?? ""; 
         _apiUrl = config["Groq:ApiUrl"] ?? "https://api.groq.com/openai/v1/chat/completions";
+        _model = config["Groq:Model"] ?? "llama-3.3-70b-versatile";
     }
     
     public async Task<string> CallApiAsync(
@@ -86,9 +89,66 @@ public class GeminiService
         }
 
         var messages = BuildMessages(prompt, history, systemPrompt);
+        _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
+
+        try
+        {
+            var result = await SendGroqRequestAsync(messages, requireJsonResponse);
+            if (!result.Success && requireJsonResponse)
+            {
+                result = await SendGroqRequestAsync(messages, requireJsonResponse: false);
+            }
+
+            return result.Success
+                ? result.Content
+                : SerializeError(result.StatusCode, result.RawResponse);
+        }
+        catch (Exception ex)
+        {
+            return $"{{\"error\": \"Connection Error: {ex.Message}\"}}";
+        }
+    }
+
+    public static bool TryExtractErrorMessage(string? rawResponse, out string errorMessage)
+    {
+        errorMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(rawResponse))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(rawResponse);
+            var root = document.RootElement;
+
+            if (!root.TryGetProperty("error", out var error))
+            {
+                return false;
+            }
+
+            var details = root.TryGetProperty("details", out var detailElement)
+                ? detailElement.GetString()
+                : null;
+
+            errorMessage = string.IsNullOrWhiteSpace(details)
+                ? error.GetString() ?? "Unknown AI error"
+                : $"{error.GetString()}: {details}";
+
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    private async Task<GroqCallResult> SendGroqRequestAsync(List<object> messages, bool requireJsonResponse)
+    {
         var requestBody = new Dictionary<string, object?>
         {
-            ["model"] = "llama-3.3-70b-versatile",
+            ["model"] = _model,
             ["messages"] = messages
         };
 
@@ -97,31 +157,31 @@ public class GeminiService
             requestBody["response_format"] = new { type = "json_object" };
         }
 
-        _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
-        
-        var content = new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json");
-        
-        try 
-        {
-            var resp = await _http.PostAsync(_apiUrl, content);
-            var rawResponse = await resp.Content.ReadAsStringAsync();
+        using var content = new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json");
+        using var response = await _http.PostAsync(_apiUrl, content);
+        var rawResponse = await response.Content.ReadAsStringAsync();
 
-            if (!resp.IsSuccessStatusCode)
-            {
-                return $"{{\"error\": \"Groq API Error: {resp.StatusCode}\", \"details\": {JsonSerializer.Serialize(rawResponse)}}}";
-            }
-
-            using var doc = JsonDocument.Parse(rawResponse);
-            return doc.RootElement
-                .GetProperty("choices")[0]
-                .GetProperty("message")
-                .GetProperty("content")
-                .GetString() ?? "";
-        }
-        catch (Exception ex)
+        if (!response.IsSuccessStatusCode)
         {
-            return $"{{\"error\": \"Connection Error: {ex.Message}\"}}";
+            return new GroqCallResult(false, string.Empty, response.StatusCode, rawResponse);
         }
+
+        using var document = JsonDocument.Parse(rawResponse);
+        var completion = document.RootElement
+            .GetProperty("choices")[0]
+            .GetProperty("message")
+            .GetProperty("content")
+            .GetString() ?? string.Empty;
+
+        return new GroqCallResult(true, completion, response.StatusCode, rawResponse);
+    }
+
+    private static string SerializeError(HttpStatusCode statusCode, string rawResponse)
+    {
+        var responseBody = JsonSerializer.Serialize(rawResponse);
+        return $$"""
+        {"error":"Groq API Error: {{statusCode}}","details":{{responseBody}}}
+        """;
     }
 
     private static List<object> BuildMessages(
@@ -165,4 +225,10 @@ public class GeminiService
             _ => "user"
         };
     }
+
+    private sealed record GroqCallResult(
+        bool Success,
+        string Content,
+        HttpStatusCode StatusCode,
+        string RawResponse);
 }

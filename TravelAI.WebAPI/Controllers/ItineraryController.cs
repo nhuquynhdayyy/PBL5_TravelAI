@@ -11,9 +11,22 @@ public class ItineraryController : ControllerBase {
 
     [HttpPost("generate")]
     public async Task<IActionResult> Generate([FromBody] GenerateItineraryRequest req) {
-        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-        var result = await _service.GenerateAndLogItineraryAsync(userId, req);
-        return result != null ? Ok(result) : BadRequest("AI Error");
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null)
+        {
+            return Unauthorized(new { message = "Vui long dang nhap de tao lich trinh." });
+        }
+
+        try
+        {
+            var userId = int.Parse(userIdClaim.Value);
+            var result = await _service.GenerateAndLogItineraryAsync(userId, req);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpPost("save")]

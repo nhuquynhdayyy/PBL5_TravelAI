@@ -58,10 +58,28 @@ const DestinationDetail: React.FC = () => {
                 return;
             }
 
-            alert('Có lỗi: API trả về rỗng.');
+            return alert('API tra ve du lieu rong.');
         } catch (error) {
             console.error(error);
-            alert('Lỗi AI rồi! Mở Console F12 xem chi tiết.');
+            const message = typeof error === 'object' && error !== null && 'response' in error
+                ? (() => {
+                    const response = (error as {
+                        response?: {
+                            data?: {
+                                message?: string;
+                            } | string;
+                        };
+                    }).response;
+
+                    if (typeof response?.data === 'string') {
+                        return response.data;
+                    }
+
+                    return response?.data?.message || 'Khong tao duoc lich trinh. Mo Console F12 de xem chi tiet.';
+                })()
+                : 'Khong tao duoc lich trinh. Mo Console F12 de xem chi tiet.';
+
+            return alert(message);
         } finally {
             setAiLoading(false);
         }

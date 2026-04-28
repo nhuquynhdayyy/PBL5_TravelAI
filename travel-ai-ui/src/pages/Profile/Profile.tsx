@@ -257,6 +257,24 @@ const Profile: React.FC = () => {
 
 
             {/* AI Preferences Shortcut */}
+            {!userPref && (
+                <div className="mt-8 rounded-3xl border border-dashed border-indigo-200 bg-indigo-50/50 p-6">
+                    <div className="flex items-center justify-between gap-4">
+                        <div>
+                            <h3 className="text-xs font-black uppercase tracking-widest text-indigo-400">AI Preferences</h3>
+                            <p className="mt-2 text-sm text-slate-500">
+                                Ban chua cai dat so thich du lich. Can phan nay de test itinerary ca nhan hoa.
+                            </p>
+                        </div>
+                        <button
+                            onClick={() => navigate('/preferences')}
+                            className="shrink-0 rounded-full bg-indigo-600 px-4 py-2 text-xs font-black text-white"
+                        >
+                            Thiet lap ngay
+                        </button>
+                    </div>
+                </div>
+            )}
             {userPref && (
                 <div className="mt-8 p-6 bg-indigo-50/50 rounded-3xl border border-dashed border-indigo-200">
                     <div className="flex justify-between items-center mb-4">

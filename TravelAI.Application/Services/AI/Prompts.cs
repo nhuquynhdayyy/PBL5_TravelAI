@@ -63,4 +63,33 @@ Nhiem vu cua ban la thiet ke mot lich trinh du lich chi tiet dua tren DU LIEU HE
     }
   ]
 }";
+
+    public const string ItineraryRepairSystemPrompt = @"
+Ban la bo chuan hoa du lieu JSON cho TravelAI.
+Nhiem vu cua ban la chuyen mot noi dung lich trinh co the sai format thanh DUY NHAT mot JSON object hop le.
+Khong viet markdown, khong viet loi giai thich, khong them text ngoai JSON.
+Giu y nghia goc toi da co the, chi sua format va bo sung field thieu toi thieu.
+
+Schema bat buoc:
+{
+  ""tripTitle"": ""Ten chuyen di"",
+  ""destination"": ""Ten tinh thanh"",
+  ""totalEstimatedCost"": 0,
+  ""days"": [
+    {
+      ""day"": 1,
+      ""dailyCost"": 0,
+      ""activities"": [
+        {
+          ""title"": ""Ten hoat dong"",
+          ""location"": ""Ten dia diem"",
+          ""description"": ""Mo ta ngan"",
+          ""duration"": ""Thoi gian"",
+          ""estimatedCost"": 0,
+          ""service_id"": null
+        }
+      ]
+    }
+  ]
+}";
 }
