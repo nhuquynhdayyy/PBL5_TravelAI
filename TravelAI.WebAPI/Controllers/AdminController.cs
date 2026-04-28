@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TravelAI.Application.DTOs.Partner;
 using TravelAI.Application.DTOs.Service;
+using TravelAI.Application.DTOs.User;
 using TravelAI.Application.Interfaces;
 using TravelAI.Domain.Enums;
 using TravelAI.Infrastructure.Persistence;
@@ -23,6 +24,109 @@ public class AdminController : ControllerBase
         _serviceService = serviceService;
         _context = context;
     }
+
+    // ──────────────────────────────────────────────
+    //  USER MANAGEMENT
+    // ──────────────────────────────────────────────
+
+    [HttpGet("users")]
+    public async Task<IActionResult> GetUsers([FromQuery] int page = 1, [FromQuery] string search = "", [FromQuery] string role = "")
+    {
+        const int pageSize = 20;
+        var keyword = (search ?? "").Trim().ToLower();
+        var roleFilter = (role ?? "").Trim().ToLower();
+
+        var query = _context.Users
+            .AsNoTracking()
+            .Include(u => u.Role)
+            .Where(u => u.Role.RoleName != "Admin")
+            .AsQueryable();
+
+        if (!string.IsNullOrEmpty(roleFilter))
+        {
+            query = query.Where(u => u.Role.RoleName.ToLower() == roleFilter);
+        }
+
+        if (!string.IsNullOrEmpty(keyword))
+        {
+            query = query.Where(u =>
+                u.FullName.ToLower().Contains(keyword) ||
+                u.Email.ToLower().Contains(keyword));
+        }
+
+        var totalCount = await query.CountAsync();
+        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+        var users = await query
+            .OrderByDescending(u => u.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(u => new AdminUserDto
+            {
+                UserId = u.UserId,
+                FullName = u.FullName,
+                Email = u.Email,
+                Phone = u.Phone,
+                AvatarUrl = u.AvatarUrl,
+                RoleName = u.Role.RoleName,
+                IsActive = u.IsActive,
+                CreatedAt = u.CreatedAt
+            })
+            .ToListAsync();
+
+        return Ok(new
+        {
+            items = users,
+            totalCount,
+            totalPages,
+            currentPage = page
+        });
+    }
+
+    [HttpPost("users/{id}/ban")]
+    public async Task<IActionResult> BanUser(int id)
+    {
+        var adminUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        if (id == adminUserId)
+        {
+            return BadRequest(new { message = "Khong the khoa tai khoan cua chinh minh." });
+        }
+
+        var user = await _context.Users.Include(u => u.Role).FirstOrDefaultAsync(u => u.UserId == id);
+        if (user == null)
+        {
+            return NotFound(new { message = "Khong tim thay nguoi dung." });
+        }
+
+        if (user.Role.RoleName.Equals("Admin", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new { message = "Khong the khoa tai khoan Admin khac." });
+        }
+
+        user.IsActive = false;
+        await _context.SaveChangesAsync();
+
+        return Ok(new { success = true, message = "Da khoa tai khoan nguoi dung." });
+    }
+
+    [HttpPost("users/{id}/unban")]
+    public async Task<IActionResult> UnbanUser(int id)
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.UserId == id);
+        if (user == null)
+        {
+            return NotFound(new { message = "Khong tim thay nguoi dung." });
+        }
+
+        user.IsActive = true;
+        await _context.SaveChangesAsync();
+
+        return Ok(new { success = true, message = "Da mo khoa tai khoan nguoi dung." });
+    }
+
+    // ──────────────────────────────────────────────
+    //  SERVICE MANAGEMENT
+    // ──────────────────────────────────────────────
 
     [HttpGet("pending-services")]
     public async Task<IActionResult> GetPendingServices()
@@ -60,6 +164,10 @@ public class AdminController : ControllerBase
 
         return Ok(new { success = true, message = "Da tu choi dich vu." });
     }
+
+    // ──────────────────────────────────────────────
+    //  PARTNER MANAGEMENT
+    // ──────────────────────────────────────────────
 
     [HttpGet("pending-partners")]
     public async Task<IActionResult> GetPendingPartners()
@@ -138,6 +246,10 @@ public class AdminController : ControllerBase
 
         return Ok(new { success = true, message = "Da yeu cau doi tac bo sung thong tin." });
     }
+
+    // ──────────────────────────────────────────────
+    //  HELPERS
+    // ──────────────────────────────────────────────
 
     private static string? NormalizeOptionalText(string? value)
     {

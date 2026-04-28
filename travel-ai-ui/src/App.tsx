@@ -5,6 +5,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import MainLayout from './layouts/MainLayout';
 import AdminManageServices from './pages/Admin/AdminManageServices';
 import AdminManagePartners from './pages/Admin/AdminManagePartners';
+import AdminUsers from './pages/Admin/AdminUsers';
 import DestinationForm from './pages/Admin/DestinationForm';
 import EditDestination from './pages/Admin/EditDestination';
 import EditSpot from './pages/Admin/EditSpot';
@@ -191,6 +192,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['admin']}>
               <MainLayout><AdminManagePartners /></MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <MainLayout><AdminUsers /></MainLayout>
             </ProtectedRoute>
           }
         />

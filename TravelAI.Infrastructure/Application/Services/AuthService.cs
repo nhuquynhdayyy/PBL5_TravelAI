@@ -76,6 +76,11 @@ public class AuthService
             return null;
         }
 
+        if (!user.IsActive)
+        {
+            throw new UnauthorizedAccessException("Tai khoan cua ban da bi khoa. Vui long lien he quan tri vien.");
+        }
+
         var token = GenerateJwtToken(user);
 
         return new AuthResponse(token, user.FullName, user.Email, user.Role.RoleName);

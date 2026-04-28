@@ -118,6 +118,9 @@ const Header: React.FC = () => {
                 <Link to="/admin/services" className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl font-black text-xs hover:bg-slate-700 transition-all uppercase">
                   <Store size={14} /> DUYỆT DỊCH VỤ
                 </Link>
+                <Link to="/admin/users" className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all uppercase">
+                  <User size={14} /> QUẢN LÝ USER
+                </Link>
               </>
             )}
           </nav>

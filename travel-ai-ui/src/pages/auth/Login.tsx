@@ -18,7 +18,7 @@ const Login = () => {
       navigate(data.roleName?.toLowerCase() === 'partner' ? '/partner/profile' : '/');
       window.location.reload();
     } catch (err: any) {
-      alert(err.response?.data || "Login failed");
+      alert(err.response?.data?.message || err.response?.data || "Login failed");
     } finally { setLoading(false); }
   };
 
