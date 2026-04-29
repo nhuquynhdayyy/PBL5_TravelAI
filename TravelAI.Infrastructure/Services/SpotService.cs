@@ -16,7 +16,7 @@ public class SpotService : ISpotService
     {
         return await _context.TouristSpots
             .Where(s => s.DestinationId == destinationId)
-            .Select(s => new SpotDto(s.SpotId, s.Name, s.Description, s.ImageUrl, s.Latitude, s.Longitude, s.AvgTimeSpent, s.OpeningHours))
+            .Select(s => new SpotDto(s.SpotId, s.DestinationId, s.Name, s.Description, s.ImageUrl, s.Latitude, s.Longitude, s.AvgTimeSpent, s.OpeningHours))
             .ToListAsync();
     }
 
@@ -25,7 +25,7 @@ public class SpotService : ISpotService
     {
         var s = await _context.TouristSpots.FindAsync(id);
         if (s == null) return null;
-        return new SpotDto(s.SpotId, s.Name, s.Description, s.ImageUrl, s.Latitude, s.Longitude, s.AvgTimeSpent, s.OpeningHours);
+        return new SpotDto(s.SpotId, s.DestinationId, s.Name, s.Description, s.ImageUrl, s.Latitude, s.Longitude, s.AvgTimeSpent, s.OpeningHours);
     }
 
     // 3. Thêm mới Spot (Có xử lý upload ảnh)
@@ -59,7 +59,7 @@ public class SpotService : ISpotService
         _context.TouristSpots.Add(spot);
         await _context.SaveChangesAsync();
 
-        return new SpotDto(spot.SpotId, spot.Name, spot.Description, spot.ImageUrl, spot.Latitude, spot.Longitude, spot.AvgTimeSpent, spot.OpeningHours);
+        return new SpotDto(spot.SpotId, spot.DestinationId, spot.Name, spot.Description, spot.ImageUrl, spot.Latitude, spot.Longitude, spot.AvgTimeSpent, spot.OpeningHours);
     }
 
     // 4. Cập nhật Spot (Có xử lý đổi ảnh)
@@ -72,7 +72,7 @@ public class SpotService : ISpotService
         spot.Description = request.Description ?? string.Empty;
         spot.Latitude = request.Latitude.GetValueOrDefault();
         spot.Longitude = request.Longitude.GetValueOrDefault();
-        spot.AvgTimeSpent = request.AvgTimeSpent.GetValueOrDefault();
+spot.AvgTimeSpent = request.AvgTimeSpent.GetValueOrDefault();
         spot.OpeningHours = request.OpeningHours;
 
         if (request.Image != null)

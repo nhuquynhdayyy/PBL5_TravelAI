@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using TravelAI.Application.DTOs.Admin;
 using TravelAI.Application.DTOs.Partner;
 using TravelAI.Application.DTOs.Service;
 using TravelAI.Application.DTOs.User;
@@ -28,6 +29,160 @@ public class AdminController : ControllerBase
     // ──────────────────────────────────────────────
     //  USER MANAGEMENT
     // ──────────────────────────────────────────────
+
+    [HttpGet("stats")]
+    public async Task<IActionResult> GetStats()
+    {
+        var today = DateTime.UtcNow.Date;
+        var rangeStart = today.AddDays(-29);
+        var rangeEndExclusive = today.AddDays(1);
+
+        var totalUsers = await _context.Users
+            .AsNoTracking()
+            .CountAsync(user => user.RoleId == (int)RoleName.Customer);
+
+        var totalPartners = await _context.Users
+            .AsNoTracking()
+            .CountAsync(user => user.RoleId == (int)RoleName.Partner);
+
+        var totalBookings = await _context.Bookings
+            .AsNoTracking()
+            .CountAsync();
+
+        var totalRevenue = await _context.Bookings
+            .AsNoTracking()
+            .Where(booking => booking.Status == BookingStatus.Paid)
+            .SumAsync(booking => (decimal?)booking.TotalAmount) ?? 0m;
+
+        var bookingStatusBreakdown = await _context.Bookings
+            .AsNoTracking()
+            .GroupBy(booking => booking.Status)
+            .Select(group => new AdminBookingStatusDto
+            {
+                Status = group.Key.ToString(),
+                Count = group.Count(),
+                Amount = group.Sum(booking => booking.TotalAmount)
+            })
+            .OrderByDescending(item => item.Count)
+            .ToListAsync();
+
+        var recentBookings = await _context.Bookings
+            .AsNoTracking()
+            .OrderByDescending(booking => booking.CreatedAt)
+            .Take(8)
+            .Select(booking => new AdminRecentBookingDto
+            {
+                BookingId = booking.BookingId,
+                CustomerName = booking.User.FullName,
+                CustomerEmail = booking.User.Email,
+                Status = booking.Status.ToString(),
+                TotalAmount = booking.TotalAmount,
+                ItemCount = booking.BookingItems.Select(item => (int?)item.Quantity).Sum() ?? 0,
+PrimaryServiceName = booking.BookingItems
+                    .OrderBy(item => item.ItemId)
+                    .Select(item => item.Service.Name)
+                    .FirstOrDefault(),
+                PrimaryDestinationName = booking.BookingItems
+                    .OrderBy(item => item.ItemId)
+                    .Select(item => item.Service.SpotId != null
+                        ? item.Service.TouristSpot!.Destination.Name
+                        : item.Service.ServiceSpots
+                            .OrderBy(link => link.VisitOrder)
+                            .Select(link => link.TouristSpot.Destination.Name)
+                            .FirstOrDefault())
+                    .FirstOrDefault(),
+                CreatedAt = booking.CreatedAt
+            })
+            .ToListAsync();
+
+        var topDestinationRows = await _context.BookingItems
+            .AsNoTracking()
+            .Where(item => item.Booking.Status != BookingStatus.Cancelled)
+            .Select(item => new
+            {
+                item.BookingId,
+                Revenue = item.Booking.Status == BookingStatus.Paid
+                    ? item.PriceAtBooking * item.Quantity
+                    : 0m,
+                DestinationId = item.Service.SpotId != null
+                    ? (int?)item.Service.TouristSpot!.DestinationId
+                    : item.Service.ServiceSpots
+                        .OrderBy(link => link.VisitOrder)
+                        .Select(link => (int?)link.TouristSpot.DestinationId)
+                        .FirstOrDefault(),
+                DestinationName = item.Service.SpotId != null
+                    ? item.Service.TouristSpot!.Destination.Name
+                    : item.Service.ServiceSpots
+                        .OrderBy(link => link.VisitOrder)
+                        .Select(link => link.TouristSpot.Destination.Name)
+                        .FirstOrDefault()
+            })
+            .ToListAsync();
+
+        var topDestinations = topDestinationRows
+            .Where(item => item.DestinationId.HasValue && !string.IsNullOrWhiteSpace(item.DestinationName))
+            .GroupBy(item => new { item.DestinationId, item.DestinationName })
+            .Select(group => new AdminTopDestinationDto
+            {
+                DestinationId = group.Key.DestinationId!.Value,
+                Name = group.Key.DestinationName!,
+                BookingCount = group.Select(item => item.BookingId).Distinct().Count(),
+                Revenue = group.Sum(item => item.Revenue)
+            })
+            .OrderByDescending(item => item.BookingCount)
+            .ThenByDescending(item => item.Revenue)
+            .Take(5)
+            .ToList();
+
+        var revenueRows = await _context.Bookings
+            .AsNoTracking()
+            .Where(booking =>
+                booking.Status == BookingStatus.Paid &&
+                ((booking.Payments
+.OrderByDescending(payment => payment.PaymentTime)
+                    .Select(payment => (DateTime?)payment.PaymentTime)
+                    .FirstOrDefault() ?? booking.CreatedAt) >= rangeStart) &&
+                ((booking.Payments
+                    .OrderByDescending(payment => payment.PaymentTime)
+                    .Select(payment => (DateTime?)payment.PaymentTime)
+                    .FirstOrDefault() ?? booking.CreatedAt) < rangeEndExclusive))
+            .Select(booking => new
+            {
+                RevenueDate = booking.Payments
+                    .OrderByDescending(payment => payment.PaymentTime)
+                    .Select(payment => (DateTime?)payment.PaymentTime)
+                    .FirstOrDefault() ?? booking.CreatedAt,
+                booking.TotalAmount
+            })
+            .ToListAsync();
+
+        var revenueLookup = revenueRows
+            .GroupBy(item => item.RevenueDate.Date)
+            .ToDictionary(group => group.Key, group => group.Sum(item => item.TotalAmount));
+
+        var revenueByDay = Enumerable.Range(0, 30)
+            .Select(offset => rangeStart.AddDays(offset))
+            .Select(date => new AdminDailyRevenueDto
+            {
+                Date = date,
+                Revenue = revenueLookup.GetValueOrDefault(date, 0m)
+            })
+            .ToList();
+
+        var response = new AdminStatsDto
+        {
+            TotalUsers = totalUsers,
+            TotalPartners = totalPartners,
+            TotalBookings = totalBookings,
+            TotalRevenue = totalRevenue,
+            TopDestinations = topDestinations,
+            BookingStatusBreakdown = bookingStatusBreakdown,
+            RecentBookings = recentBookings,
+            RevenueByDay = revenueByDay
+        };
+
+        return Ok(response);
+    }
 
     [HttpGet("users")]
     public async Task<IActionResult> GetUsers([FromQuery] int page = 1, [FromQuery] string search = "", [FromQuery] string role = "")
@@ -59,7 +214,7 @@ public class AdminController : ControllerBase
 
         var users = await query
             .OrderByDescending(u => u.CreatedAt)
-            .Skip((page - 1) * pageSize)
+.Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(u => new AdminUserDto
             {
@@ -148,7 +303,7 @@ public class AdminController : ControllerBase
     }
 
     [HttpPost("services/{id}/reject")]
-    public async Task<IActionResult> RejectService(int id, [FromBody] RejectServiceRequest request)
+public async Task<IActionResult> RejectService(int id, [FromBody] RejectServiceRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Reason))
         {
@@ -221,8 +376,7 @@ public class AdminController : ControllerBase
         profile.ReviewNote = request.ReviewNote.Trim();
         profile.ReviewedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
-
-        return Ok(new { success = true, message = "Da tu choi doi tac." });
+return Ok(new { success = true, message = "Da tu choi doi tac." });
     }
 
     [HttpPost("partners/{profileId}/need-more-info")]

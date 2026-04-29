@@ -106,10 +106,10 @@ public class ServiceService : IServiceService
 
         return service == null ? null : MapToDto(service);
     }
-
-    public async Task<ServiceDto> CreateAsync(int partnerId, CreateServiceRequest request, string webRootPath)
+public async Task<ServiceDto> CreateAsync(int partnerId, CreateServiceRequest request, string webRootPath)
     {
         await EnsurePartnerApprovedAsync(partnerId);
+        var validatedSpotId = await GetValidatedSpotIdAsync(request.SpotId);
 
         var service = new Service
         {
@@ -118,7 +118,7 @@ public class ServiceService : IServiceService
             Description = request.Description ?? string.Empty,
             BasePrice = request.BasePrice,
             ServiceType = (ServiceType)request.ServiceType,
-            SpotId = request.SpotId > 0 ? request.SpotId : null,
+            SpotId = validatedSpotId,
             Latitude = request.Latitude,
             Longitude = request.Longitude,
             IsActive = false
@@ -167,12 +167,13 @@ public class ServiceService : IServiceService
         }
 
         await EnsurePartnerApprovedAsync(service.PartnerId);
+        var validatedSpotId = await GetValidatedSpotIdAsync(request.SpotId);
 
         service.Name = request.Name;
         service.Description = request.Description ?? string.Empty;
         service.BasePrice = request.BasePrice;
         service.ServiceType = (ServiceType)request.ServiceType;
-        service.SpotId = request.SpotId > 0 ? request.SpotId : null;
+        service.SpotId = validatedSpotId;
         service.Latitude = request.Latitude;
         service.Longitude = request.Longitude;
         service.IsActive = false;
@@ -187,7 +188,7 @@ public class ServiceService : IServiceService
 
             foreach (var file in request.Images)
             {
-                var fileName = Guid.NewGuid() + Path.GetExtension(file.FileName);
+var fileName = Guid.NewGuid() + Path.GetExtension(file.FileName);
                 var filePath = Path.Combine(folderPath, fileName);
                 using var stream = new FileStream(filePath, FileMode.Create);
                 await file.CopyToAsync(stream);
@@ -275,5 +276,23 @@ public class ServiceService : IServiceService
         {
             throw new InvalidOperationException("Partner must be approved before publishing services.");
         }
+    }
+private async Task<int> GetValidatedSpotIdAsync(int? spotId)
+    {
+        if (spotId is null or <= 0)
+        {
+            throw new InvalidOperationException("Vui long chon dia diem cho dich vu.");
+        }
+
+        var exists = await _context.TouristSpots
+            .AsNoTracking()
+            .AnyAsync(spot => spot.SpotId == spotId.Value);
+
+        if (!exists)
+        {
+            throw new InvalidOperationException("Dia diem duoc chon khong ton tai.");
+        }
+
+        return spotId.Value;
     }
 }

@@ -4,9 +4,21 @@ import axiosClient from '../../api/axiosClient';
 import {
   ArrowLeft,
   Loader2,
+  MapPinned,
   Save,
-  Upload
+  Upload,
 } from 'lucide-react';
+
+type DestinationOption = {
+  id: number;
+  name: string;
+};
+
+type SpotOption = {
+  spotId: number;
+  destinationId: number;
+  name: string;
+};
 
 const ServiceForm = () => {
   const { id } = useParams();
@@ -14,13 +26,17 @@ const ServiceForm = () => {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [canCreateServices, setCanCreateServices] = useState(true);
+  const [destinations, setDestinations] = useState<DestinationOption[]>([]);
+  const [spots, setSpots] = useState<SpotOption[]>([]);
+  const [loadingSpots, setLoadingSpots] = useState(false);
+  const [selectedDestinationId, setSelectedDestinationId] = useState('');
 
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     basePrice: '',
     serviceType: '0',
-    spotId: ''
+    spotId: '',
   });
   const [images, setImages] = useState<FileList | null>(null);
   const [previews, setPreviews] = useState<string[]>([]);
@@ -39,35 +55,96 @@ const ServiceForm = () => {
   }, []);
 
   useEffect(() => {
-    if (id) {
-      const fetchService = async () => {
-        setFetching(true);
-        try {
-          const res = await axiosClient.get(`/services/${id}`);
-          const data = res.data;
-          setFormData({
-            name: data.name || '',
-            description: data.description || '',
-            basePrice: data.basePrice?.toString() || '',
-            serviceType: data.serviceType === 'Hotel' ? '0' : '1',
-            spotId: data.spotId?.toString() || ''
-          });
-          if (data.imageUrls) {
-            setPreviews(data.imageUrls.map((url: string) => `http://localhost:5134${url}`));
-          }
-        } catch (err) {
-          console.error(err);
-        } finally {
-          setFetching(false);
-        }
-      };
+    const fetchDestinations = async () => {
+      try {
+        const response = await axiosClient.get('/destinations');
+        setDestinations(response.data?.data ?? []);
+      } catch (err) {
+        console.error(err);
+      }
+    };
 
-      void fetchService();
+    void fetchDestinations();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedDestinationId) {
+      setSpots([]);
+      return;
     }
+
+    const fetchSpots = async () => {
+      try {
+        setLoadingSpots(true);
+        const response = await axiosClient.get(`/spots/by-destination/${selectedDestinationId}`);
+        const nextSpots = response.data?.data ?? [];
+        setSpots(nextSpots);
+
+        if (
+          formData.spotId &&
+          !nextSpots.some((spot: SpotOption) => spot.spotId.toString() === formData.spotId)
+        ) {
+          setFormData((prev) => ({ ...prev, spotId: '' }));
+        }
+      } catch (err) {
+        console.error(err);
+        setSpots([]);
+      } finally {
+        setLoadingSpots(false);
+      }
+    };
+
+    void fetchSpots();
+  }, [selectedDestinationId]);
+
+  useEffect(() => {
+    if (!id) {
+      return;
+    }
+
+    const fetchService = async () => {
+      setFetching(true);
+      try {
+        const res = await axiosClient.get(`/services/${id}`);
+        const data = res.data;
+
+        setFormData({
+          name: data.name || '',
+          description: data.description || '',
+          basePrice: data.basePrice?.toString() || '',
+          serviceType: data.serviceType === 'Hotel' ? '0' : '1',
+          spotId: data.spotId?.toString() || '',
+        });
+
+        if (data.spotId) {
+          const spotResponse = await axiosClient.get(`/spots/${data.spotId}`);
+          const spot = spotResponse.data?.data;
+          if (spot?.destinationId) {
+            setSelectedDestinationId(spot.destinationId.toString());
+          }
+        }
+
+        if (data.imageUrls) {
+          setPreviews(data.imageUrls.map((url: string) => `http://localhost:5134${url}`));
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setFetching(false);
+      }
+    };
+
+    void fetchService();
   }, [id]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+
+    if (!formData.spotId) {
+      alert('Vui long chon dia diem cu the cho dich vu.');
+      return;
+    }
+
     setLoading(true);
 
     const payload = new FormData();
@@ -77,10 +154,7 @@ const ServiceForm = () => {
     payload.append('ServiceType', formData.serviceType);
     payload.append('Latitude', '0');
     payload.append('Longitude', '0');
-
-    if (formData.spotId) {
-      payload.append('SpotId', formData.spotId);
-    }
+    payload.append('SpotId', formData.spotId);
 
     if (images && images.length > 0) {
       Array.from(images).forEach((file) => payload.append('Images', file));
@@ -97,13 +171,13 @@ const ServiceForm = () => {
 
       alert(
         id
-          ? 'Cập nhật thành công. Dịch vụ đã quay lại trạng thái chờ admin duyệt.'
-          : 'Tạo dịch vụ thành công. Dịch vụ sẽ chờ admin duyệt trước khi hiển thị public.'
+          ? 'Cap nhat thanh cong. Dich vu da quay lai trang thai cho admin duyet.'
+          : 'Tao dich vu thanh cong. Dich vu se cho admin duyet truoc khi hien thi public.'
       );
 
       navigate(`/partner/services/${targetId}/manage`);
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Lỗi khi lưu dữ liệu. Vui lòng kiểm tra lại!');
+      alert(err.response?.data?.message || 'Loi khi luu du lieu. Vui long kiem tra lai!');
     } finally {
       setLoading(false);
     }
@@ -113,7 +187,7 @@ const ServiceForm = () => {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
         <Loader2 className="animate-spin text-blue-500" size={48} />
-        <p className="font-bold text-slate-400">Đang tải dữ liệu...</p>
+        <p className="font-bold text-slate-400">Dang tai du lieu...</p>
       </div>
     );
   }
@@ -122,15 +196,15 @@ const ServiceForm = () => {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16">
         <div className="rounded-[2.5rem] border border-amber-200 bg-amber-50 p-10 text-left">
-          <h2 className="mb-3 text-3xl font-black text-amber-900">Hồ sơ partner chưa được duyệt</h2>
+          <h2 className="mb-3 text-3xl font-black text-amber-900">Ho so partner chua duoc duyet</h2>
           <p className="font-medium leading-7 text-amber-800">
-            Bạn cần hoàn thiện hồ sơ doanh nghiệp và chờ admin phê duyệt trước khi đăng hoặc cập nhật dịch vụ.
+            Ban can hoan thien ho so doanh nghiep va cho admin phe duyet truoc khi dang hoac cap nhat dich vu.
           </p>
           <button
             onClick={() => navigate('/partner/profile')}
             className="mt-6 rounded-2xl bg-amber-600 px-6 py-3 font-black text-white"
           >
-            Về trang Business
+            Ve trang Business
           </button>
         </div>
       </div>
@@ -140,25 +214,28 @@ const ServiceForm = () => {
   return (
     <div className="mx-auto max-w-4xl px-4 py-10">
       <div className="mb-8">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-2 font-bold text-slate-500 transition-all hover:text-blue-600">
-          <ArrowLeft size={20} /> Quay lại
+        <button
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-2 font-bold text-slate-500 transition-all hover:text-blue-600"
+        >
+          <ArrowLeft size={20} /> Quay lai
         </button>
       </div>
 
       <div className="overflow-hidden rounded-[3rem] border border-slate-100 bg-white shadow-2xl">
         <div className="bg-slate-900 p-10 text-left text-white">
           <h2 className="mb-2 text-4xl font-black tracking-tighter">
-            {id ? 'Chỉnh sửa dịch vụ' : 'Đăng dịch vụ mới'}
+            {id ? 'Chinh sua dich vu' : 'Dang dich vu moi'}
           </h2>
           <p className="font-medium italic text-slate-400">
-            Vui lòng điền đầy đủ để AI có thể gợi ý lịch trình chính xác hơn.
+            Dich vu bat buoc phai gan voi dia diem cu the de admin theo doi booking va doanh thu theo diem den.
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-8 p-10 text-left">
           <div>
             <label className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-400">
-              Tên khách sạn / Tour du lịch
+              Ten khach san / Tour du lich
             </label>
             <input
               className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 p-4 font-bold text-slate-700 outline-none focus:border-blue-500"
@@ -170,7 +247,9 @@ const ServiceForm = () => {
 
           <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
             <div>
-              <label className="mb-3 flex items-center gap-2 text-xs font-black uppercase text-slate-400">Giá cơ bản (VNĐ)</label>
+              <label className="mb-3 flex items-center gap-2 text-xs font-black uppercase text-slate-400">
+                Gia co ban (VND)
+              </label>
               <input
                 type="number"
                 className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 p-4 font-bold"
@@ -180,20 +259,82 @@ const ServiceForm = () => {
               />
             </div>
             <div>
-              <label className="mb-3 flex items-center gap-2 text-xs font-black uppercase text-slate-400">Loại hình</label>
+              <label className="mb-3 flex items-center gap-2 text-xs font-black uppercase text-slate-400">
+                Loai hinh
+              </label>
               <select
                 className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 p-4 font-black text-blue-600"
                 value={formData.serviceType}
                 onChange={(e) => setFormData({ ...formData, serviceType: e.target.value })}
               >
-                <option value="0">KHÁCH SẠN</option>
-                <option value="1">TOUR DU LỊCH</option>
+                <option value="0">KHACH SAN</option>
+                <option value="1">TOUR DU LICH</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+            <div>
+              <label className="mb-3 flex items-center gap-2 text-xs font-black uppercase text-slate-400">
+                <MapPinned size={14} /> Diem den
+              </label>
+              <select
+                className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 p-4 font-bold text-slate-700 outline-none focus:border-blue-500"
+                value={selectedDestinationId}
+                onChange={(e) => {
+                  setSelectedDestinationId(e.target.value);
+                  setFormData((prev) => ({ ...prev, spotId: '' }));
+                }}
+                required
+              >
+                <option value="">Chon diem den</option>
+                {destinations.map((destination) => (
+                  <option key={destination.id} value={destination.id}>
+                    {destination.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-3 flex items-center gap-2 text-xs font-black uppercase text-slate-400">
+                Dia diem cu the
+              </label>
+              <select
+                className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 p-4 font-bold text-slate-700 outline-none focus:border-blue-500 disabled:text-slate-400"
+                value={formData.spotId}
+                onChange={(e) => {
+                  const nextSpotId = e.target.value;
+                  const selectedSpot = spots.find((spot) => spot.spotId.toString() === nextSpotId);
+
+                  setFormData((prev) => ({ ...prev, spotId: nextSpotId }));
+
+                  if (selectedSpot) {
+                    setSelectedDestinationId(selectedSpot.destinationId.toString());
+                  }
+                }}
+                disabled={!selectedDestinationId || loadingSpots}
+                required
+              >
+                <option value="">
+                  {!selectedDestinationId
+                    ? 'Chon diem den truoc'
+                    : loadingSpots
+                      ? 'Dang tai dia diem...'
+                      : 'Chon dia diem'}
+                </option>
+                {spots.map((spot) => (
+                  <option key={spot.spotId} value={spot.spotId}>
+                    {spot.name}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
 
           <div>
-            <label className="mb-3 flex items-center gap-2 text-xs font-black uppercase text-slate-400">Mô tả chi tiết</label>
+            <label className="mb-3 flex items-center gap-2 text-xs font-black uppercase text-slate-400">
+              Mo ta chi tiet
+            </label>
             <textarea
               className="h-40 w-full rounded-[2rem] border-2 border-slate-100 bg-slate-50 p-4 font-medium text-slate-600 outline-none"
               value={formData.description}
@@ -202,11 +343,17 @@ const ServiceForm = () => {
           </div>
 
           <div>
-            <label className="mb-3 flex items-center gap-2 text-xs font-black uppercase text-slate-400">Hình ảnh</label>
+            <label className="mb-3 flex items-center gap-2 text-xs font-black uppercase text-slate-400">
+              Hinh anh
+            </label>
             <div className="rounded-[2.5rem] border-2 border-dashed border-slate-200 bg-slate-50/50 p-8">
               <div className="mb-4 flex flex-wrap gap-4">
                 {previews.map((preview, index) => (
-                  <img key={index} src={preview} className="h-24 w-32 rounded-2xl border-4 border-white object-cover shadow-md" />
+                  <img
+                    key={index}
+                    src={preview}
+                    className="h-24 w-32 rounded-2xl border-4 border-white object-cover shadow-md"
+                  />
                 ))}
                 <label className="flex h-24 w-32 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 hover:border-blue-500">
                   <Upload size={24} className="text-slate-400" />
@@ -226,9 +373,13 @@ const ServiceForm = () => {
             </div>
           </div>
 
-          <button type="submit" disabled={loading} className="flex w-full items-center justify-center gap-3 rounded-[2rem] bg-blue-600 py-5 text-xl font-black text-white shadow-xl">
+          <button
+            type="submit"
+            disabled={loading}
+            className="flex w-full items-center justify-center gap-3 rounded-[2rem] bg-blue-600 py-5 text-xl font-black text-white shadow-xl"
+          >
             {loading ? <Loader2 className="animate-spin" /> : <Save />}
-            {id ? 'CẬP NHẬT DỊCH VỤ' : 'LƯU VÀ TIẾP TỤC'}
+            {id ? 'CAP NHAT DICH VU' : 'LUU VA TIEP TUC'}
           </button>
         </form>
       </div>

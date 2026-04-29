@@ -15,7 +15,12 @@ const Login = () => {
       const { data } = await axiosClient.post('/auth/login', formData);
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data));
-      navigate(data.roleName?.toLowerCase() === 'partner' ? '/partner/profile' : '/');
+      const nextPath = data.roleName?.toLowerCase() === 'partner'
+        ? '/partner/profile'
+        : data.roleName?.toLowerCase() === 'admin'
+          ? '/admin/stats'
+          : '/';
+      navigate(nextPath);
       window.location.reload();
     } catch (err: any) {
       alert(err.response?.data?.message || err.response?.data || "Login failed");
@@ -30,13 +35,13 @@ const Login = () => {
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label className="text-xs font-bold text-slate-700 uppercase ml-1">Email Address</label>
-            <input className="w-full p-4 mt-1 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" type="email" placeholder="name@company.com" 
-              onChange={e => setFormData({...formData, email: e.target.value})} required />
+            <input className="w-full p-4 mt-1 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" type="email" placeholder="name@company.com"
+              onChange={e => setFormData({ ...formData, email: e.target.value })} required />
           </div>
           <div>
             <label className="text-xs font-bold text-slate-700 uppercase ml-1">Password</label>
-            <input className="w-full p-4 mt-1 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" type="password" placeholder="••••••••" 
-              onChange={e => setFormData({...formData, password: e.target.value})} required />
+            <input className="w-full p-4 mt-1 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" type="password" placeholder="••••••••"
+              onChange={e => setFormData({ ...formData, password: e.target.value })} required />
           </div>
           <button disabled={loading} className="w-full py-4 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 shadow-xl shadow-blue-200 transition-all disabled:bg-slate-300">
             {loading ? "Signing in..." : "Sign in"}
