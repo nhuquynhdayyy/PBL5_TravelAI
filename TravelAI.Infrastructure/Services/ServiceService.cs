@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using TravelAI.Application.Interfaces;
 using TravelAI.Application.DTOs.Service;
+using TravelAI.Application.Interfaces;
 using TravelAI.Domain.Entities;
 using TravelAI.Domain.Enums;
 using TravelAI.Infrastructure.Persistence;
@@ -16,15 +16,10 @@ public class ServiceService : IServiceService
         _context = context;
     }
 
-    // --- 1. DÀNH CHO CUSTOMER (TRANG PUBLIC) ---
     public async Task<IEnumerable<ServiceDto>> GetAllAsync(int? type)
     {
-        var query = _context.Services
-            .Include(s => s.Partner)       // Lấy thông tin người tạo (tên nick)
-            .Include(s => s.TouristSpot)
-            .Include(s => s.Images)
-            .Where(s => s.IsActive == true) // QUAN TRỌNG: Chỉ khách mới thấy bài đã duyệt
-            .AsQueryable();
+        var query = BuildServiceQuery()
+            .Where(s => s.IsActive);
 
         if (type.HasValue)
         {
@@ -32,117 +27,176 @@ public class ServiceService : IServiceService
         }
 
         var data = await query.ToListAsync();
-        return data.Select(s => MapToDto(s));
+        return data.Select(MapToDto);
     }
 
-    // --- 2. DÀNH CHO PARTNER (QUẢN LÝ DỊCH VỤ CỦA TÔI) ---
     public async Task<IEnumerable<ServiceDto>> GetPartnerServicesAsync(int partnerId)
     {
-        var data = await _context.Services
-            .Include(s => s.Partner)       // Lấy thông tin đối tác
-            .Include(s => s.TouristSpot)
-            .Include(s => s.Images)
+        var data = await BuildServiceQuery()
             .Where(s => s.PartnerId == partnerId)
             .ToListAsync();
 
-        return data.Select(s => MapToDto(s));
+        return data.Select(MapToDto);
     }
 
-    // --- 3. DÀNH CHO ADMIN (QUẢN TRỊ TOÀN HỆ THỐNG) ---
     public async Task<IEnumerable<ServiceDto>> AdminGetAllServicesAsync()
     {
-        var data = await _context.Services
-            .Include(s => s.Partner)       // Lấy tên Partner để Admin biết ai đăng
-            .Include(s => s.TouristSpot)
-            .Include(s => s.Images)
-            .ToListAsync();
-
-        return data.Select(s => MapToDto(s));
+        var data = await BuildServiceQuery().ToListAsync();
+        return data.Select(MapToDto);
     }
 
-    // Admin bấm nút Duyệt hoặc Khóa
-    public async Task<bool> ToggleStatusAsync(int id)
+    public async Task<IEnumerable<ServiceDto>> GetPendingServicesAsync()
     {
-        var s = await _context.Services.FindAsync(id);
-        if (s == null) return false;
+        var data = await BuildServiceQuery()
+            .Where(s => !s.IsActive)
+            .OrderByDescending(s => s.ServiceId)
+            .ToListAsync();
 
-        s.IsActive = !s.IsActive; // Đảo trạng thái
+        return data.Select(MapToDto);
+    }
+
+    public async Task<bool> ApproveAsync(int id)
+    {
+        var service = await _context.Services.FindAsync(id);
+        if (service == null)
+        {
+            return false;
+        }
+
+        service.IsActive = true;
         return await _context.SaveChangesAsync() > 0;
     }
 
-    // --- CRUD CƠ BẢN ---
+    public async Task<bool> RejectAsync(int id, string reason, int adminUserId)
+    {
+        var service = await _context.Services.FindAsync(id);
+        if (service == null)
+        {
+            return false;
+        }
+
+        service.IsActive = false;
+        _context.AuditLogs.Add(new AuditLog
+        {
+            UserId = adminUserId,
+            TableName = "Services",
+            RecordId = service.ServiceId,
+            Action = BuildRejectAuditMessage(reason)
+        });
+
+        return await _context.SaveChangesAsync() > 0;
+    }
+
+    public async Task<bool> ToggleStatusAsync(int id)
+    {
+        var service = await _context.Services.FindAsync(id);
+        if (service == null)
+        {
+            return false;
+        }
+
+        service.IsActive = !service.IsActive;
+        return await _context.SaveChangesAsync() > 0;
+    }
 
     public async Task<ServiceDto?> GetByIdAsync(int id)
     {
-        var s = await _context.Services
-            .Include(s => s.Partner)
-            .Include(s => s.TouristSpot)
-            .Include(s => s.Images)
+        var service = await BuildServiceQuery()
             .FirstOrDefaultAsync(x => x.ServiceId == id);
 
-        return s == null ? null : MapToDto(s);
+        return service == null ? null : MapToDto(service);
     }
-
-    public async Task<ServiceDto> CreateAsync(int partnerId, CreateServiceRequest request, string webRootPath)
+public async Task<ServiceDto> CreateAsync(int partnerId, CreateServiceRequest request, string webRootPath)
     {
+        await EnsurePartnerApprovedAsync(partnerId);
+        var validatedSpotId = await GetValidatedSpotIdAsync(request.SpotId);
+
         var service = new Service
         {
             PartnerId = partnerId,
             Name = request.Name,
-            Description = request.Description ?? "",
+            Description = request.Description ?? string.Empty,
             BasePrice = request.BasePrice,
             ServiceType = (ServiceType)request.ServiceType,
-            SpotId = request.SpotId > 0 ? request.SpotId : null,
+            SpotId = validatedSpotId,
             Latitude = request.Latitude,
             Longitude = request.Longitude,
-            IsActive = false // Luôn là false khi mới tạo, chờ Admin duyệt
+            IsActive = false
         };
 
         if (request.Images != null)
         {
             foreach (var file in request.Images)
             {
-                string fileName = Guid.NewGuid().ToString() + Path.GetExtension(file.FileName);
-                string folderPath = Path.Combine(webRootPath, "uploads", "services");
-                if (!Directory.Exists(folderPath)) Directory.CreateDirectory(folderPath);
-
-                string filePath = Path.Combine(folderPath, fileName);
-                using (var stream = new FileStream(filePath, FileMode.Create))
+                var fileName = Guid.NewGuid() + Path.GetExtension(file.FileName);
+                var folderPath = Path.Combine(webRootPath, "uploads", "services");
+                if (!Directory.Exists(folderPath))
                 {
-                    await file.CopyToAsync(stream);
+                    Directory.CreateDirectory(folderPath);
                 }
-                service.Images.Add(new ServiceImage { ImageUrl = $"/uploads/services/{fileName}" });
+
+                var filePath = Path.Combine(folderPath, fileName);
+                using var stream = new FileStream(filePath, FileMode.Create);
+                await file.CopyToAsync(stream);
+
+                service.Images.Add(new ServiceImage
+                {
+                    ImageUrl = $"/uploads/services/{fileName}"
+                });
             }
         }
 
         _context.Services.Add(service);
         await _context.SaveChangesAsync();
 
-        // Load lại để có đầy đủ thông tin Partner khi trả về DTO
-        await _context.Entry(service).Reference(s => s.Partner).LoadAsync();
-        
-        return MapToDto(service);
+        var createdService = await BuildServiceQuery()
+            .FirstAsync(s => s.ServiceId == service.ServiceId);
+
+        return MapToDto(createdService);
     }
 
     public async Task<bool> UpdateAsync(int id, CreateServiceRequest request, string webRootPath)
     {
-        var s = await _context.Services.Include(x => x.Images).FirstOrDefaultAsync(x => x.ServiceId == id);
-        if (s == null) return false;
+        var service = await _context.Services
+            .Include(x => x.Images)
+            .FirstOrDefaultAsync(x => x.ServiceId == id);
 
-        s.Name = request.Name;
-        s.Description = request.Description ?? "";
-        s.BasePrice = request.BasePrice;
-        s.ServiceType = (ServiceType)request.ServiceType;
-        s.SpotId = request.SpotId > 0 ? request.SpotId : null;
+        if (service == null)
+        {
+            return false;
+        }
+
+        await EnsurePartnerApprovedAsync(service.PartnerId);
+        var validatedSpotId = await GetValidatedSpotIdAsync(request.SpotId);
+
+        service.Name = request.Name;
+        service.Description = request.Description ?? string.Empty;
+        service.BasePrice = request.BasePrice;
+        service.ServiceType = (ServiceType)request.ServiceType;
+        service.SpotId = validatedSpotId;
+        service.Latitude = request.Latitude;
+        service.Longitude = request.Longitude;
+        service.IsActive = false;
 
         if (request.Images != null && request.Images.Count > 0)
         {
+            var folderPath = Path.Combine(webRootPath, "uploads", "services");
+            if (!Directory.Exists(folderPath))
+            {
+                Directory.CreateDirectory(folderPath);
+            }
+
             foreach (var file in request.Images)
             {
-                string fileName = Guid.NewGuid().ToString() + Path.GetExtension(file.FileName);
-                string filePath = Path.Combine(webRootPath, "uploads", "services", fileName);
-                using (var stream = new FileStream(filePath, FileMode.Create)) { await file.CopyToAsync(stream); }
-                s.Images.Add(new ServiceImage { ImageUrl = $"/uploads/services/{fileName}" });
+var fileName = Guid.NewGuid() + Path.GetExtension(file.FileName);
+                var filePath = Path.Combine(folderPath, fileName);
+                using var stream = new FileStream(filePath, FileMode.Create);
+                await file.CopyToAsync(stream);
+
+                service.Images.Add(new ServiceImage
+                {
+                    ImageUrl = $"/uploads/services/{fileName}"
+                });
             }
         }
 
@@ -151,33 +205,94 @@ public class ServiceService : IServiceService
 
     public async Task<bool> DeleteAsync(int id, string webRootPath)
     {
-        var s = await _context.Services.Include(x => x.Images).FirstOrDefaultAsync(x => x.ServiceId == id);
-        if (s == null) return false;
+        var service = await _context.Services
+            .Include(x => x.Images)
+            .FirstOrDefaultAsync(x => x.ServiceId == id);
 
-        foreach (var img in s.Images)
+        if (service == null)
         {
-            var fullPath = Path.Combine(webRootPath, img.ImageUrl.TrimStart('/'));
-            if (File.Exists(fullPath)) File.Delete(fullPath);
+            return false;
         }
 
-        _context.Services.Remove(s);
+        foreach (var image in service.Images)
+        {
+            var fullPath = Path.Combine(webRootPath, image.ImageUrl.TrimStart('/'));
+            if (File.Exists(fullPath))
+            {
+                File.Delete(fullPath);
+            }
+        }
+
+        _context.Services.Remove(service);
         return await _context.SaveChangesAsync() > 0;
     }
 
-    // --- HÀM ÁNH XẠ (MAPPING) ---
-    // Phải khớp với cấu trúc ServiceDto(ServiceId, PartnerId, PartnerName, Name...)
-    private ServiceDto MapToDto(Service s) => new ServiceDto(
-        s.ServiceId,
-        s.PartnerId,
-        s.Partner?.FullName ?? "N/A", // Gán tên đối tác vào PartnerName
-        s.Name,
-        s.Description ?? "",
-        s.BasePrice,
-        s.ServiceType.ToString(),
-        s.RatingAvg,
-        s.SpotId,
-        s.TouristSpot?.Name,
-        s.Images.Select(img => img.ImageUrl).ToList(),
-        s.IsActive
-    );
+    private IQueryable<Service> BuildServiceQuery()
+    {
+        return _context.Services
+            .Include(s => s.Partner)
+                .ThenInclude(p => p.PartnerProfile)
+            .Include(s => s.TouristSpot)
+            .Include(s => s.Images)
+            .AsNoTracking();
+    }
+
+    private static string BuildRejectAuditMessage(string reason)
+    {
+        var normalizedReason = string.IsNullOrWhiteSpace(reason) ? "Khong co ly do" : reason.Trim();
+        var message = $"Rejected: {normalizedReason}";
+        return message.Length <= 100 ? message : message[..100];
+    }
+
+    private static ServiceDto MapToDto(Service service)
+    {
+        var partnerName = !string.IsNullOrWhiteSpace(service.Partner?.PartnerProfile?.BusinessName)
+            ? service.Partner.PartnerProfile.BusinessName
+            : service.Partner?.FullName ?? "N/A";
+
+        return new ServiceDto(
+            service.ServiceId,
+            service.PartnerId,
+            partnerName,
+            service.Name,
+            service.Description ?? string.Empty,
+            service.BasePrice,
+            service.ServiceType.ToString(),
+            service.RatingAvg,
+            service.SpotId,
+            service.TouristSpot?.Name,
+            service.Images.Select(img => img.ImageUrl).ToList(),
+            service.IsActive
+        );
+    }
+
+    private async Task EnsurePartnerApprovedAsync(int partnerId)
+    {
+        var partnerProfile = await _context.PartnerProfiles
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.UserId == partnerId);
+
+        if (partnerProfile == null || partnerProfile.VerificationStatus != PartnerVerificationStatus.Approved)
+        {
+            throw new InvalidOperationException("Partner must be approved before publishing services.");
+        }
+    }
+private async Task<int> GetValidatedSpotIdAsync(int? spotId)
+    {
+        if (spotId is null or <= 0)
+        {
+            throw new InvalidOperationException("Vui long chon dia diem cho dich vu.");
+        }
+
+        var exists = await _context.TouristSpots
+            .AsNoTracking()
+            .AnyAsync(spot => spot.SpotId == spotId.Value);
+
+        if (!exists)
+        {
+            throw new InvalidOperationException("Dia diem duoc chon khong ton tai.");
+        }
+
+        return spotId.Value;
+    }
 }

@@ -14,6 +14,10 @@ public class PartnerProfileConfiguration : IEntityTypeConfiguration<PartnerProfi
         builder.Property(p => p.TaxCode).HasMaxLength(50);
         builder.Property(p => p.BankAccount).HasMaxLength(50);
         builder.Property(p => p.Address).HasMaxLength(255);
+        builder.Property(p => p.ContactPhone).HasMaxLength(30);
+        builder.Property(p => p.BusinessLicenseUrl).HasMaxLength(500);
+        builder.Property(p => p.ReviewNote).HasMaxLength(1000);
+        builder.Property(p => p.VerificationStatus).HasConversion<int>();
 
         builder.HasOne(p => p.User)
                .WithOne(u => u.PartnerProfile)

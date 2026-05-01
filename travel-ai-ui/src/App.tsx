@@ -4,6 +4,9 @@ import HomeSearch from './components/HomeSearch';
 import ProtectedRoute from './components/ProtectedRoute';
 import MainLayout from './layouts/MainLayout';
 import AdminManageServices from './pages/Admin/AdminManageServices';
+import AdminManagePartners from './pages/Admin/AdminManagePartners';
+import AdminStats from './pages/Admin/AdminStats';
+import AdminUsers from './pages/Admin/AdminUsers';
 import DestinationForm from './pages/Admin/DestinationForm';
 import EditDestination from './pages/Admin/EditDestination';
 import EditSpot from './pages/Admin/EditSpot';
@@ -156,6 +159,14 @@ function App() {
         />
 
         <Route
+          path="/admin/stats"
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <MainLayout><AdminStats /></MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/admin/destinations/add"
           element={
             <ProtectedRoute allowedRoles={['admin']}>
@@ -184,6 +195,22 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['admin']}>
               <MainLayout><EditSpot /></MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/partners"
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <MainLayout><AdminManagePartners /></MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <MainLayout><AdminUsers /></MainLayout>
             </ProtectedRoute>
           }
         />

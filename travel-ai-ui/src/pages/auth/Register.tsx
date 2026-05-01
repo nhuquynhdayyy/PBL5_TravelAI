@@ -28,8 +28,8 @@ const Register = () => {
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data));
       
-      // Chuyển hướng về trang chủ và làm mới để Header cập nhật
-      navigate('/');
+      // Partner se vao trang ho so de gui tai lieu xac minh truoc khi dang dich vu
+      navigate(isPartner ? '/partner/profile' : '/');
       window.location.reload();
     } catch (err: any) {
       alert(err.response?.data || "Registration failed. Please try again.");

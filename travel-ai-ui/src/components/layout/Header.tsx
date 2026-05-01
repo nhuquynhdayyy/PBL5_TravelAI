@@ -34,7 +34,10 @@ const Header: React.FC = () => {
         <div className="flex justify-between items-center">
           
           {/* LOGO */}
-          <Link to={role === 'partner' ? "/partner/services" : "/"} className="flex items-center gap-2 cursor-pointer group">
+          <Link
+            to={role === 'partner' ? '/partner/services' : role === 'admin' ? '/admin/stats' : '/'}
+            className="flex items-center gap-2 cursor-pointer group"
+          >
             <div className="bg-blue-500 p-1.5 rounded-lg group-hover:rotate-12 transition-transform">
                 <Plane className="text-white size-6" />
             </div>
@@ -45,7 +48,7 @@ const Header: React.FC = () => {
 
           {/* DESKTOP MENU */}
           <nav className="hidden md:flex space-x-8 items-center">
-            {role !== 'partner' && (
+            {role !== 'partner' && role !== 'admin' && (
               <>
                 <Link to="/" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all">Home</Link>
                 <Link to="/destinations" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all">Destinations</Link>
@@ -61,7 +64,7 @@ const Header: React.FC = () => {
                     </button>
 
                     {isServicesOpen && (
-                        <div className="absolute top-full left-0 w-60 bg-white rounded-3xl shadow-2xl border border-slate-50 p-3 animate-in fade-in slide-in-from-top-2 duration-300">
+<div className="absolute top-full left-0 w-60 bg-white rounded-3xl shadow-2xl border border-slate-50 p-3 animate-in fade-in slide-in-from-top-2 duration-300">
                             <Link to="/hotels" className="flex items-center gap-3 p-3 hover:bg-blue-50 rounded-2xl transition-all group/item">
                                 <div className="p-2 bg-blue-100 text-blue-600 rounded-xl group-hover/item:bg-blue-600 group-hover/item:text-white transition-colors">
                                     <Hotel size={20} />
@@ -100,7 +103,7 @@ const Header: React.FC = () => {
                 <Link to="/partner/services" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
                   <Store size={14} /> MY SERVICES
                 </Link>
-                <Link to="/partner/orders" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
+<Link to="/partner/orders" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
                   <ClipboardList size={14} /> MY ORDERS
                 </Link>
                 <Link to="/partner/reviews" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
@@ -111,9 +114,20 @@ const Header: React.FC = () => {
 
             {/* ADMIN MENU */}
             {role === 'admin' && (
-              <Link to="/admin/services" className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl font-black text-xs hover:bg-red-700 transition-all uppercase">
-                <LayoutDashboard size={14} /> QUẢN TRỊ VIÊN
-              </Link>
+              <>
+                <Link to="/admin/stats" className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl font-black text-xs hover:bg-emerald-700 transition-all uppercase">
+                  <BarChart3 size={14} /> THONG KE
+                </Link>
+                <Link to="/admin/partners" className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl font-black text-xs hover:bg-red-700 transition-all uppercase">
+                  <LayoutDashboard size={14} /> DUYỆT PARTNER
+                </Link>
+                <Link to="/admin/services" className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl font-black text-xs hover:bg-slate-700 transition-all uppercase">
+                  <Store size={14} /> DUYỆT DỊCH VỤ
+                </Link>
+                <Link to="/admin/users" className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all uppercase">
+                  <User size={14} /> QUẢN LÝ USER
+                </Link>
+              </>
             )}
           </nav>
 
@@ -133,7 +147,7 @@ const Header: React.FC = () => {
             ) : (
               <div className="flex items-center gap-2">
                 <button onClick={() => navigate('/login')} className="px-5 py-2 text-slate-700 font-bold text-sm hover:text-blue-500">Login</button>
-                <button onClick={() => navigate('/register')} className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-200 transition-all active:scale-95">Register</button>
+<button onClick={() => navigate('/register')} className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-200 transition-all active:scale-95">Register</button>
               </div>
             )}
           </div>
