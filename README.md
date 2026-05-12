@@ -112,7 +112,7 @@ WebAPI → Infrastructure → Application → Domain
 - Quản lý hồ sơ cá nhân và sở thích du lịch (phong cách, ngân sách, ẩm thực).
 - **Lập kế hoạch du lịch với AI**: tạo lịch trình theo điểm đến, thời gian, ngân sách.
 - Xem timeline lịch trình chi tiết theo từng ngày.
-- **Đặt dịch vụ**: Khách sạn, Tour du lịch, Vé xe / phương tiện.
+- **Đặt dịch vụ**: Khách sạn, Tour du lịch, **Vé xe khách & Máy bay**.
 - Thanh toán trực tuyến (VNPay, Momo — mock payment).
 - Theo dõi và quản lý lịch sử đặt dịch vụ.
 - Hủy đặt chỗ theo chính sách hoàn hủy.
@@ -349,6 +349,8 @@ dotnet run --project TravelAI.WebAPI
 |--------|-------|----------|--------------|---------|
 | Trần Minh Khoa | `partner.danang@travelai.vn` | `123456` | Công ty Du lịch Biển Xanh Đà Nẵng | Đà Nẵng |
 | Nguyễn Thị Lan | `partner.hanoi@travelai.vn` | `123456` | Hà Nội Discovery Travel | Hà Nội & TP.HCM |
+| Lê Văn Minh | `partner.phuongtrang@travelai.vn` | `123456` | Phương Trang – FUTA Bus Lines | Xe khách toàn quốc |
+| Nguyễn Thị Hồng | `partner.vietjet@travelai.vn` | `123456` | Vietjet Air | Máy bay nội địa |
 
 **Có thể test:**
 - Dashboard doanh thu và đơn hàng.
@@ -397,6 +399,12 @@ Sau khi chạy lần đầu, database sẽ có sẵn:
 | Khách sạn Hồ Gươm Boutique | Hotel ⭐4.3 | Hà Nội Discovery | 950.000 đ/đêm |
 | Vé xe limousine Hà Nội – Đà Nẵng (VIP) | Transport ⭐4.2 | Hà Nội Discovery | 450.000 đ/vé |
 | Tour Sài Gòn về đêm – Ẩm thực đường phố | Tour ⭐4.7 | Hà Nội Discovery | 550.000 đ/người |
+| **Xe khách Sài Gòn – Đà Lạt (Giường nằm)** | **Transport ⭐4.5** | **Phương Trang** | **280.000 đ/vé** |
+| **Xe khách Đà Nẵng – Hội An (Ghế ngồi)** | **Transport ⭐4.3** | **Phương Trang** | **50.000 đ/vé** |
+| **Xe khách Hà Nội – Hạ Long (Limousine)** | **Transport ⭐4.7** | **Phương Trang** | **180.000 đ/vé** |
+| **Vé máy bay TP.HCM – Hà Nội (Eco)** | **Transport ⭐4.4** | **Vietjet Air** | **1.200.000 đ/vé** |
+| **Vé máy bay Hà Nội – Đà Nẵng (Eco)** | **Transport ⭐4.5** | **Vietjet Air** | **800.000 đ/vé** |
+| **Vé máy bay Đà Nẵng – TP.HCM (Eco)** | **Transport ⭐4.6** | **Vietjet Air** | **950.000 đ/vé** |
 
 > Tất cả dịch vụ có lịch trống 30 ngày tới, giá cuối tuần tự động tăng 20%.
 

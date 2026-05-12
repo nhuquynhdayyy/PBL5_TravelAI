@@ -13,7 +13,8 @@ public class Service {
     public double Latitude { get; set; }
     public double Longitude { get; set; }
 
-    public bool IsActive { get; set; } = false; 
+    public bool IsActive { get; set; } = false;
+    public string? ReviewSummary { get; set; } 
     
     public User Partner { get; set; } = null!;
     public TouristSpot? TouristSpot { get; set; }

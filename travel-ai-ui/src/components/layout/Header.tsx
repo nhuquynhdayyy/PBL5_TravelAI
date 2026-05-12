@@ -83,6 +83,15 @@ const Header: React.FC = () => {
                                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Trải nghiệm thú vị</p>
                                 </div>
                             </Link>
+                            <Link to="/transportation" className="flex items-center gap-3 p-3 hover:bg-purple-50 rounded-2xl transition-all group/item mt-1">
+                                <div className="p-2 bg-purple-100 text-purple-600 rounded-xl group-hover/item:bg-purple-600 group-hover/item:text-white transition-colors">
+                                    <Plane size={20} />
+                                </div>
+                                <div className="text-left">
+                                    <p className="text-sm font-black text-slate-800">Vé xe & Máy bay</p>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Di chuyển tiện lợi</p>
+                                </div>
+                            </Link>
                         </div>
                     )}
                 </div>

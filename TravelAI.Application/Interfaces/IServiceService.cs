@@ -15,4 +15,5 @@ public interface IServiceService
     Task<bool> ApproveAsync(int id);
     Task<bool> RejectAsync(int id, string reason, int adminUserId);
     Task<bool> ToggleStatusAsync(int id);
+    Task<string?> GetReviewSummaryAsync(int serviceId);
 }

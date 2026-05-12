@@ -134,4 +134,17 @@ public class ServicesController : ControllerBase
         var success = await _service.DeleteAsync(id, _env.WebRootPath);
         return success ? Ok(new { message = "Da xoa." }) : NotFound();
     }
+
+    [HttpGet("{id}/review-summary")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetReviewSummary(int id)
+    {
+        var summary = await _service.GetReviewSummaryAsync(id);
+        if (summary == null)
+        {
+            return NotFound(new { message = "Service not found" });
+        }
+
+        return Ok(new { summary });
+    }
 }

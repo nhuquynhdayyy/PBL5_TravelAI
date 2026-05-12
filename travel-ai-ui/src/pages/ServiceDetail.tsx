@@ -134,6 +134,8 @@ const ServiceDetail = () => {
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
   const [replyDrafts, setReplyDrafts] = useState<Record<number, string>>({});
+  const [reviewSummary, setReviewSummary] = useState<string | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
 
   const userStr = localStorage.getItem('user');
   const user = userStr ? JSON.parse(userStr) : null;
@@ -169,6 +171,23 @@ const ServiceDetail = () => {
     }
   };
 
+  const fetchReviewSummary = async () => {
+    if (reviews.length === 0) {
+      setReviewSummary(null);
+      return;
+    }
+
+    setSummaryLoading(true);
+    try {
+      const res = await axiosClient.get(`/services/${id}/review-summary`);
+      setReviewSummary(res.data?.summary || null);
+    } catch {
+      setReviewSummary(null);
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
+
   useEffect(() => {
     const loadPage = async () => {
       try {
@@ -183,6 +202,12 @@ const ServiceDetail = () => {
 
     loadPage();
   }, [id]);
+
+  useEffect(() => {
+    if (reviews.length > 0) {
+      fetchReviewSummary();
+    }
+  }, [reviews]);
 
   useEffect(() => {
     if (!service) {
@@ -440,6 +465,24 @@ const ServiceDetail = () => {
             <div className="text-sm font-bold text-amber-700">{reviews.length} đánh giá</div>
           </div>
         </div>
+
+        {/* AI Review Summary */}
+        {reviewSummary && (
+          <div className="mb-8 rounded-[2rem] border-2 border-blue-100 bg-gradient-to-br from-blue-50 to-purple-50 p-6 shadow-sm">
+            <div className="mb-3 flex items-center gap-2">
+              <span className="text-2xl">📝</span>
+              <h3 className="text-lg font-black text-blue-900">Tóm Tắt Đánh Giá Từ AI</h3>
+            </div>
+            {summaryLoading ? (
+              <div className="flex items-center gap-2 text-blue-600">
+                <Loader2 className="animate-spin" size={20} />
+                <span className="font-medium">Đang phân tích đánh giá...</span>
+              </div>
+            ) : (
+              <p className="leading-relaxed text-slate-700">{reviewSummary}</p>
+            )}
+          </div>
+        )}
 
         {user?.roleName?.toLowerCase() === 'customer' && (
           <div className="mb-10 rounded-[2rem] border border-slate-200 bg-slate-50 p-6">

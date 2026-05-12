@@ -116,6 +116,64 @@ public static class DbInitializer
         await context.SaveChangesAsync();
 
         // =====================================================================
+        // BƯỚC 3.5: USERS — Transportation Partners (2 đối tác vận chuyển)
+        // =====================================================================
+        var partner3 = new User
+        {
+            RoleId       = rolePartner.RoleId,
+            Email        = "partner.phuongtrang@travelai.vn",
+            PasswordHash = passwordHash,
+            FullName     = "Lê Văn Minh",
+            Phone        = "0902000003",
+            IsActive     = true,
+            AvatarUrl    = "https://api.dicebear.com/7.x/initials/svg?seed=LeVanMinh",
+            CreatedAt    = DateTime.UtcNow.AddMonths(-3),
+        };
+        var partner4 = new User
+        {
+            RoleId       = rolePartner.RoleId,
+            Email        = "partner.vietjet@travelai.vn",
+            PasswordHash = passwordHash,
+            FullName     = "Nguyễn Thị Hồng",
+            Phone        = "0902000004",
+            IsActive     = true,
+            AvatarUrl    = "https://api.dicebear.com/7.x/initials/svg?seed=NguyenThiHong",
+            CreatedAt    = DateTime.UtcNow.AddMonths(-2),
+        };
+        await context.Users.AddRangeAsync(partner3, partner4);
+        await context.SaveChangesAsync();
+
+        // PartnerProfiles cho Transportation
+        var profile3 = new PartnerProfile
+        {
+            UserId             = partner3.UserId,
+            BusinessName       = "Công ty TNHH Phương Trang – FUTA Bus Lines",
+            TaxCode            = "0312440185",
+            BankAccount        = "9704221234567890",
+            Address            = "272 Đề Thám, Phường Phạm Ngũ Lão, Quận 1, TP.HCM",
+            Description        = "Hãng xe khách uy tín hàng đầu Việt Nam với hơn 30 năm kinh nghiệm, phục vụ hơn 60 tuyến đường liên tỉnh.",
+            ContactPhone       = "02838386852",
+            VerificationStatus = PartnerVerificationStatus.Approved,
+            SubmittedAt        = DateTime.UtcNow.AddMonths(-3),
+            ReviewedAt         = DateTime.UtcNow.AddMonths(-2).AddDays(-15),
+        };
+        var profile4 = new PartnerProfile
+        {
+            UserId             = partner4.UserId,
+            BusinessName       = "Công ty CP Hàng không Vietjet",
+            TaxCode            = "0106795868",
+            BankAccount        = "9704229876543210",
+            Address            = "Tầng 8, Tòa nhà Vietjet Plaza, 60A Trường Sơn, Tân Bình, TP.HCM",
+            Description        = "Hãng hàng không giá rẻ hàng đầu Việt Nam, khai thác hơn 100 đường bay trong nước và quốc tế.",
+            ContactPhone       = "02862221166",
+            VerificationStatus = PartnerVerificationStatus.Approved,
+            SubmittedAt        = DateTime.UtcNow.AddMonths(-2),
+            ReviewedAt         = DateTime.UtcNow.AddMonths(-1).AddDays(-20),
+        };
+        await context.PartnerProfiles.AddRangeAsync(profile3, profile4);
+        await context.SaveChangesAsync();
+
+        // =====================================================================
         // BƯỚC 4: USERS — Customers (3 khách hàng) dùng Bogus
         // =====================================================================
         var fakerVi = new Faker("vi");
@@ -309,7 +367,89 @@ public static class DbInitializer
             IsActive    = true,
         };
 
-        var allServices = new List<Service> { svc1, svc2, svc3, svc4, svc5, svc6 };
+        // --- Partner 3 (Phương Trang): Xe khách liên tỉnh ---
+        var svc7 = new Service
+        {
+            PartnerId   = partner3.UserId,
+            SpotId      = null, // Xe khách không gắn với spot cụ thể
+            ServiceType = ServiceType.Transport,
+            Name        = "Xe khách Sài Gòn – Đà Lạt (Giường nằm)",
+            Description = "Xe giường nằm cao cấp 40 chỗ, khởi hành từ bến xe Miền Đông mới. Thời gian di chuyển 7-8 tiếng, có điểm dừng nghỉ giữa đường.",
+            BasePrice   = 280_000m,
+            RatingAvg   = 4.5,
+            Latitude    = 10.8142,
+            Longitude   = 106.7317,
+            IsActive    = true,
+        };
+        var svc8 = new Service
+        {
+            PartnerId   = partner3.UserId,
+            SpotId      = null,
+            ServiceType = ServiceType.Transport,
+            Name        = "Xe khách Đà Nẵng – Hội An (Ghế ngồi)",
+            Description = "Xe ghế ngồi 29 chỗ, khởi hành mỗi 30 phút từ bến xe Đà Nẵng. Thời gian di chuyển 45 phút, điều hòa, wifi miễn phí.",
+            BasePrice   = 50_000m,
+            RatingAvg   = 4.3,
+            Latitude    = 16.0544,
+            Longitude   = 108.2022,
+            IsActive    = true,
+        };
+        var svc9 = new Service
+        {
+            PartnerId   = partner3.UserId,
+            SpotId      = null,
+            ServiceType = ServiceType.Transport,
+            Name        = "Xe khách Hà Nội – Hạ Long (Limousine)",
+            Description = "Xe limousine 16 chỗ cao cấp, ghế massage, wifi, nước uống miễn phí. Đón tận nơi trong nội thành Hà Nội.",
+            BasePrice   = 180_000m,
+            RatingAvg   = 4.7,
+            Latitude    = 21.0285,
+            Longitude   = 105.8522,
+            IsActive    = true,
+        };
+
+        // --- Partner 4 (Vietjet): Vé máy bay nội địa ---
+        var svc10 = new Service
+        {
+            PartnerId   = partner4.UserId,
+            SpotId      = null,
+            ServiceType = ServiceType.Transport,
+            Name        = "Vé máy bay TP.HCM – Hà Nội (Eco)",
+            Description = "Chuyến bay thẳng 2 tiếng, hành lý xách tay 7kg miễn phí. Hành lý ký gửi mua thêm 200k/15kg. Khởi hành nhiều khung giờ trong ngày.",
+            BasePrice   = 1_200_000m,
+            RatingAvg   = 4.4,
+            Latitude    = 10.8188,
+            Longitude   = 106.6519,
+            IsActive    = true,
+        };
+        var svc11 = new Service
+        {
+            PartnerId   = partner4.UserId,
+            SpotId      = null,
+            ServiceType = ServiceType.Transport,
+            Name        = "Vé máy bay Hà Nội – Đà Nẵng (Eco)",
+            Description = "Chuyến bay thẳng 1 tiếng 20 phút, hành lý xách tay 7kg. Khởi hành từ sân bay Nội Bài, hạ cánh sân bay Đà Nẵng.",
+            BasePrice   = 800_000m,
+            RatingAvg   = 4.5,
+            Latitude    = 21.2212,
+            Longitude   = 105.8072,
+            IsActive    = true,
+        };
+        var svc12 = new Service
+        {
+            PartnerId   = partner4.UserId,
+            SpotId      = null,
+            ServiceType = ServiceType.Transport,
+            Name        = "Vé máy bay Đà Nẵng – TP.HCM (Eco)",
+            Description = "Chuyến bay thẳng 1 tiếng 30 phút, phục vụ suất ăn nhẹ trên máy bay. Hành lý xách tay 7kg miễn phí.",
+            BasePrice   = 950_000m,
+            RatingAvg   = 4.6,
+            Latitude    = 16.0544,
+            Longitude   = 108.2022,
+            IsActive    = true,
+        };
+
+        var allServices = new List<Service> { svc1, svc2, svc3, svc4, svc5, svc6, svc7, svc8, svc9, svc10, svc11, svc12 };
         await context.Services.AddRangeAsync(allServices);
         await context.SaveChangesAsync();
 
@@ -344,6 +484,39 @@ public static class DbInitializer
             new ServiceAttribute { ServiceId = svc6.ServiceId, AttrKey = "Phương tiện",   AttrValue = "Xe máy điện" },
             new ServiceAttribute { ServiceId = svc6.ServiceId, AttrKey = "Bao gồm",       AttrValue = "Hướng dẫn viên + 5 điểm ăn" },
             new ServiceAttribute { ServiceId = svc6.ServiceId, AttrKey = "Thời gian",     AttrValue = "19:00 – 22:30" },
+            // svc7 – Xe khách SG – Đà Lạt
+            new ServiceAttribute { ServiceId = svc7.ServiceId, AttrKey = "Loại xe",       AttrValue = "Giường nằm 40 chỗ" },
+            new ServiceAttribute { ServiceId = svc7.ServiceId, AttrKey = "Thời gian",     AttrValue = "7-8 tiếng" },
+            new ServiceAttribute { ServiceId = svc7.ServiceId, AttrKey = "Khởi hành",     AttrValue = "Bến xe Miền Đông mới" },
+            new ServiceAttribute { ServiceId = svc7.ServiceId, AttrKey = "Tiện ích",      AttrValue = "Wifi, chăn gối, nước uống" },
+            new ServiceAttribute { ServiceId = svc7.ServiceId, AttrKey = "Hành lý",       AttrValue = "Tối đa 25kg" },
+            // svc8 – Xe khách ĐN – Hội An
+            new ServiceAttribute { ServiceId = svc8.ServiceId, AttrKey = "Loại xe",       AttrValue = "Ghế ngồi 29 chỗ" },
+            new ServiceAttribute { ServiceId = svc8.ServiceId, AttrKey = "Thời gian",     AttrValue = "45 phút" },
+            new ServiceAttribute { ServiceId = svc8.ServiceId, AttrKey = "Tần suất",      AttrValue = "Mỗi 30 phút" },
+            new ServiceAttribute { ServiceId = svc8.ServiceId, AttrKey = "Tiện ích",      AttrValue = "Điều hòa, wifi" },
+            // svc9 – Xe limousine HN – Hạ Long
+            new ServiceAttribute { ServiceId = svc9.ServiceId, AttrKey = "Loại xe",       AttrValue = "Limousine 16 chỗ" },
+            new ServiceAttribute { ServiceId = svc9.ServiceId, AttrKey = "Thời gian",     AttrValue = "2.5 tiếng" },
+            new ServiceAttribute { ServiceId = svc9.ServiceId, AttrKey = "Tiện ích",      AttrValue = "Ghế massage, wifi, nước uống" },
+            new ServiceAttribute { ServiceId = svc9.ServiceId, AttrKey = "Đón tận nơi",   AttrValue = "Trong nội thành Hà Nội" },
+            // svc10 – Vé máy bay SGN – HAN
+            new ServiceAttribute { ServiceId = svc10.ServiceId, AttrKey = "Hãng bay",      AttrValue = "Vietjet Air" },
+            new ServiceAttribute { ServiceId = svc10.ServiceId, AttrKey = "Thời gian bay", AttrValue = "2 tiếng" },
+            new ServiceAttribute { ServiceId = svc10.ServiceId, AttrKey = "Hạng vé",       AttrValue = "Economy" },
+            new ServiceAttribute { ServiceId = svc10.ServiceId, AttrKey = "Hành lý xách tay", AttrValue = "7kg miễn phí" },
+            new ServiceAttribute { ServiceId = svc10.ServiceId, AttrKey = "Hành lý ký gửi", AttrValue = "200k/15kg" },
+            // svc11 – Vé máy bay HAN – DAD
+            new ServiceAttribute { ServiceId = svc11.ServiceId, AttrKey = "Hãng bay",      AttrValue = "Vietjet Air" },
+            new ServiceAttribute { ServiceId = svc11.ServiceId, AttrKey = "Thời gian bay", AttrValue = "1 tiếng 20 phút" },
+            new ServiceAttribute { ServiceId = svc11.ServiceId, AttrKey = "Hạng vé",       AttrValue = "Economy" },
+            new ServiceAttribute { ServiceId = svc11.ServiceId, AttrKey = "Hành lý xách tay", AttrValue = "7kg miễn phí" },
+            // svc12 – Vé máy bay DAD – SGN
+            new ServiceAttribute { ServiceId = svc12.ServiceId, AttrKey = "Hãng bay",      AttrValue = "Vietjet Air" },
+            new ServiceAttribute { ServiceId = svc12.ServiceId, AttrKey = "Thời gian bay", AttrValue = "1 tiếng 30 phút" },
+            new ServiceAttribute { ServiceId = svc12.ServiceId, AttrKey = "Hạng vé",       AttrValue = "Economy" },
+            new ServiceAttribute { ServiceId = svc12.ServiceId, AttrKey = "Hành lý xách tay", AttrValue = "7kg miễn phí" },
+            new ServiceAttribute { ServiceId = svc12.ServiceId, AttrKey = "Suất ăn",       AttrValue = "Suất ăn nhẹ miễn phí" },
         };
         await context.ServiceAttributes.AddRangeAsync(attributes);
 
@@ -363,6 +536,16 @@ public static class DbInitializer
             new ServiceImage { ServiceId = svc5.ServiceId, ImageUrl = "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=800",   IsThumbnail = true },
             new ServiceImage { ServiceId = svc6.ServiceId, ImageUrl = "https://images.unsplash.com/photo-1555944191-23d8819360e7?w=800",   IsThumbnail = true },
             new ServiceImage { ServiceId = svc6.ServiceId, ImageUrl = "https://images.unsplash.com/photo-1509030464150-1b921633003c?w=800", IsThumbnail = false },
+            // Transportation services
+            new ServiceImage { ServiceId = svc7.ServiceId, ImageUrl = "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=800",   IsThumbnail = true },
+            new ServiceImage { ServiceId = svc7.ServiceId, ImageUrl = "https://images.unsplash.com/photo-1570125909232-eb263c188f7e?w=800", IsThumbnail = false },
+            new ServiceImage { ServiceId = svc8.ServiceId, ImageUrl = "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=800",   IsThumbnail = true },
+            new ServiceImage { ServiceId = svc9.ServiceId, ImageUrl = "https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?w=800", IsThumbnail = true },
+            new ServiceImage { ServiceId = svc9.ServiceId, ImageUrl = "https://images.unsplash.com/photo-1464219789935-c2d9d9aba644?w=800", IsThumbnail = false },
+            new ServiceImage { ServiceId = svc10.ServiceId, ImageUrl = "https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=800", IsThumbnail = true },
+            new ServiceImage { ServiceId = svc10.ServiceId, ImageUrl = "https://images.unsplash.com/photo-1464037866556-6812c9d1c72e?w=800", IsThumbnail = false },
+            new ServiceImage { ServiceId = svc11.ServiceId, ImageUrl = "https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=800", IsThumbnail = true },
+            new ServiceImage { ServiceId = svc12.ServiceId, ImageUrl = "https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=800", IsThumbnail = true },
         };
         await context.ServiceImages.AddRangeAsync(images);
         await context.SaveChangesAsync();
@@ -661,6 +844,14 @@ public static class DbInitializer
             [6] = (4, "Xe sạch sẽ, đúng giờ. Ghế nằm thoải mái, ngủ được suốt đêm. Tài xế lái ổn định. Sẽ đặt lại cho chuyến sau.", null),
             // svc6 – Tour Sài Gòn về đêm
             [7] = (5, "Tour cực kỳ thú vị! Được ăn đủ thứ ngon từ bánh mì, hủ tiếu đến chè. Hướng dẫn viên rất am hiểu văn hóa Sài Gòn.", "Cảm ơn bạn! Chúng tôi rất vui khi bạn thích tour ẩm thực của chúng tôi 🍜"),
+            // svc7 – Xe khách SG – Đà Lạt
+            [8] = (5, "Xe rất sạch sẽ, ghế nằm thoải mái. Tài xế lái xe an toàn, đúng giờ. Giá cả hợp lý, sẽ đặt lại lần sau!", "Cảm ơn bạn đã tin tưởng Phương Trang! Hẹn gặp lại bạn trên những chuyến xe tiếp theo."),
+            // svc9 – Xe limousine HN – Hạ Long
+            [9] = (4, "Xe limousine sang trọng, ghế massage rất thoải mái. Đón đúng giờ, tài xế lịch sự. Chỉ hơi đắt so với xe thường.", null),
+            // svc10 – Vé máy bay SGN – HAN
+            [10] = (4, "Bay đúng giờ, tiếp viên thân thiện. Ghế hơi chật nhưng với giá vé này thì chấp nhận được. Nhớ mua hành lý ký gửi trước để rẻ hơn.", "Cảm ơn bạn đã bay cùng Vietjet! Chúc bạn có chuyến bay vui vẻ!"),
+            // svc11 – Vé máy bay HAN – DAD
+            [11] = (5, "Chuyến bay suôn sẻ, cất cánh và hạ cánh đúng giờ. Giá vé rẻ, phù hợp cho du lịch tiết kiệm. Recommend!", "Cảm ơn bạn! Hẹn gặp lại bạn trên những chuyến bay tiếp theo với Vietjet."),
         };
 
         // Phân công review: mỗi customer review các service khác nhau
@@ -674,6 +865,10 @@ public static class DbInitializer
             (customers[2].UserId, svc4.ServiceId, reviewComments[5]),
             (customers[0].UserId, svc5.ServiceId, reviewComments[6]),
             (customers[1].UserId, svc6.ServiceId, reviewComments[7]),
+            (customers[2].UserId, svc7.ServiceId, reviewComments[8]),
+            (customers[0].UserId, svc9.ServiceId, reviewComments[9]),
+            (customers[1].UserId, svc10.ServiceId, reviewComments[10]),
+            (customers[2].UserId, svc11.ServiceId, reviewComments[11]),
         };
 
         var reviews = reviewAssignments.Select((r, i) => new Review
@@ -816,8 +1011,14 @@ public static class DbInitializer
             new AuditLog { UserId = partner1.UserId, Action = "Update Price",    TableName = "Services",  RecordId = svc1.ServiceId, Timestamp = today.AddDays(-5)  },
             new AuditLog { UserId = partner2.UserId, Action = "Create Service",  TableName = "Services",  RecordId = svc4.ServiceId, Timestamp = today.AddDays(-25) },
             new AuditLog { UserId = partner2.UserId, Action = "Cancel Booking",  TableName = "Bookings",  RecordId = booking4.BookingId, Timestamp = today.AddDays(-14) },
+            new AuditLog { UserId = partner3.UserId, Action = "Create Service",  TableName = "Services",  RecordId = svc7.ServiceId, Timestamp = today.AddDays(-60) },
+            new AuditLog { UserId = partner3.UserId, Action = "Create Service",  TableName = "Services",  RecordId = svc8.ServiceId, Timestamp = today.AddDays(-60) },
+            new AuditLog { UserId = partner4.UserId, Action = "Create Service",  TableName = "Services",  RecordId = svc10.ServiceId, Timestamp = today.AddDays(-45) },
+            new AuditLog { UserId = partner4.UserId, Action = "Update Price",    TableName = "Services",  RecordId = svc10.ServiceId, Timestamp = today.AddDays(-10) },
             new AuditLog { UserId = adminUser.UserId, Action = "Approve Partner", TableName = "PartnerProfiles", RecordId = profile1.ProfileId, Timestamp = today.AddDays(-120) },
             new AuditLog { UserId = adminUser.UserId, Action = "Approve Partner", TableName = "PartnerProfiles", RecordId = profile2.ProfileId, Timestamp = today.AddDays(-90)  },
+            new AuditLog { UserId = adminUser.UserId, Action = "Approve Partner", TableName = "PartnerProfiles", RecordId = profile3.ProfileId, Timestamp = today.AddDays(-75)  },
+            new AuditLog { UserId = adminUser.UserId, Action = "Approve Partner", TableName = "PartnerProfiles", RecordId = profile4.ProfileId, Timestamp = today.AddDays(-50)  },
         };
         await context.AuditLogs.AddRangeAsync(auditLogs);
         await context.SaveChangesAsync();

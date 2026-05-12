@@ -20,6 +20,7 @@ import HotelsPage from './pages/customer/HotelsPage';
 import MockPayment from './pages/customer/MockPayment';
 import MyBookings from './pages/customer/MyBookings';
 import ToursPage from './pages/customer/ToursPage';
+import Transportation from './pages/Transportation';
 import DestinationDetail from './pages/DestinationDetail';
 import Destinations from './pages/Destinations';
 import SpotList from './pages/Destinations/SpotList';
@@ -69,6 +70,7 @@ function App() {
         <Route path="/services" element={<MainLayout><Services /></MainLayout>} />
         <Route path="/hotels" element={<MainLayout><HotelsPage /></MainLayout>} />
         <Route path="/tours" element={<MainLayout><ToursPage /></MainLayout>} />
+        <Route path="/transportation" element={<MainLayout><Transportation /></MainLayout>} />
         <Route path="/services/:id" element={<MainLayout><ServiceDetail /></MainLayout>} />
         <Route path="/checkout/:bookingId" element={<MainLayout><Checkout /></MainLayout>} />
         <Route path="/mock-payment/:provider/:bookingId" element={<MainLayout><MockPayment /></MainLayout>} />

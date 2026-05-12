@@ -10,10 +10,12 @@ namespace TravelAI.Infrastructure.Services;
 public class ServiceService : IServiceService
 {
     private readonly ApplicationDbContext _context;
+    private readonly TravelAI.Infrastructure.ExternalServices.GeminiService _geminiService;
 
-    public ServiceService(ApplicationDbContext context)
+    public ServiceService(ApplicationDbContext context, TravelAI.Infrastructure.ExternalServices.GeminiService geminiService)
     {
         _context = context;
+        _geminiService = geminiService;
     }
 
     public async Task<IEnumerable<ServiceDto>> GetAllAsync(int? type)
@@ -294,5 +296,65 @@ private async Task<int> GetValidatedSpotIdAsync(int? spotId)
         }
 
         return spotId.Value;
+    }
+
+    public async Task<string?> GetReviewSummaryAsync(int serviceId)
+    {
+        var service = await _context.Services
+            .Include(s => s.Reviews)
+            .FirstOrDefaultAsync(s => s.ServiceId == serviceId);
+
+        if (service == null)
+        {
+            return null;
+        }
+
+        // Nếu đã có cache, trả về luôn
+        if (!string.IsNullOrWhiteSpace(service.ReviewSummary))
+        {
+            return service.ReviewSummary;
+        }
+
+        // Nếu chưa có review, trả về message mặc định
+        if (service.Reviews == null || service.Reviews.Count == 0)
+        {
+            return "Dịch vụ này chưa có đánh giá nào.";
+        }
+
+        // Gọi AI để tạo summary
+        var comments = service.Reviews
+            .Where(r => !string.IsNullOrWhiteSpace(r.Comment))
+            .Select(r => $"- Rating {r.Rating}/5: {r.Comment}")
+            .ToList();
+
+        if (comments.Count == 0)
+        {
+            return "Các đánh giá chưa có nội dung chi tiết.";
+        }
+
+        var prompt = $@"Tóm tắt các đánh giá sau thành 2-3 câu ngắn gọn, nêu rõ điểm mạnh và điểm yếu chính (nếu có):
+
+{string.Join("\n", comments)}
+
+Chỉ trả về đoạn tóm tắt, không thêm tiêu đề hay giải thích.";
+
+        try
+        {
+            var summary = await _geminiService.CallApiAsync(
+                prompt,
+                systemPrompt: "Bạn là trợ lý tóm tắt đánh giá. Chỉ trả về đoạn tóm tắt ngắn gọn, không thêm markdown hay giải thích.",
+                requireJsonResponse: false
+            );
+
+            // Cache lại kết quả
+            service.ReviewSummary = summary.Trim();
+            await _context.SaveChangesAsync();
+
+            return service.ReviewSummary;
+        }
+        catch
+        {
+            return "Không thể tạo tóm tắt đánh giá lúc này.";
+        }
     }
 }
