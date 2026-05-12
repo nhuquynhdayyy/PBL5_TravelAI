@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using TravelAI.Infrastructure.Persistence;
@@ -66,7 +67,12 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    var logger    = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+    // Chạy migration tự động
     dbContext.Database.Migrate();
+
+    // Patch schema thủ công (tương thích migration cũ)
     dbContext.Database.ExecuteSqlRaw(
         """
         IF COL_LENGTH('Reviews', 'ReplyText') IS NULL
@@ -104,6 +110,17 @@ using (var scope = app.Services.CreateScope())
             END
         END
         """);
+
+    // Seed dữ liệu mẫu (chỉ chạy khi DB còn trống)
+    try
+    {
+        await DbInitializer.SeedAsync(dbContext);
+        logger.LogInformation("✅ DbInitializer: Seed dữ liệu hoàn tất.");
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "❌ DbInitializer: Lỗi khi seed dữ liệu.");
+    }
 }
 
 // --- 5. Cấu hình Pipeline ---
