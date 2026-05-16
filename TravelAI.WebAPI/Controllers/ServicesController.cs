@@ -27,6 +27,14 @@ public class ServicesController : ControllerBase
         return Ok(data);
     }
 
+    [HttpGet("search")]
+    [AllowAnonymous]
+    public async Task<IActionResult> SearchServices([FromQuery] ServiceFilterRequest request)
+    {
+        var result = await _service.FilterServicesAsync(request);
+        return Ok(result);
+    }
+
     [HttpGet("my-services")]
     [Authorize(Roles = "Partner")]
     public async Task<IActionResult> GetMyServices()
@@ -146,5 +154,47 @@ public class ServicesController : ControllerBase
         }
 
         return Ok(new { summary });
+    }
+
+    // ==================== NEW FILTERING ENDPOINTS ====================
+
+    /// <summary>
+    /// Filter services with advanced criteria
+    /// </summary>
+    /// <param name="request">Filter parameters</param>
+    /// <returns>Filtered services with pagination</returns>
+    [HttpPost("filter")]
+    [AllowAnonymous]
+    public async Task<IActionResult> FilterServices([FromBody] ServiceFilterRequest request)
+    {
+        try
+        {
+            var result = await _service.FilterServicesAsync(request);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Get filter metadata (available options for filtering)
+    /// </summary>
+    /// <param name="serviceType">Optional service type to get specific metadata</param>
+    /// <returns>Filter metadata</returns>
+    [HttpGet("filter-metadata")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetFilterMetadata([FromQuery] string? serviceType = null)
+    {
+        try
+        {
+            var metadata = await _service.GetFilterMetadataAsync(serviceType);
+            return Ok(metadata);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 }
