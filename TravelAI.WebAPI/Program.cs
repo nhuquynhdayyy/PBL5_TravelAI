@@ -56,6 +56,7 @@ builder.Services.AddScoped<ISpotService, SpotService>();
 builder.Services.AddScoped<IServiceService, ServiceService>();
 builder.Services.AddScoped<IAvailabilityService, AvailabilityService>();
 builder.Services.AddScoped<IBookingService, BookingService>();
+builder.Services.AddScoped<IAIAnalyticsService, AIAnalyticsService>();
 
 builder.Services.AddHttpClient<GeminiService>();
 builder.Services.AddHttpClient<WeatherService>();
