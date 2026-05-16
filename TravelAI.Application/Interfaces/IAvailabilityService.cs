@@ -12,4 +12,16 @@ public interface IAvailabilityService
 
     // Hàm 3: Kiểm tra trực tiếp khi đặt hàng (CẦN THÊM MỚI)
     Task<bool> CheckStockAsync(int serviceId, DateTime date, int requestedQuantity);
+
+    // Hàm 4: Bulk set availability cho nhiều ngày
+    Task<bool> BulkSetAvailabilityAsync(int serviceId, int partnerId, DateTime startDate, DateTime endDate, decimal price, int stock);
+
+    // Hàm 5: Cập nhật availability cho 1 ngày cụ thể
+    Task<bool> UpdateAvailabilityAsync(int availId, int partnerId, decimal? price, int? stock);
+
+    // Hàm 6: Lấy tất cả availability của services thuộc partner
+    Task<IEnumerable<MyServicesAvailabilityDto>> GetMyServicesAvailabilityAsync(int partnerId, DateTime? startDate, DateTime? endDate);
+
+    // Hàm 7: Áp dụng giá cuối tuần tự động
+    Task<bool> ApplyWeekendPricingAsync(int serviceId, int partnerId, DateTime startDate, DateTime endDate, decimal weekendMultiplier);
 }

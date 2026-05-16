@@ -1,7 +1,7 @@
 // src/components/layout/Header.tsx
 
 import React, { useState, useEffect } from 'react';
-import { Menu, X, Plane, LogOut, LayoutDashboard, Store, User, ChevronDown, Hotel, Compass, ClipboardList, MessageSquare, BarChart3, Building2 } from 'lucide-react';
+import { Menu, X, Plane, LogOut, LayoutDashboard, Store, User, ChevronDown, Hotel, Compass, ClipboardList, MessageSquare, BarChart3, Building2, Package } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 
 const Header: React.FC = () => {
@@ -111,6 +111,9 @@ const Header: React.FC = () => {
                 </Link>
                 <Link to="/partner/services" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
                   <Store size={14} /> MY SERVICES
+                </Link>
+                <Link to="/partner/inventory-pricing" className="flex items-center gap-2 px-6 py-2 bg-purple-600 text-white rounded-full font-black text-xs hover:bg-purple-700 transition-all shadow-lg shadow-purple-100 uppercase tracking-widest">
+                  <Package size={14} /> INVENTORY
                 </Link>
 <Link to="/partner/orders" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
                   <ClipboardList size={14} /> MY ORDERS

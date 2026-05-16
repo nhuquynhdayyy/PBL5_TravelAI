@@ -205,7 +205,7 @@ const PartnerDashboard = () => {
                 </div>
             ) : (
                 <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
                         <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm">
                             <div className="flex items-center justify-between mb-4">
                                 <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Doanh thu {periodLabel.toLowerCase()}</span>
@@ -225,6 +225,20 @@ const PartnerDashboard = () => {
                             <div className="text-3xl font-black text-slate-900">{summary?.totalBookings ?? 0}</div>
                             <p className="mt-3 text-sm font-medium text-slate-500">{rangeLabel}</p>
                         </div>
+
+                        <Link 
+                            to="/partner/inventory-pricing"
+                            className="bg-gradient-to-br from-purple-600 to-blue-600 rounded-[2rem] p-6 border border-purple-200 shadow-lg hover:shadow-xl transition-all group"
+                        >
+                            <div className="flex items-center justify-between mb-4">
+                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-purple-100">Quick Action</span>
+                                <Package className="text-white group-hover:scale-110 transition-transform" size={22} />
+                            </div>
+                            <div className="text-2xl font-black text-white mb-2">
+                                Quản Lý Tồn Kho & Giá
+                            </div>
+                            <p className="text-sm font-medium text-purple-100">Set giá, tồn kho & pricing rules →</p>
+                        </Link>
                     </div>
 
                     <div className="grid grid-cols-1 xl:grid-cols-[1.6fr_1fr] gap-6">

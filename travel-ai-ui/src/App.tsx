@@ -28,6 +28,7 @@ import UserPreferences from './pages/Preferences/UserPreferences';
 import Timeline from './pages/Planner/Timeline';
 import Profile from './pages/Profile/Profile';
 import ManageAvailability from './pages/partner/ManageAvailability';
+import InventoryPricingManager from './pages/partner/InventoryPricingManager';
 import PartnerDashboard from './pages/partner/PartnerDashboard';
 import PartnerProfile from './pages/partner/PartnerProfile';
 import ManagePartnerServices from './pages/partner/ManagePartnerServices';
@@ -140,6 +141,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['partner']}>
               <MainLayout><ManageAvailability /></MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/partner/inventory-pricing"
+          element={
+            <ProtectedRoute allowedRoles={['partner']}>
+              <MainLayout><InventoryPricingManager /></MainLayout>
             </ProtectedRoute>
           }
         />

@@ -17,7 +17,12 @@ var builder = WebApplication.CreateBuilder(args);
 
 // --- 1. Cấu hình SQL SERVER & DB CONTEXT ---
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+{
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
+    // Suppress pending model changes warning (we handle schema via SQL scripts)
+    options.ConfigureWarnings(warnings => 
+        warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+});
 
 // --- 2. Cấu hình JWT AUTHENTICATION ---
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -55,6 +60,7 @@ builder.Services.AddScoped<TravelAI.Infrastructure.Services.UserService>();
 builder.Services.AddScoped<ISpotService, SpotService>();
 builder.Services.AddScoped<IServiceService, ServiceService>();
 builder.Services.AddScoped<IAvailabilityService, AvailabilityService>();
+builder.Services.AddScoped<IPricingService, PricingService>();
 builder.Services.AddScoped<IBookingService, BookingService>();
 
 builder.Services.AddHttpClient<GeminiService>();
@@ -109,6 +115,33 @@ using (var scope = app.Services.CreateScope())
                 CREATE UNIQUE INDEX [IX_Reviews_ServiceId_UserId]
                 ON [Reviews]([ServiceId], [UserId]);
             END
+        END
+        """);
+
+    // Patch: Add PricingRules table
+    dbContext.Database.ExecuteSqlRaw(
+        """
+        IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[PricingRules]') AND type in (N'U'))
+        BEGIN
+            CREATE TABLE [dbo].[PricingRules] (
+                [RuleId] INT IDENTITY(1,1) NOT NULL,
+                [ServiceId] INT NOT NULL,
+                [StartDate] DATETIME2 NOT NULL,
+                [EndDate] DATETIME2 NOT NULL,
+                [PriceMultiplier] DECIMAL(18,2) NOT NULL,
+                [Description] NVARCHAR(500) NULL,
+                [CreatedAt] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+                CONSTRAINT [PK_PricingRules] PRIMARY KEY CLUSTERED ([RuleId] ASC),
+                CONSTRAINT [FK_PricingRules_Services_ServiceId] FOREIGN KEY([ServiceId])
+                    REFERENCES [dbo].[Services] ([ServiceId])
+                    ON DELETE CASCADE
+            );
+
+            CREATE NONCLUSTERED INDEX [IX_PricingRules_ServiceId] 
+            ON [dbo].[PricingRules]([ServiceId] ASC);
+
+            CREATE NONCLUSTERED INDEX [IX_PricingRules_DateRange] 
+            ON [dbo].[PricingRules]([StartDate] ASC, [EndDate] ASC);
         END
         """);
 
