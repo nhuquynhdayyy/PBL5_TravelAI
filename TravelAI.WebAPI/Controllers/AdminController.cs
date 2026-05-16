@@ -184,6 +184,166 @@ PrimaryServiceName = booking.BookingItems
         return Ok(response);
     }
 
+    [HttpGet("dashboard-stats")]
+    public async Task<IActionResult> GetDashboardStats()
+    {
+        var today = DateTime.UtcNow.Date;
+        var rangeStart = today.AddDays(-29);
+        var rangeEndExclusive = today.AddDays(1);
+
+        var revenueRows = await _context.Bookings
+            .AsNoTracking()
+            .Where(booking =>
+                booking.Status == BookingStatus.Paid &&
+                ((booking.Payments
+                    .OrderByDescending(payment => payment.PaymentTime)
+                    .Select(payment => (DateTime?)payment.PaymentTime)
+                    .FirstOrDefault() ?? booking.CreatedAt) >= rangeStart) &&
+                ((booking.Payments
+                    .OrderByDescending(payment => payment.PaymentTime)
+                    .Select(payment => (DateTime?)payment.PaymentTime)
+                    .FirstOrDefault() ?? booking.CreatedAt) < rangeEndExclusive))
+            .Select(booking => new
+            {
+                RevenueDate = booking.Payments
+                    .OrderByDescending(payment => payment.PaymentTime)
+                    .Select(payment => (DateTime?)payment.PaymentTime)
+                    .FirstOrDefault() ?? booking.CreatedAt,
+                booking.TotalAmount
+            })
+            .ToListAsync();
+
+        var revenueLookup = revenueRows
+            .GroupBy(item => item.RevenueDate.Date)
+            .ToDictionary(group => group.Key, group => group.Sum(item => item.TotalAmount));
+
+        var revenueByDay = Enumerable.Range(0, 30)
+            .Select(offset => rangeStart.AddDays(offset))
+            .Select(date => new
+            {
+                date,
+                revenue = revenueLookup.GetValueOrDefault(date, 0m)
+            })
+            .ToList();
+
+        var totalRevenue30Days = revenueByDay.Sum(item => item.revenue);
+
+        var bookingStatusCounts = await _context.Bookings
+            .AsNoTracking()
+            .GroupBy(booking => booking.Status)
+            .Select(group => new
+            {
+                status = group.Key.ToString(),
+                count = group.Count()
+            })
+            .ToListAsync();
+
+        var topDestinationRows = await _context.BookingItems
+            .AsNoTracking()
+            .Where(item => item.Booking.Status != BookingStatus.Cancelled)
+            .Select(item => new
+            {
+                item.BookingId,
+                Revenue = item.Booking.Status == BookingStatus.Paid
+                    ? item.PriceAtBooking * item.Quantity
+                    : 0m,
+                DestinationId = item.Service.SpotId != null
+                    ? (int?)item.Service.TouristSpot!.DestinationId
+                    : item.Service.ServiceSpots
+                        .OrderBy(link => link.VisitOrder)
+                        .Select(link => (int?)link.TouristSpot.DestinationId)
+                        .FirstOrDefault(),
+                DestinationName = item.Service.SpotId != null
+                    ? item.Service.TouristSpot!.Destination.Name
+                    : item.Service.ServiceSpots
+                        .OrderBy(link => link.VisitOrder)
+                        .Select(link => link.TouristSpot.Destination.Name)
+                        .FirstOrDefault()
+            })
+            .ToListAsync();
+
+        var topDestinations = topDestinationRows
+            .Where(item => item.DestinationId.HasValue && !string.IsNullOrWhiteSpace(item.DestinationName))
+            .GroupBy(item => new { item.DestinationId, item.DestinationName })
+            .Select(group => new
+            {
+                destinationId = group.Key.DestinationId!.Value,
+                name = group.Key.DestinationName!,
+                bookingCount = group.Select(item => item.BookingId).Distinct().Count(),
+                revenue = group.Sum(item => item.Revenue)
+            })
+            .OrderByDescending(item => item.bookingCount)
+            .ThenByDescending(item => item.revenue)
+            .Take(5)
+            .ToList();
+
+        var topServices = await _context.BookingItems
+            .AsNoTracking()
+            .Where(item => item.Booking.Status != BookingStatus.Cancelled)
+            .GroupBy(item => new { item.ServiceId, item.Service.Name, item.Service.ServiceType })
+            .Select(group => new
+            {
+                serviceId = group.Key.ServiceId,
+                name = group.Key.Name,
+                serviceType = group.Key.ServiceType.ToString(),
+                quantitySold = group.Sum(item => item.Quantity),
+                bookingCount = group.Select(item => item.BookingId).Distinct().Count(),
+                revenue = group.Sum(item => item.Booking.Status == BookingStatus.Paid
+                    ? item.PriceAtBooking * item.Quantity
+                    : 0m)
+            })
+            .OrderByDescending(item => item.quantitySold)
+            .ThenByDescending(item => item.revenue)
+            .Take(5)
+            .ToListAsync();
+
+        return Ok(new
+        {
+            success = true,
+            data = new
+            {
+                totalRevenue30Days,
+                bookingStatusCounts = new
+                {
+                    paid = bookingStatusCounts.FirstOrDefault(item => item.status == BookingStatus.Paid.ToString())?.count ?? 0,
+                    pending = bookingStatusCounts.FirstOrDefault(item => item.status == BookingStatus.Pending.ToString())?.count ?? 0,
+                    cancelled = bookingStatusCounts.FirstOrDefault(item => item.status == BookingStatus.Cancelled.ToString())?.count ?? 0
+                },
+                topDestinations,
+                topServices,
+                revenueByDay
+            }
+        });
+    }
+
+    [HttpGet("ai-usage-stats")]
+    public async Task<IActionResult> GetAiUsageStats()
+    {
+        var totalAiItineraries = await _context.AISuggestionLogs
+            .AsNoTracking()
+            .CountAsync();
+
+        var totalBookings = await _context.Bookings
+            .AsNoTracking()
+            .CountAsync(booking => booking.Status != BookingStatus.Cancelled);
+
+        var conversionRate = totalAiItineraries == 0
+            ? 0
+            : Math.Round(Math.Min(100, totalBookings * 100.0 / totalAiItineraries), 2);
+
+        return Ok(new
+        {
+            success = true,
+            data = new
+            {
+                totalAiItineraries,
+                conversionRatePercent = conversionRate,
+                averageResponseTimeMs = 0,
+                isResponseTimeTracked = false
+            }
+        });
+    }
+
     [HttpGet("users")]
     public async Task<IActionResult> GetUsers([FromQuery] int page = 1, [FromQuery] string search = "", [FromQuery] string role = "")
     {
