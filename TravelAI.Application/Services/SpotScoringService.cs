@@ -67,7 +67,15 @@ public class SpotScoringService : ISpotScoringService
     }
 
     public double CalculateScore(TouristSpot spot, UserPreference pref, List<Review> reviews)
-        => CalculateScore(spot, pref, reviews, null, null);
+    {
+        var destinationCenter = ResolveDestinationCenter(spot);
+        return CalculateScore(
+            spot,
+            pref,
+            reviews,
+            destinationCenter?.Latitude,
+            destinationCenter?.Longitude);
+    }
 
     private static double CalculateScore(
         TouristSpot spot,
@@ -203,6 +211,13 @@ public class SpotScoringService : ISpotScoringService
     {
         if (!centerLatitude.HasValue || !centerLongitude.HasValue)
         {
+            var destinationCenter = ResolveDestinationCenter(spot);
+            centerLatitude = destinationCenter?.Latitude;
+            centerLongitude = destinationCenter?.Longitude;
+        }
+
+        if (!centerLatitude.HasValue || !centerLongitude.HasValue)
+        {
             return 0.7;
         }
 
@@ -219,10 +234,9 @@ public class SpotScoringService : ISpotScoringService
 
         return distanceKm switch
         {
-            <= 3 => 1.0,
-            <= 8 => 0.85,
-            <= 15 => 0.7,
-            <= 30 => 0.5,
+            < 2 => 1.0,
+            <= 5 => 0.7,
+            <= 10 => 0.5,
             _ => 0.3
         };
     }
@@ -258,6 +272,22 @@ public class SpotScoringService : ISpotScoringService
             .GroupBy(review => review.ReviewId)
             .Select(group => group.First())
             .ToList();
+    }
+
+    private static (double Latitude, double Longitude)? ResolveDestinationCenter(TouristSpot spot)
+    {
+        var destinationSpots = spot.Destination?.TouristSpots?
+            .Where(destinationSpot => destinationSpot.Latitude != 0 && destinationSpot.Longitude != 0)
+            .ToList();
+
+        if (destinationSpots == null || destinationSpots.Count == 0)
+        {
+            return null;
+        }
+
+        return (
+            destinationSpots.Average(destinationSpot => destinationSpot.Latitude),
+            destinationSpots.Average(destinationSpot => destinationSpot.Longitude));
     }
 
     private static double CalculateHaversineDistance(double lat1, double lon1, double lat2, double lon2)

@@ -19,19 +19,22 @@ public class ItineraryService : IItineraryService
     private readonly AIParserService _parserService;
     private readonly ISpotScoringService _spotScoringService;
     private readonly PromptBuilder _promptBuilder;
+    private readonly WeatherService _weatherService;
 
     public ItineraryService(
         ApplicationDbContext db, 
         GeminiService gemini, 
         AIParserService parserService,
         ISpotScoringService spotScoringService,
-        PromptBuilder promptBuilder)
+        PromptBuilder promptBuilder,
+        WeatherService weatherService)
     {
         _db = db;
         _gemini = gemini;
         _parserService = parserService;
         _spotScoringService = spotScoringService;
         _promptBuilder = promptBuilder;
+        _weatherService = weatherService;
     }
 
     public async Task<ItineraryResponseDto?> GenerateAndLogItineraryAsync(int userId, GenerateItineraryRequest request)
@@ -90,6 +93,16 @@ public class ItineraryService : IItineraryService
             centerLng);
         
         var promptServices = await GetAvailableServicesForPromptAsync(dest, tripStartDate, request.NumberOfDays);
+        var availableServiceEntities = await GetAvailableServiceEntitiesForPromptAsync(dest, tripStartDate, request.NumberOfDays);
+        var historyLogs = await _db.AISuggestionLogs
+            .AsNoTracking()
+            .Where(log => log.UserId == userId)
+            .OrderByDescending(log => log.CreatedAt)
+            .Take(3)
+            .ToListAsync();
+        var weatherData = centerLat.HasValue && centerLng.HasValue
+            ? await _weatherService.GetWeatherAsync(centerLat.Value, centerLng.Value)
+            : null;
         var spotReviews = spots
             .SelectMany(spot => spot.Services.SelectMany(service => service.Reviews)
                 .Concat(spot.ServiceSpots.SelectMany(serviceSpot => serviceSpot.Service.Reviews)))
@@ -97,7 +110,18 @@ public class ItineraryService : IItineraryService
             .Select(group => group.First())
             .ToList();
 
-        var prompt = _promptBuilder.Build(pref, dest, spots, request.NumberOfDays, tripStartDate, promptServices, rankedSpots, spotReviews);
+        var prompt = _promptBuilder.Build(
+            pref,
+            dest,
+            spots,
+            request.NumberOfDays,
+            tripStartDate,
+            promptServices,
+            rankedSpots,
+            spotReviews,
+            historyLogs,
+            weatherData,
+            availableServiceEntities);
         var rawAiResponse = await _gemini.CallApiAsync(
             prompt,
             systemPrompt: AIPrompts.ItinerarySystemPrompt,
@@ -462,6 +486,30 @@ Chi dung cac itemId da cung cap, khong them markdown hay giai thich.";
             .ToList();
 
         return promptServices;
+    }
+
+    private async Task<List<Service>> GetAvailableServiceEntitiesForPromptAsync(Destination destination, DateTime tripStartDate, int totalDays)
+    {
+        var tripDates = Enumerable.Range(0, Math.Max(totalDays, 1))
+            .Select(offset => tripStartDate.Date.AddDays(offset))
+            .ToHashSet();
+
+        var services = await _db.Services
+            .AsNoTracking()
+            .Include(service => service.TouristSpot)
+            .Include(service => service.ServiceSpots)
+                .ThenInclude(serviceSpot => serviceSpot.TouristSpot)
+            .Include(service => service.Availabilities)
+            .Where(service => service.IsActive
+                && ((service.TouristSpot != null && service.TouristSpot.DestinationId == destination.DestinationId)
+                    || service.ServiceSpots.Any(serviceSpot => serviceSpot.TouristSpot.DestinationId == destination.DestinationId)))
+            .ToListAsync();
+
+        // Chi dua cac service co availability dung lich trinh vao context combo.
+        return services
+            .Where(service => service.Availabilities.Any(availability =>
+                IsAvailabilityUsable(service.ServiceType, availability, tripStartDate.Date, tripDates)))
+            .ToList();
     }
 
     private static List<DayPlanDto> BuildDayPlans(Itinerary itinerary, List<ItineraryItem> orderedItems)
