@@ -1,5 +1,6 @@
 using System.Globalization;
 using TravelAI.Application.DTOs.AI;
+using TravelAI.Application.Interfaces;
 using TravelAI.Domain.Entities;
 using TravelAI.Domain.Enums;
 
@@ -7,15 +8,50 @@ namespace TravelAI.Application.Services.AI;
 
 public class PromptBuilder
 {
+    private readonly ISpotScoringService? _spotScoringService;
+
+    public PromptBuilder()
+    {
+    }
+
+    public PromptBuilder(ISpotScoringService spotScoringService)
+    {
+        _spotScoringService = spotScoringService;
+    }
+
     public string Build(
         UserPreference pref,
         Destination dest,
         List<TouristSpot> spots,
         int days,
         DateTime startDate,
-        IEnumerable<PromptServiceOption>? availableServices = null)
+        IEnumerable<PromptServiceOption>? availableServices = null,
+        List<SpotScoreDto>? rankedSpots = null,
+        List<Review>? reviews = null)
     {
-        var destinationSpots = spots
+        // Nếu có ranked spots, sắp xếp lại danh sách spots theo điểm số
+        var orderedSpots = spots;
+        if (rankedSpots != null && rankedSpots.Count > 0)
+        {
+            var spotScoreMap = rankedSpots.ToDictionary(s => s.SpotId, s => s.TotalScore);
+            orderedSpots = spots
+                .OrderByDescending(spot => spotScoreMap.GetValueOrDefault(spot.SpotId, 0))
+                .ToList();
+        }
+        else if (_spotScoringService != null && spots.Count > 0)
+        {
+            orderedSpots = spots
+                .Select(spot => new
+                {
+                    Spot = spot,
+                    Score = _spotScoringService.CalculateScore(spot, pref, ResolveSpotReviews(spot, reviews))
+                })
+                .OrderByDescending(item => item.Score)
+                .Select(item => item.Spot)
+                .ToList();
+        }
+
+        var destinationSpots = orderedSpots
             .Select(spot => $"- {spot.Name}. Mo ta: {spot.Description}")
             .ToList();
 
@@ -120,5 +156,20 @@ YEU CAU DAU RA: Tra ve JSON theo dung schema, tinh toan 'estimatedCost' la 0 cho
         return string.IsNullOrWhiteSpace(cuisinePreference)
             ? "Khong co yeu cau dac biet"
             : cuisinePreference.Trim();
+    }
+
+    private static List<Review> ResolveSpotReviews(TouristSpot spot, List<Review>? reviews)
+    {
+        if (reviews == null || reviews.Count == 0)
+        {
+            return new List<Review>();
+        }
+
+        return reviews
+            .Where(review => review.Service != null
+                && (review.Service.SpotId == spot.SpotId
+                || review.Service.ServiceSpots.Any(serviceSpot => serviceSpot.SpotId == spot.SpotId))
+            )
+            .ToList();
     }
 }

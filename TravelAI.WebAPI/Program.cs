@@ -59,6 +59,7 @@ builder.Services.AddScoped<IBookingService, BookingService>();
 
 builder.Services.AddHttpClient<GeminiService>();
 builder.Services.AddScoped<AIParserService>();
+builder.Services.AddScoped<ISpotScoringService, TravelAI.Application.Services.SpotScoringService>();
 builder.Services.AddScoped<IItineraryService, ItineraryService>();
 builder.Services.AddScoped<PromptBuilder>();
 

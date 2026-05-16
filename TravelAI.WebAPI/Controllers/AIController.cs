@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using System.Text.Json;
 using TravelAI.Application.DTOs.AI;
+using TravelAI.Application.Interfaces;
 using TravelAI.Application.Services.AI;
 using TravelAI.Domain.Entities;
 using TravelAI.Domain.Enums;
@@ -17,11 +18,16 @@ public class AIController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly GeminiService _aiService;
+    private readonly ISpotScoringService _spotScoringService;
 
-    public AIController(ApplicationDbContext context, GeminiService aiService)
+    public AIController(
+        ApplicationDbContext context, 
+        GeminiService aiService,
+        ISpotScoringService spotScoringService)
     {
         _context = context;
         _aiService = aiService;
+        _spotScoringService = spotScoringService;
     }
 
     [HttpPost("estimate-budget")]
@@ -101,11 +107,23 @@ Chi tra ve JSON hop le. Don vi tien te la VND.";
             }
 
             var spots = await _context.TouristSpots
+                .Include(s => s.Services)
+                    .ThenInclude(service => service.Reviews)
+                .Include(s => s.ServiceSpots)
+                    .ThenInclude(serviceSpot => serviceSpot.Service)
+                        .ThenInclude(service => service.Reviews)
                 .Where(s => s.DestinationId == destId)
                 .ToListAsync();
 
-            var builder = new PromptBuilder();
-            string finalPrompt = builder.Build(pref, dest, spots, 3, DateTime.Today);
+            var spotReviews = spots
+                .SelectMany(spot => spot.Services.SelectMany(service => service.Reviews)
+                    .Concat(spot.ServiceSpots.SelectMany(serviceSpot => serviceSpot.Service.Reviews)))
+                .GroupBy(review => review.ReviewId)
+                .Select(group => group.First())
+                .ToList();
+
+            var builder = new PromptBuilder(_spotScoringService);
+            string finalPrompt = builder.Build(pref, dest, spots, 3, DateTime.Today, reviews: spotReviews);
 
             return Ok(new
             {

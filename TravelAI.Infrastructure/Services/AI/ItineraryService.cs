@@ -17,14 +17,21 @@ public class ItineraryService : IItineraryService
     private readonly ApplicationDbContext _db;
     private readonly GeminiService _gemini;
     private readonly AIParserService _parserService;
+    private readonly ISpotScoringService _spotScoringService;
     private readonly PromptBuilder _promptBuilder;
 
-    public ItineraryService(ApplicationDbContext db, GeminiService gemini, AIParserService parserService)
+    public ItineraryService(
+        ApplicationDbContext db, 
+        GeminiService gemini, 
+        AIParserService parserService,
+        ISpotScoringService spotScoringService,
+        PromptBuilder promptBuilder)
     {
         _db = db;
         _gemini = gemini;
         _parserService = parserService;
-        _promptBuilder = new PromptBuilder();
+        _spotScoringService = spotScoringService;
+        _promptBuilder = promptBuilder;
     }
 
     public async Task<ItineraryResponseDto?> GenerateAndLogItineraryAsync(int userId, GenerateItineraryRequest request)
@@ -56,12 +63,41 @@ public class ItineraryService : IItineraryService
 
         var spots = await _db.TouristSpots
             .Include(s => s.Services)
+                .ThenInclude(service => service.Reviews)
+            .Include(s => s.ServiceSpots)
+                .ThenInclude(serviceSpot => serviceSpot.Service)
+                    .ThenInclude(service => service.Reviews)
             .Where(s => s.DestinationId == request.DestinationId)
             .ToListAsync();
 
         var tripStartDate = request.StartDate == default ? DateTime.Today : request.StartDate.Date;
+        
+        // Tính tọa độ trung tâm từ các spots (nếu có)
+        double? centerLat = null;
+        double? centerLng = null;
+        var spotsWithCoords = spots.Where(s => s.Latitude != 0 && s.Longitude != 0).ToList();
+        if (spotsWithCoords.Count > 0)
+        {
+            centerLat = spotsWithCoords.Average(s => s.Latitude);
+            centerLng = spotsWithCoords.Average(s => s.Longitude);
+        }
+        
+        // Tính toán điểm số cho các spots dựa trên user preferences
+        var rankedSpots = await _spotScoringService.ScoreAndRankSpotsAsync(
+            spots, 
+            pref, 
+            centerLat, 
+            centerLng);
+        
         var promptServices = await GetAvailableServicesForPromptAsync(dest, tripStartDate, request.NumberOfDays);
-        var prompt = _promptBuilder.Build(pref, dest, spots, request.NumberOfDays, tripStartDate, promptServices);
+        var spotReviews = spots
+            .SelectMany(spot => spot.Services.SelectMany(service => service.Reviews)
+                .Concat(spot.ServiceSpots.SelectMany(serviceSpot => serviceSpot.Service.Reviews)))
+            .GroupBy(review => review.ReviewId)
+            .Select(group => group.First())
+            .ToList();
+
+        var prompt = _promptBuilder.Build(pref, dest, spots, request.NumberOfDays, tripStartDate, promptServices, rankedSpots, spotReviews);
         var rawAiResponse = await _gemini.CallApiAsync(
             prompt,
             systemPrompt: AIPrompts.ItinerarySystemPrompt,
