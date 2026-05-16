@@ -12,6 +12,7 @@ using TravelAI.Infrastructure.Repositories;
 using TravelAI.Infrastructure.Services.AI;
 using TravelAI.Infrastructure.ExternalServices;
 using TravelAI.Application.Services.AI;
+using TravelAI.Infrastructure.BackgroundJobs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -62,12 +63,18 @@ builder.Services.AddScoped<IServiceService, ServiceService>();
 builder.Services.AddScoped<IAvailabilityService, AvailabilityService>();
 builder.Services.AddScoped<IPricingService, PricingService>();
 builder.Services.AddScoped<IBookingService, BookingService>();
+builder.Services.AddScoped<IPartnerOrderService, PartnerOrderService>();
+builder.Services.AddScoped<IEmailService, TravelAI.Infrastructure.ExternalServices.Mail.SendGridEmailService>();
 
 builder.Services.AddHttpClient<GeminiService>();
 builder.Services.AddScoped<AIParserService>();
 builder.Services.AddScoped<ISpotScoringService, TravelAI.Application.Services.SpotScoringService>();
 builder.Services.AddScoped<IItineraryService, ItineraryService>();
 builder.Services.AddScoped<PromptBuilder>();
+
+// --- 5. ĐĂNG KÝ BACKGROUND JOBS ---
+builder.Services.AddHostedService<OrderApprovalTimeoutJob>();
+builder.Services.AddHostedService<OrderApprovalReminderJob>();
 
 var app = builder.Build();
 
@@ -145,6 +152,28 @@ using (var scope = app.Services.CreateScope())
         END
         """);
 
+    // Patch: Add IsApprovedByPartner and ApprovedAt to Bookings table
+    dbContext.Database.ExecuteSqlRaw(
+        """
+        IF COL_LENGTH('Bookings', 'IsApprovedByPartner') IS NULL
+        BEGIN
+            ALTER TABLE [Bookings]
+            ADD [IsApprovedByPartner] BIT NOT NULL DEFAULT 0;
+        END
+
+        IF COL_LENGTH('Bookings', 'ApprovedAt') IS NULL
+        BEGIN
+            ALTER TABLE [Bookings]
+            ADD [ApprovedAt] DATETIME2 NULL;
+        END
+
+        IF COL_LENGTH('Bookings', 'ApprovalDeadline') IS NULL
+        BEGIN
+            ALTER TABLE [Bookings]
+            ADD [ApprovalDeadline] DATETIME2 NULL;
+        END
+        """);
+
     // Seed dữ liệu mẫu (chỉ chạy khi DB còn trống)
     try
     {
@@ -169,10 +198,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseStaticFiles();
-app.UseCors("AllowReactApp");
 
-app.UseHttpsRedirection();
-app.UseCors(p => p.AllowAnyHeader().AllowAnyMethod().WithOrigins("http://localhost:5173"));
+// CORS phải đặt trước Authentication
+app.UseCors("AllowReactApp");
 
 app.UseAuthentication();
 app.UseAuthorization();

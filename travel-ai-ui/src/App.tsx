@@ -33,6 +33,7 @@ import PartnerDashboard from './pages/partner/PartnerDashboard';
 import PartnerProfile from './pages/partner/PartnerProfile';
 import ManagePartnerServices from './pages/partner/ManagePartnerServices';
 import PartnerOrders from './pages/partner/PartnerOrders';
+import PartnerOrderDetail from './pages/partner/PartnerOrderDetail';
 import PartnerReviews from './pages/partner/PartnerReviews';
 import ServiceConsole from './pages/partner/ServiceConsole';
 import ServiceDetail from './pages/ServiceDetail';
@@ -157,6 +158,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['partner']}>
               <MainLayout><PartnerOrders /></MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/partner/orders/:bookingId"
+          element={
+            <ProtectedRoute allowedRoles={['partner']}>
+              <MainLayout><PartnerOrderDetail /></MainLayout>
             </ProtectedRoute>
           }
         />
