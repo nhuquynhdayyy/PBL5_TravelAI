@@ -12,6 +12,9 @@ using TravelAI.Infrastructure.Repositories;
 using TravelAI.Infrastructure.Services.AI;
 using TravelAI.Infrastructure.ExternalServices;
 using TravelAI.Application.Services.AI;
+using TravelAI.Application.Services.Scoring;
+using TravelAI.WebAPI.Hubs;
+using TravelAI.WebAPI.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -31,10 +34,28 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = builder.Configuration["Jwt:Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
         };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+
+                if (!string.IsNullOrEmpty(accessToken)
+                    && path.StartsWithSegments("/hubs/notifications"))
+                {
+                    context.Token = accessToken;
+                }
+
+                return Task.CompletedTask;
+            }
+        };
     });
 
 // --- 3. ĐĂNG KÝ SERVICES ---
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IDestinationService, DestinationService>();
 builder.Services.AddScoped<IPreferenceService, PreferenceService>();
 builder.Services.AddScoped<AuthService>();
@@ -44,10 +65,12 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowReactApp",
         policy => policy.WithOrigins("http://localhost:5173")
                         .AllowAnyMethod()
-                        .AllowAnyHeader());
+                        .AllowAnyHeader()
+                        .AllowCredentials());
 });
 
 builder.Services.AddControllers();
+builder.Services.AddSignalR();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -61,9 +84,15 @@ builder.Services.AddScoped<IAIAnalyticsService, AIAnalyticsService>();
 builder.Services.AddHttpClient<GeminiService>();
 builder.Services.AddHttpClient<WeatherService>();
 builder.Services.AddScoped<AIParserService>();
+builder.Services.AddScoped<ISpotScoreStrategy, StyleMatchScoreStrategy>();
+builder.Services.AddScoped<ISpotScoreStrategy, BudgetMatchScoreStrategy>();
+builder.Services.AddScoped<ISpotScoreStrategy, PaceMatchScoreStrategy>();
+builder.Services.AddScoped<ISpotScoreStrategy, DistanceOptimizationScoreStrategy>();
+builder.Services.AddScoped<ISpotScoreStrategy, RatingScoreStrategy>();
 builder.Services.AddScoped<ISpotScoringService, TravelAI.Application.Services.SpotScoringService>();
 builder.Services.AddScoped<IItineraryService, ItineraryService>();
 builder.Services.AddScoped<PromptBuilder>();
+builder.Services.AddScoped<IRealtimeNotificationService, SignalRNotificationService>();
 
 var app = builder.Build();
 
@@ -141,11 +170,11 @@ app.UseStaticFiles();
 app.UseCors("AllowReactApp");
 
 app.UseHttpsRedirection();
-app.UseCors(p => p.AllowAnyHeader().AllowAnyMethod().WithOrigins("http://localhost:5173"));
 
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<NotificationHub>("/hubs/notifications");
 
 app.Run();

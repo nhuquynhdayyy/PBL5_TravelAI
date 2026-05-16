@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import Chatbox from './components/chat/Chatbox';
 import HomeSearch from './components/HomeSearch';
 import ProtectedRoute from './components/ProtectedRoute';
+import RealtimeNotifications from './components/RealtimeNotifications';
 import MainLayout from './layouts/MainLayout';
 import AdminManageServices from './pages/Admin/AdminManageServices';
 import AdminManagePartners from './pages/Admin/AdminManagePartners';
@@ -239,6 +240,7 @@ function App() {
         <Route path="/itinerary/latest" element={<MainLayout><Timeline /></MainLayout>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <RealtimeNotifications />
       <Chatbox />
     </>
   );

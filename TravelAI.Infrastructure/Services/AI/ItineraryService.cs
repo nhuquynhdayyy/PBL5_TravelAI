@@ -18,6 +18,7 @@ public class ItineraryService : IItineraryService
     private readonly ISpotScoringService _spotScoringService;
     private readonly PromptBuilder _promptBuilder;
     private readonly WeatherService _weatherService;
+    private readonly IRealtimeNotificationService _notificationService;
 
     public ItineraryService(
         ApplicationDbContext db, 
@@ -25,7 +26,8 @@ public class ItineraryService : IItineraryService
         AIParserService parserService,
         ISpotScoringService spotScoringService,
         PromptBuilder promptBuilder,
-        WeatherService weatherService)
+        WeatherService weatherService,
+        IRealtimeNotificationService notificationService)
     {
         _db = db;
         _gemini = gemini;
@@ -33,6 +35,7 @@ public class ItineraryService : IItineraryService
         _spotScoringService = spotScoringService;
         _promptBuilder = promptBuilder;
         _weatherService = weatherService;
+        _notificationService = notificationService;
     }
 
     public async Task<ItineraryResponseDto?> GenerateAndLogItineraryAsync(int userId, GenerateItineraryRequest request)
@@ -46,6 +49,14 @@ public class ItineraryService : IItineraryService
         {
             throw new InvalidOperationException("So ngay phai lon hon 0.");
         }
+
+        await _notificationService.NotifyUserAsync(userId, "itinerary_processing", new
+        {
+            status = "started",
+            destinationId = request.DestinationId,
+            days = request.NumberOfDays,
+            message = "AI dang phan tich so thich, thoi tiet va dich vu phu hop."
+        });
 
         var dest = await _db.Destinations.FindAsync(request.DestinationId);
         if (dest == null)
@@ -163,11 +174,26 @@ public class ItineraryService : IItineraryService
 
         if (parsed == null)
         {
+            await _notificationService.NotifyUserAsync(userId, "itinerary_processing", new
+            {
+                status = "failed",
+                destinationId = request.DestinationId,
+                message = "AI chua tra ve lich trinh hop le."
+            });
+
             throw new InvalidOperationException(BuildInvalidJsonMessage(rawAiResponse));
         }
 
         parsed.StartDate = tripStartDate;
         parsed.EndDate = tripStartDate.AddDays(parsed.Days.Count);
+
+        await _notificationService.NotifyUserAsync(userId, "itinerary_processing", new
+        {
+            status = "completed",
+            destination = dest.Name,
+            days = parsed.Days.Count,
+            message = "AI da tao xong lich trinh."
+        });
 
         return parsed;
     }
