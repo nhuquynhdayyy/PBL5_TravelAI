@@ -110,6 +110,7 @@ public class PromptBuilder
         prompt.AppendLine("5. Tuyet doi khong tu suy doan service_id. Neu activity khong phai mot dich vu co trong danh sach he thong, service_id phai la null.");
         prompt.AppendLine("6. Chi duoc gan service_id cho mot activity vao dung ngay co availability duoc liet ke ben duoi.");
         prompt.AppendLine("7. Chi su dung cac dia danh co gio mo cua phu hop voi lich trinh du kien.");
+        prompt.AppendLine("8. Neu tra ve bat ky danh sach dich vu goi y nao trong JSON, moi object dich vu BAT BUOC co field \"service_id\" bang ID that tu danh sach DICH VU HE THONG; neu khong tim thay ID hop le thi de \"service_id\": null va khong bia ID.");
         prompt.AppendLine();
         prompt.AppendLine("### NGU CANH LICH SU:");
         prompt.AppendLine(historyLines);
@@ -145,7 +146,7 @@ public class PromptBuilder
         prompt.AppendLine("- Nhip do moi ngay phai phu hop voi so thich ve toc do chuyen di.");
         prompt.AppendLine("- Goi y an uong va diem dung chan phai phu hop voi so thich am thuc neu co.");
         prompt.AppendLine();
-        prompt.Append("YEU CAU DAU RA: Tra ve JSON theo dung schema, tinh toan 'estimatedCost' la 0 cho cac diem tu do va dung gia he thong cho cac diem chinh thuc. Moi activity phai co field service_id. Lich trinh phai khop voi ngay bat dau da cung cap.");
+        prompt.Append("YEU CAU DAU RA: Tra ve JSON theo dung schema, tinh toan 'estimatedCost' la 0 cho cac diem tu do va dung gia he thong cho cac diem chinh thuc. Moi activity phai co field service_id. Moi dich vu goi y trong JSON phai co field service_id lay tu Database neu co. Lich trinh phai khop voi ngay bat dau da cung cap.");
 
         return prompt.ToString();
     }
