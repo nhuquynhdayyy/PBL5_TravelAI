@@ -7,7 +7,8 @@ public class Review {
     public int Rating { get; set; }
     public string? Comment { get; set; }
     public string? ReplyText { get; set; }
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? ReplyTime { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.Now; // Giờ local (Việt Nam)
 
     public Service Service { get; set; } = null!;
     public User User { get; set; } = null!;

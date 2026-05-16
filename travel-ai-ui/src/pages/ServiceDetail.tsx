@@ -31,6 +31,7 @@ type ReviewItem = {
   rating: number;
   comment?: string | null;
   replyText?: string | null;
+  replyTime?: string | null;
   createdAt: string;
 };
 
@@ -562,6 +563,17 @@ const ServiceDetail = () => {
                           <MessageSquareReply size={16} /> Phản hồi
                         </div>
                         <p className="mt-2 text-slate-700">{review.replyText}</p>
+                        {review.replyTime && (
+                          <p className="mt-2 text-xs text-slate-500">
+                            Phản hồi lúc {new Date(review.replyTime).toLocaleString('vi-VN', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </p>
+                        )}
                       </div>
                     )}
 

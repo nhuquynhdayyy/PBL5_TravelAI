@@ -1,8 +1,10 @@
 namespace TravelAI.Application.DTOs.Review;
 
-public class ReviewItemDto
+public class PartnerReviewDto
 {
     public int ReviewId { get; set; }
+    public int ServiceId { get; set; }
+    public string ServiceName { get; set; } = string.Empty;
     public string CustomerName { get; set; } = string.Empty;
     public string? CustomerAvatarUrl { get; set; }
     public int Rating { get; set; }
