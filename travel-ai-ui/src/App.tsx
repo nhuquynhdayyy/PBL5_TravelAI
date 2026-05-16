@@ -216,7 +216,9 @@ function App() {
         />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/planner" element={<MainLayout><Timeline /></MainLayout>} />
         <Route path="/itinerary/latest" element={<MainLayout><Timeline /></MainLayout>} />
+        <Route path="/itinerary/:id" element={<MainLayout><Timeline /></MainLayout>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <RealtimeNotifications />
