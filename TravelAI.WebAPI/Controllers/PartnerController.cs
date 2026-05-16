@@ -18,15 +18,18 @@ public class PartnerController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly IWebHostEnvironment _environment;
     private readonly IPartnerOrderService _partnerOrderService;
+    private readonly IAuditLogService _auditLogService;
 
     public PartnerController(
         ApplicationDbContext context, 
         IWebHostEnvironment environment,
-        IPartnerOrderService partnerOrderService)
+        IPartnerOrderService partnerOrderService,
+        IAuditLogService auditLogService)
     {
         _context = context;
         _environment = environment;
         _partnerOrderService = partnerOrderService;
+        _auditLogService = auditLogService;
     }
 
     // Helper method to convert UTC to Vietnam time (UTC+7)

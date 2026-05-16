@@ -17,11 +17,13 @@ public class BookingsController : ControllerBase
 {
     private readonly IBookingService _bookingService;
     private readonly ApplicationDbContext _context;
+    private readonly IAuditLogService _auditLogService;
 
-    public BookingsController(IBookingService bookingService, ApplicationDbContext context)
+    public BookingsController(IBookingService bookingService, ApplicationDbContext context, IAuditLogService auditLogService)
     {
         _bookingService = bookingService;
         _context = context;
+        _auditLogService = auditLogService;
     }
 
     [HttpGet("my-bookings")]
@@ -72,6 +74,9 @@ public class BookingsController : ControllerBase
                 message = "Xin loi, ngay nay da het cho hoac khong du so luong ban yeu cau!"
             });
         }
+
+        // Log audit
+        await _auditLogService.LogAsync(userId, "CREATE", "Bookings", bookingId.Value);
 
         return Ok(new
         {
@@ -204,6 +209,10 @@ public class BookingsController : ControllerBase
 
         if (result > 0)
         {
+            // Log audit
+            int userId = int.Parse(userIdClaim.Value);
+            await _auditLogService.LogAsync(userId, "UPDATE", "Bookings", id);
+            
             return Ok(new
             {
                 success = true,
@@ -303,6 +312,9 @@ public class BookingsController : ControllerBase
         booking.Status = BookingStatus.Cancelled;
 
         await _context.SaveChangesAsync();
+        
+        // Log audit
+        await _auditLogService.LogAsync(userId, "DELETE", "Bookings", id);
 
         return Ok(new
         {

@@ -4,6 +4,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using TravelAI.Application.DTOs.Review;
+using TravelAI.Application.Interfaces;
 using TravelAI.Domain.Entities;
 using TravelAI.Domain.Enums;
 using TravelAI.Infrastructure.Persistence;
@@ -15,10 +16,12 @@ namespace TravelAI.WebAPI.Controllers;
 public class ReviewsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly IAuditLogService _auditLogService;
 
-    public ReviewsController(ApplicationDbContext context)
+    public ReviewsController(ApplicationDbContext context, IAuditLogService auditLogService)
     {
         _context = context;
+        _auditLogService = auditLogService;
     }
 
     [HttpPost]
@@ -72,6 +75,9 @@ public class ReviewsController : ControllerBase
         try
         {
             await _context.SaveChangesAsync();
+            
+            // Log audit
+            await _auditLogService.LogAsync(userId.Value, "CREATE", "Reviews", review.ReviewId);
         }
         catch (DbUpdateException ex) when (ex.InnerException is SqlException { Number: 2601 or 2627 })
         {

@@ -19,11 +19,13 @@ public class AdminController : ControllerBase
 {
     private readonly IServiceService _serviceService;
     private readonly ApplicationDbContext _context;
+    private readonly IAuditLogService _auditLogService;
 
-    public AdminController(IServiceService serviceService, ApplicationDbContext context)
+    public AdminController(IServiceService serviceService, ApplicationDbContext context, IAuditLogService auditLogService)
     {
         _serviceService = serviceService;
         _context = context;
+        _auditLogService = auditLogService;
     }
 
     // ──────────────────────────────────────────────
@@ -260,6 +262,9 @@ PrimaryServiceName = booking.BookingItems
 
         user.IsActive = false;
         await _context.SaveChangesAsync();
+        
+        // Log audit
+        await _auditLogService.LogAsync(adminUserId, "BAN", "Users", id);
 
         return Ok(new { success = true, message = "Da khoa tai khoan nguoi dung." });
     }
@@ -267,6 +272,8 @@ PrimaryServiceName = booking.BookingItems
     [HttpPost("users/{id}/unban")]
     public async Task<IActionResult> UnbanUser(int id)
     {
+        var adminUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        
         var user = await _context.Users.FirstOrDefaultAsync(u => u.UserId == id);
         if (user == null)
         {
@@ -275,8 +282,52 @@ PrimaryServiceName = booking.BookingItems
 
         user.IsActive = true;
         await _context.SaveChangesAsync();
+        
+        // Log audit
+        await _auditLogService.LogAsync(adminUserId, "UNBAN", "Users", id);
 
         return Ok(new { success = true, message = "Da mo khoa tai khoan nguoi dung." });
+    }
+
+    [HttpGet("users/{userId}/activity-log")]
+    public async Task<IActionResult> GetUserActivityLog(int userId, [FromQuery] int page = 1, [FromQuery] int pageSize = 50)
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.UserId == userId);
+        if (user == null)
+        {
+            return NotFound(new { message = "Khong tim thay nguoi dung." });
+        }
+
+        var query = _context.AuditLogs
+            .AsNoTracking()
+            .Where(log => log.UserId == userId)
+            .OrderByDescending(log => log.Timestamp);
+
+        var totalCount = await query.CountAsync();
+        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+        var logs = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(log => new UserActivityLogDto
+            {
+                LogId = log.LogId,
+                Action = log.Action,
+                TableName = log.TableName,
+                RecordId = log.RecordId,
+                Timestamp = log.Timestamp
+            })
+            .ToListAsync();
+
+        return Ok(new
+        {
+            userId,
+            userName = user.FullName,
+            items = logs,
+            totalCount,
+            totalPages,
+            currentPage = page
+        });
     }
 
     // ──────────────────────────────────────────────

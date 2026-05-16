@@ -13,6 +13,7 @@ using TravelAI.Infrastructure.Services.AI;
 using TravelAI.Infrastructure.ExternalServices;
 using TravelAI.Application.Services.AI;
 using TravelAI.Infrastructure.BackgroundJobs;
+using TravelAI.Infrastructure.Application.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -65,6 +66,7 @@ builder.Services.AddScoped<IPricingService, PricingService>();
 builder.Services.AddScoped<IBookingService, BookingService>();
 builder.Services.AddScoped<IPartnerOrderService, PartnerOrderService>();
 builder.Services.AddScoped<IEmailService, TravelAI.Infrastructure.ExternalServices.Mail.SendGridEmailService>();
+builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 
 builder.Services.AddHttpClient<GeminiService>();
 builder.Services.AddScoped<AIParserService>();

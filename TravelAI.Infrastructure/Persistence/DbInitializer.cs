@@ -1002,25 +1002,8 @@ public static class DbInitializer
         await context.SaveChangesAsync();
 
         // =====================================================================
-        // BƯỚC 15: AUDIT LOGS (một vài hành động mẫu)
+        // BƯỚC 15: AUDIT LOGS - TỰ ĐỘNG GHI KHI CÓ THAO TÁC THỰC TẾ
         // =====================================================================
-        var auditLogs = new List<AuditLog>
-        {
-            new AuditLog { UserId = partner1.UserId, Action = "Create Service",  TableName = "Services",  RecordId = svc1.ServiceId, Timestamp = today.AddDays(-30) },
-            new AuditLog { UserId = partner1.UserId, Action = "Create Service",  TableName = "Services",  RecordId = svc2.ServiceId, Timestamp = today.AddDays(-30) },
-            new AuditLog { UserId = partner1.UserId, Action = "Update Price",    TableName = "Services",  RecordId = svc1.ServiceId, Timestamp = today.AddDays(-5)  },
-            new AuditLog { UserId = partner2.UserId, Action = "Create Service",  TableName = "Services",  RecordId = svc4.ServiceId, Timestamp = today.AddDays(-25) },
-            new AuditLog { UserId = partner2.UserId, Action = "Cancel Booking",  TableName = "Bookings",  RecordId = booking4.BookingId, Timestamp = today.AddDays(-14) },
-            new AuditLog { UserId = partner3.UserId, Action = "Create Service",  TableName = "Services",  RecordId = svc7.ServiceId, Timestamp = today.AddDays(-60) },
-            new AuditLog { UserId = partner3.UserId, Action = "Create Service",  TableName = "Services",  RecordId = svc8.ServiceId, Timestamp = today.AddDays(-60) },
-            new AuditLog { UserId = partner4.UserId, Action = "Create Service",  TableName = "Services",  RecordId = svc10.ServiceId, Timestamp = today.AddDays(-45) },
-            new AuditLog { UserId = partner4.UserId, Action = "Update Price",    TableName = "Services",  RecordId = svc10.ServiceId, Timestamp = today.AddDays(-10) },
-            new AuditLog { UserId = adminUser.UserId, Action = "Approve Partner", TableName = "PartnerProfiles", RecordId = profile1.ProfileId, Timestamp = today.AddDays(-120) },
-            new AuditLog { UserId = adminUser.UserId, Action = "Approve Partner", TableName = "PartnerProfiles", RecordId = profile2.ProfileId, Timestamp = today.AddDays(-90)  },
-            new AuditLog { UserId = adminUser.UserId, Action = "Approve Partner", TableName = "PartnerProfiles", RecordId = profile3.ProfileId, Timestamp = today.AddDays(-75)  },
-            new AuditLog { UserId = adminUser.UserId, Action = "Approve Partner", TableName = "PartnerProfiles", RecordId = profile4.ProfileId, Timestamp = today.AddDays(-50)  },
-        };
-        await context.AuditLogs.AddRangeAsync(auditLogs);
-        await context.SaveChangesAsync();
+        // Không cần seed data - hệ thống sẽ tự động ghi log khi users thực hiện các thao tác
     }
 }
