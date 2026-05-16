@@ -13,6 +13,7 @@ const BookingSuccess = () => {
   const paymentStatus = searchParams.get('paymentStatus');
   const paymentMessage = searchParams.get('message');
   const isPaid = booking?.status === 2 && paymentStatus !== 'failed';
+  const isOfflineSuccess = paymentStatus === 'offline';
 
   useEffect(() => {
     const fetchBill = async () => {
@@ -44,25 +45,29 @@ const BookingSuccess = () => {
           className={`mb-4 inline-flex size-20 items-center justify-center rounded-full shadow-lg ${
             isPaid
               ? 'bg-green-100 text-green-600 shadow-green-100'
+              : isOfflineSuccess
+                ? 'bg-green-100 text-green-600 shadow-green-100'
               : 'bg-amber-100 text-amber-600 shadow-amber-100'
           }`}
         >
           <CheckCircle size={48} />
         </div>
         <h1 className="text-4xl font-black tracking-tighter text-slate-900">
-          {isPaid ? 'Thanh toan hoan tat!' : 'Thanh toan chua hoan tat'}
+          {isPaid ? 'Thanh toan hoan tat!' : isOfflineSuccess ? 'Dat cho thanh cong!' : 'Thanh toan chua hoan tat'}
         </h1>
         <p className="mt-2 font-medium text-slate-500">
           {isPaid && paymentStatus === 'success'
             ? paymentMessage || 'VNPay da xac nhan giao dich thanh cong.'
+            : isOfflineSuccess
+              ? paymentMessage || 'TravelAI da ghi nhan don hang va dang cho xac nhan thanh toan.'
             : paymentMessage || 'Booking chua duoc xac nhan thanh toan tu cong thanh toan.'}
         </p>
       </div>
 
       <div className="relative overflow-hidden rounded-[2rem] border border-slate-100 bg-white shadow-2xl animate-in fade-in slide-in-from-bottom-8 duration-700">
-        {isPaid && (
+        {(isPaid || isOfflineSuccess) && (
           <div className="pointer-events-none absolute right-10 top-10 rotate-12 rounded-xl border-4 border-red-500/30 px-4 py-2 text-2xl font-black uppercase text-red-500/30">
-            PAID - DA XAC NHAN
+            {isPaid ? 'PAID - DA XAC NHAN' : 'CHO XAC NHAN'}
           </div>
         )}
 

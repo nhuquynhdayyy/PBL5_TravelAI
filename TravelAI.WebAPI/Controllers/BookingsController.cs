@@ -2,7 +2,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using System.Globalization;
 using TravelAI.Application.DTOs.Booking;
+using TravelAI.Application.DTOs.Payment;
 using TravelAI.Application.Interfaces;
 using TravelAI.Domain.Entities;
 using TravelAI.Domain.Enums;
@@ -16,12 +18,26 @@ namespace TravelAI.WebAPI.Controllers;
 public class BookingsController : ControllerBase
 {
     private readonly IBookingService _bookingService;
+    private readonly IPaymentService _paymentService;
+    private readonly IMomoService _momoService;
     private readonly ApplicationDbContext _context;
+    private readonly IConfiguration _configuration;
+    private readonly ILogger<BookingsController> _logger;
 
-    public BookingsController(IBookingService bookingService, ApplicationDbContext context)
+    public BookingsController(
+        IBookingService bookingService,
+        IPaymentService paymentService,
+        IMomoService momoService,
+        ApplicationDbContext context,
+        IConfiguration configuration,
+        ILogger<BookingsController> logger)
     {
         _bookingService = bookingService;
+        _paymentService = paymentService;
+        _momoService = momoService;
         _context = context;
+        _configuration = configuration;
+        _logger = logger;
     }
 
     [HttpGet("my-bookings")]
@@ -77,6 +93,103 @@ public class BookingsController : ControllerBase
         {
             bookingId,
             message = "Da tao don hang nhap va giu cho thanh cong!"
+        });
+    }
+
+    [HttpPost("draft-cart")]
+    [Authorize(Roles = "Customer")]
+    public async Task<IActionResult> CreateDraftFromCart([FromBody] CreateCartBookingRequest request)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null)
+        {
+            return Unauthorized(new { message = "Vui long dang nhap!" });
+        }
+
+        if (request.Items.Count == 0)
+        {
+            return BadRequest(new { message = "Gio hang dang trong." });
+        }
+
+        if (request.Items.Any(item => item.ServiceId <= 0 || item.Quantity <= 0))
+        {
+            return BadRequest(new { message = "Thong tin gio hang khong hop le." });
+        }
+
+        var userId = int.Parse(userIdClaim.Value, CultureInfo.InvariantCulture);
+        var requestedItems = request.Items
+            .GroupBy(item => new { item.ServiceId, Date = item.CheckInDate.Date })
+            .Select(group => new CreateBookingRequest(
+                group.Key.ServiceId,
+                group.Sum(item => item.Quantity),
+                group.Key.Date))
+            .ToList();
+
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+
+        var serviceIds = requestedItems.Select(item => item.ServiceId).Distinct().ToList();
+        var bookingDates = requestedItems.Select(item => item.CheckInDate.Date).Distinct().ToList();
+        var availabilities = await _context.ServiceAvailabilities
+            .Where(a => serviceIds.Contains(a.ServiceId) && bookingDates.Contains(a.Date))
+            .ToListAsync();
+
+        foreach (var item in requestedItems)
+        {
+            var availability = availabilities.FirstOrDefault(a =>
+                a.ServiceId == item.ServiceId && a.Date == item.CheckInDate.Date);
+
+            if (availability == null
+                || availability.TotalStock - availability.BookedCount - availability.HeldCount < item.Quantity)
+            {
+                return BadRequest(new
+                {
+                    message = "Xin loi, ngay nay da het cho hoac khong du so luong ban yeu cau!"
+                });
+            }
+        }
+
+        var totalAmount = requestedItems.Sum(item =>
+        {
+            var availability = availabilities.First(a =>
+                a.ServiceId == item.ServiceId && a.Date == item.CheckInDate.Date);
+            return availability.Price * item.Quantity;
+        });
+
+        var booking = new Booking
+        {
+            UserId = userId,
+            TotalAmount = totalAmount,
+            Status = BookingStatus.Pending,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.Bookings.Add(booking);
+        await _context.SaveChangesAsync();
+
+        foreach (var item in requestedItems)
+        {
+            var availability = availabilities.First(a =>
+                a.ServiceId == item.ServiceId && a.Date == item.CheckInDate.Date);
+
+            _context.BookingItems.Add(new BookingItem
+            {
+                BookingId = booking.BookingId,
+                ServiceId = item.ServiceId,
+                Quantity = item.Quantity,
+                PriceAtBooking = availability.Price,
+                CheckInDate = item.CheckInDate.Date
+            });
+
+            availability.HeldCount += item.Quantity;
+        }
+
+        await _context.SaveChangesAsync();
+        await transaction.CommitAsync();
+
+        return Ok(new
+        {
+            bookingId = booking.BookingId,
+            message = "Da tao don hang tu gio hang va giu cho thanh cong!"
         });
     }
 
@@ -145,6 +258,7 @@ public class BookingsController : ControllerBase
     }
 
     [HttpPost("{id}/confirm")]
+    [Obsolete("Use POST /api/bookings/{id}/pay and gateway callback/IPN confirmation instead.")]
     public async Task<IActionResult> ConfirmBooking(int id)
     {
         var booking = await _context.Bookings.FindAsync(id);
@@ -194,8 +308,12 @@ public class BookingsController : ControllerBase
         {
             BookingId = id,
             Method = "Mock",
+            Provider = "Mock",
             TransactionRef = Guid.NewGuid().ToString("N")[..12].ToUpper(),
             Amount = booking.TotalAmount,
+            Status = PaymentStatus.Paid,
+            CreatedAt = DateTime.UtcNow,
+            PaidAt = DateTime.UtcNow,
             PaymentTime = DateTime.UtcNow
         });
 
@@ -211,6 +329,152 @@ public class BookingsController : ControllerBase
         }
 
         return BadRequest(new { message = "Co loi xay ra khi cap nhat don hang." });
+    }
+
+    [HttpPost("{id:int}/pay")]
+    [Authorize(Roles = "Customer")]
+    public async Task<IActionResult> InitiatePayment(int id, [FromBody] PaymentMethodRequest req)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null)
+        {
+            return Unauthorized(new { message = "Vui long dang nhap!" });
+        }
+
+        var userId = int.Parse(userIdClaim.Value, CultureInfo.InvariantCulture);
+        var booking = await _context.Bookings
+            .AsNoTracking()
+            .FirstOrDefaultAsync(b => b.BookingId == id && b.UserId == userId);
+
+        if (booking == null)
+        {
+            return NotFound(new { message = "Khong tim thay don hang." });
+        }
+
+        if (booking.Status != BookingStatus.Pending)
+        {
+            return BadRequest(new { message = "Chi co the thanh toan don hang dang cho xu ly." });
+        }
+
+        var method = req.Method.Trim();
+        if (!method.Equals("VNPay", StringComparison.OrdinalIgnoreCase)
+            && !method.Equals("Momo", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new { message = "Phuong thuc thanh toan khong hop le. Chi ho tro VNPay hoac Momo." });
+        }
+
+        var provider = method.Equals("VNPay", StringComparison.OrdinalIgnoreCase) ? "VNPay" : "MoMo";
+        var transactionRef = CreateTransactionRef(booking.BookingId, provider.ToUpperInvariant());
+        await CreatePendingPaymentAsync(booking.BookingId, provider, transactionRef, booking.TotalAmount);
+
+        if (provider == "VNPay")
+        {
+            var returnUrl = req.ReturnUrl
+                ?? _configuration["VnPay:ReturnUrl"]
+                ?? Url.ActionLink("VnPayCallback", "Payment")
+                ?? string.Empty;
+            var paymentUrl = _paymentService.CreatePaymentUrl(
+                booking.BookingId,
+                booking.TotalAmount,
+                returnUrl,
+                HttpContext.Connection.RemoteIpAddress?.ToString(),
+                transactionRef);
+
+            return Ok(new
+            {
+                success = true,
+                provider,
+                transactionRef,
+                paymentUrl
+            });
+        }
+
+        var momoResult = await _momoService.CreatePaymentRequestAsync(
+            booking.BookingId,
+            booking.TotalAmount,
+            transactionRef);
+
+        return Ok(new
+        {
+            success = momoResult.IsSuccess,
+            provider,
+            transactionRef,
+            paymentUrl = momoResult.PaymentUrl ?? momoResult.PayUrl,
+            momoResult.PayUrl,
+            momoResult.Deeplink,
+            momoResult.QrCodeUrl,
+            momoResult.Message
+        });
+    }
+
+    [HttpPost("{id:int}/confirm-payment")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ConfirmPayment(int id, [FromBody] PaymentCallbackDto callback)
+    {
+        if (callback.Provider.Equals("VNPay", StringComparison.OrdinalIgnoreCase))
+        {
+            var result = _paymentService.ValidateCallback(callback.Data);
+            if (!result.IsValidSignature)
+            {
+                return BadRequest(new { message = "Chu ky VNPay khong hop le." });
+            }
+
+            if (TryGetBookingId(result.TransactionRef) != id)
+            {
+                return BadRequest(new { message = "Ma giao dich khong khop booking." });
+            }
+
+            if (!result.IsSuccess)
+            {
+                await MarkPaymentFailedAsync(result.TransactionRef, "VNPay callback response is not success.");
+                return BadRequest(new { message = "Thanh toan VNPay khong thanh cong." });
+            }
+
+            var updateResult = await MarkBookingAsPaidAsync(
+                id,
+                result.TransactionRef,
+                result.Amount,
+                "VNPay",
+                "So tien VNPay tra ve khong khop voi don hang.");
+
+            return updateResult.Success
+                ? Ok(new { success = true, message = updateResult.Message })
+                : BadRequest(new { message = updateResult.Message });
+        }
+
+        if (callback.Provider.Equals("Momo", StringComparison.OrdinalIgnoreCase)
+            || callback.Provider.Equals("MoMo", StringComparison.OrdinalIgnoreCase))
+        {
+            var result = _momoService.ValidateIPN(callback.Data);
+            if (!result.IsValidSignature)
+            {
+                return BadRequest(new { message = "Chu ky IPN MoMo khong hop le." });
+            }
+
+            if (TryGetBookingId(result.OrderId) != id)
+            {
+                return BadRequest(new { message = "Ma giao dich khong khop booking." });
+            }
+
+            if (!result.IsSuccess)
+            {
+                await MarkPaymentFailedAsync(result.OrderId, "MoMo IPN result is not success.");
+                return BadRequest(new { message = "Thanh toan MoMo khong thanh cong." });
+            }
+
+            var updateResult = await MarkBookingAsPaidAsync(
+                id,
+                result.OrderId,
+                result.Amount,
+                "MoMo",
+                "So tien MoMo tra ve khong khop voi don hang.");
+
+            return updateResult.Success
+                ? Ok(new { success = true, message = updateResult.Message })
+                : BadRequest(new { message = updateResult.Message });
+        }
+
+        return BadRequest(new { message = "Provider khong hop le." });
     }
 
     [HttpPost("{id:int}/cancel")]
@@ -243,7 +507,7 @@ public class BookingsController : ControllerBase
         }
 
         var latestPayment = booking.Payments
-            .OrderByDescending(payment => payment.PaymentTime)
+            .OrderByDescending(payment => payment.PaidAt ?? payment.CreatedAt)
             .FirstOrDefault();
 
         if (booking.Status == BookingStatus.Paid && latestPayment == null)
@@ -321,7 +585,7 @@ public class BookingsController : ControllerBase
             .FirstOrDefault();
 
         var latestPayment = booking.Payments
-            .OrderByDescending(payment => payment.PaymentTime)
+            .OrderByDescending(payment => payment.PaidAt ?? payment.CreatedAt)
             .FirstOrDefault();
         var latestRefund = booking.Payments
             .SelectMany(payment => payment.Refunds)
@@ -336,7 +600,7 @@ public class BookingsController : ControllerBase
             Quantity = item?.Quantity ?? 0,
             TotalAmount = booking.TotalAmount,
             Status = (int)booking.Status,
-            PaymentMethod = latestPayment?.Method,
+            PaymentMethod = latestPayment?.Provider ?? latestPayment?.Method,
             CreatedAt = booking.CreatedAt,
             RefundedAmount = latestRefund?.RefundAmount ?? 0,
             EstimatedRefundAmount = evaluation.EstimatedRefundAmount,
@@ -364,6 +628,173 @@ public class BookingsController : ControllerBase
             CanCancel = detail.CanCancel,
             CancelPolicy = detail.CancelPolicy
         };
+    }
+
+    private async Task<Payment> CreatePendingPaymentAsync(int bookingId, string provider, string transactionRef, decimal amount)
+    {
+        var existingPayment = await _context.Payments
+            .FirstOrDefaultAsync(p => p.TransactionRef == transactionRef && p.Provider == provider);
+
+        if (existingPayment != null)
+        {
+            return existingPayment;
+        }
+
+        var payment = new Payment
+        {
+            BookingId = bookingId,
+            Method = provider,
+            Provider = provider,
+            TransactionRef = transactionRef,
+            Amount = amount,
+            Status = PaymentStatus.Pending,
+            CreatedAt = DateTime.UtcNow,
+            PaymentTime = DateTime.UtcNow
+        };
+
+        _context.Payments.Add(payment);
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation(
+            "Created pending payment {Provider} {TransactionRef} for booking {BookingId}.",
+            provider,
+            transactionRef,
+            bookingId);
+
+        return payment;
+    }
+
+    private async Task<(bool Success, string Message)> MarkBookingAsPaidAsync(
+        int bookingId,
+        string transactionRef,
+        decimal amount,
+        string provider,
+        string amountMismatchMessage)
+    {
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+
+        var booking = await _context.Bookings
+            .Include(b => b.BookingItems)
+            .Include(b => b.Payments)
+            .FirstOrDefaultAsync(b => b.BookingId == bookingId);
+
+        if (booking == null)
+        {
+            return (false, "Khong tim thay don hang.");
+        }
+
+        if (booking.TotalAmount != amount)
+        {
+            return (false, amountMismatchMessage);
+        }
+
+        var payment = booking.Payments
+            .FirstOrDefault(p => p.TransactionRef == transactionRef && p.Provider == provider);
+
+        if (payment?.Status == PaymentStatus.Paid)
+        {
+            return (true, "Giao dich da duoc ghi nhan truoc do.");
+        }
+
+        if (booking.Status == BookingStatus.Cancelled)
+        {
+            return (false, "Don hang da bi huy, khong the ghi nhan thanh toan.");
+        }
+
+        if (booking.Status == BookingStatus.Pending)
+        {
+            var serviceIds = booking.BookingItems.Select(item => item.ServiceId).Distinct().ToList();
+            var bookingDates = booking.BookingItems.Select(item => item.CheckInDate.Date).Distinct().ToList();
+            var availabilities = await _context.ServiceAvailabilities
+                .Where(a => serviceIds.Contains(a.ServiceId) && bookingDates.Contains(a.Date))
+                .ToListAsync();
+
+            foreach (var item in booking.BookingItems)
+            {
+                var availability = availabilities.FirstOrDefault(a =>
+                    a.ServiceId == item.ServiceId && a.Date == item.CheckInDate.Date);
+
+                if (availability == null)
+                {
+                    continue;
+                }
+
+                availability.BookedCount += item.Quantity;
+                availability.HeldCount = Math.Max(0, availability.HeldCount - item.Quantity);
+            }
+
+            booking.Status = BookingStatus.Paid;
+        }
+
+        payment ??= new Payment
+        {
+            BookingId = booking.BookingId,
+            Method = provider,
+            Provider = provider,
+            TransactionRef = transactionRef,
+            Amount = amount,
+            Status = PaymentStatus.Pending,
+            CreatedAt = DateTime.UtcNow,
+            PaymentTime = DateTime.UtcNow
+        };
+
+        payment.Method = provider;
+        payment.Provider = provider;
+        payment.Amount = amount;
+        payment.Status = PaymentStatus.Paid;
+        payment.PaidAt = DateTime.UtcNow;
+        payment.PaymentTime = payment.PaidAt.Value;
+
+        if (payment.PaymentId == 0)
+        {
+            _context.Payments.Add(payment);
+        }
+
+        await _context.SaveChangesAsync();
+        await transaction.CommitAsync();
+
+        _logger.LogInformation(
+            "Payment {Provider} {TransactionRef} marked paid for booking {BookingId}.",
+            provider,
+            transactionRef,
+            bookingId);
+
+        return (true, $"Da ghi nhan thanh toan {provider}.");
+    }
+
+    private async Task MarkPaymentFailedAsync(string transactionRef, string reason)
+    {
+        if (string.IsNullOrWhiteSpace(transactionRef))
+        {
+            return;
+        }
+
+        var payment = await _context.Payments.FirstOrDefaultAsync(p => p.TransactionRef == transactionRef);
+        if (payment == null || payment.Status == PaymentStatus.Paid)
+        {
+            return;
+        }
+
+        payment.Status = PaymentStatus.Failed;
+        await _context.SaveChangesAsync();
+
+        _logger.LogWarning(
+            "Marked payment {TransactionRef} failed. Reason: {Reason}",
+            transactionRef,
+            reason);
+    }
+
+    private static string CreateTransactionRef(int bookingId, string provider)
+    {
+        return $"{bookingId}-{provider}-{DateTime.UtcNow:yyyyMMddHHmmssfff}";
+    }
+
+    private static int? TryGetBookingId(string transactionRef)
+    {
+        var bookingPart = transactionRef.Split('-', 2, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+        return int.TryParse(bookingPart, NumberStyles.Integer, CultureInfo.InvariantCulture, out var bookingId)
+            ? bookingId
+            : null;
     }
 
     private static CancellationEvaluation EvaluateCancellationPolicy(Booking booking, DateTime nowUtc)

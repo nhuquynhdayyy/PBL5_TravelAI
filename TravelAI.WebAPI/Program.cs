@@ -11,6 +11,7 @@ using TravelAI.Domain.Interfaces;
 using TravelAI.Infrastructure.Repositories; 
 using TravelAI.Infrastructure.Services.AI;
 using TravelAI.Infrastructure.ExternalServices;
+using TravelAI.Infrastructure.ExternalServices.Payment;
 using TravelAI.Application.Services.AI;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -58,6 +59,10 @@ builder.Services.AddScoped<IAvailabilityService, AvailabilityService>();
 builder.Services.AddScoped<IBookingService, BookingService>();
 builder.Services.AddScoped<IAIAnalyticsService, AIAnalyticsService>();
 
+builder.Services.Configure<VnPayOptions>(builder.Configuration.GetSection("VnPay"));
+builder.Services.AddHttpClient<IPaymentService, VnPayService>();
+builder.Services.Configure<MomoOptions>(builder.Configuration.GetSection("Momo"));
+builder.Services.AddHttpClient<IMomoService, MomoService>();
 builder.Services.AddHttpClient<GeminiService>();
 builder.Services.AddHttpClient<WeatherService>();
 builder.Services.AddScoped<AIParserService>();
@@ -83,6 +88,43 @@ using (var scope = app.Services.CreateScope())
             ALTER TABLE [Reviews]
             ADD [ReplyText] nvarchar(1000) NULL;
         END
+
+        IF COL_LENGTH('Payments', 'Provider') IS NULL
+        BEGIN
+            ALTER TABLE [Payments]
+            ADD [Provider] nvarchar(20) NOT NULL CONSTRAINT [DF_Payments_Provider] DEFAULT N'';
+        END
+
+        IF COL_LENGTH('Payments', 'Status') IS NULL
+        BEGIN
+            ALTER TABLE [Payments]
+            ADD [Status] int NOT NULL CONSTRAINT [DF_Payments_Status] DEFAULT 1;
+        END
+
+        IF COL_LENGTH('Payments', 'CreatedAt') IS NULL
+        BEGIN
+            ALTER TABLE [Payments]
+            ADD [CreatedAt] datetime2 NOT NULL CONSTRAINT [DF_Payments_CreatedAt] DEFAULT SYSUTCDATETIME();
+        END
+
+        IF COL_LENGTH('Payments', 'PaidAt') IS NULL
+        BEGIN
+            ALTER TABLE [Payments]
+            ADD [PaidAt] datetime2 NULL;
+        END
+
+        UPDATE [Payments]
+        SET [Provider] = [Method]
+        WHERE ([Provider] IS NULL OR [Provider] = N'')
+          AND COL_LENGTH('Payments', 'Method') IS NOT NULL;
+
+        UPDATE [Payments]
+        SET [Status] = 2,
+            [PaidAt] = [PaymentTime],
+            [CreatedAt] = [PaymentTime]
+        WHERE [Status] = 1
+          AND COL_LENGTH('Payments', 'PaymentTime') IS NOT NULL
+          AND [PaymentTime] > '1900-01-01';
 
         IF NOT EXISTS (
             SELECT 1

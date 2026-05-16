@@ -1,14 +1,16 @@
 // src/components/layout/Header.tsx
 
 import React, { useState, useEffect } from 'react';
-import { Menu, X, Plane, LogOut, LayoutDashboard, Store, User, ChevronDown, Hotel, Compass, ClipboardList, MessageSquare, BarChart3, Building2 } from 'lucide-react';
+import { Menu, X, Plane, LogOut, LayoutDashboard, Store, User, ChevronDown, Hotel, Compass, ClipboardList, MessageSquare, BarChart3, Building2, ShoppingCart, Landmark } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useCart } from '../../contexts/CartContext';
 
 const Header: React.FC = () => {
   const [isServicesOpen, setIsServicesOpen] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const navigate = useNavigate();
+  const { items } = useCart();
 
   const userStr = localStorage.getItem('user');
   const user = userStr ? JSON.parse(userStr) : null;
@@ -97,6 +99,14 @@ const Header: React.FC = () => {
                 </div>
 
                 <Link to="/planner" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all">Itinerary</Link>
+                <Link to="/cart" className="relative text-slate-600 hover:text-blue-500 font-medium text-sm transition-all">
+                  <ShoppingCart size={20} />
+                  {items.length > 0 && (
+                    <span className="absolute -right-3 -top-3 flex size-5 items-center justify-center rounded-full bg-blue-600 text-[10px] font-black text-white">
+                      {items.length}
+                    </span>
+                  )}
+                </Link>
               </>
             )}
 
@@ -132,6 +142,9 @@ const Header: React.FC = () => {
                 </Link>
                 <Link to="/admin/services" className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl font-black text-xs hover:bg-slate-700 transition-all uppercase">
                   <Store size={14} /> DUYỆT DỊCH VỤ
+                </Link>
+                <Link to="/admin/vietqr-payments" className="flex items-center gap-2 px-4 py-2 bg-emerald-700 text-white rounded-xl font-black text-xs hover:bg-emerald-800 transition-all uppercase">
+                  <Landmark size={14} /> VIETQR
                 </Link>
                 <Link to="/admin/users" className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all uppercase">
                   <User size={14} /> QUẢN LÝ USER
