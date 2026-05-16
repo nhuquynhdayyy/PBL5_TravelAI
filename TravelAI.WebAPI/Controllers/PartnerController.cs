@@ -29,6 +29,17 @@ public class PartnerController : ControllerBase
         _partnerOrderService = partnerOrderService;
     }
 
+    // Helper method to convert UTC to Vietnam time (UTC+7)
+    private static DateTime ToVietnamTime(DateTime utcTime)
+    {
+        return utcTime.AddHours(7);
+    }
+
+    private static DateTime? ToVietnamTime(DateTime? utcTime)
+    {
+        return utcTime?.AddHours(7);
+    }
+
     [HttpGet("profile")]
     public async Task<IActionResult> GetProfile()
     {
@@ -301,6 +312,54 @@ public class PartnerController : ControllerBase
 
         var partnerId = int.Parse(partnerIdClaim.Value);
 
+        // TỰ ĐỘNG HỦY CÁC ĐƠN QUÁ HẠN TRƯỚC KHI LOAD
+        var now = DateTime.UtcNow;
+        var expiredOrders = await _context.Bookings
+            .Include(b => b.BookingItems)
+            .Include(b => b.Payments)
+            .Where(b => b.Status == BookingStatus.Paid
+                && !b.IsApprovedByPartner
+                && b.ApprovalDeadline.HasValue
+                && b.ApprovalDeadline.Value <= now
+                && b.BookingItems.Any(bi => bi.Service.PartnerId == partnerId))
+            .ToListAsync();
+
+        if (expiredOrders.Any())
+        {
+            foreach (var booking in expiredOrders)
+            {
+                // Hủy đơn
+                booking.Status = BookingStatus.Cancelled;
+
+                // Tạo refund
+                var latestPayment = booking.Payments.OrderByDescending(p => p.PaymentTime).FirstOrDefault();
+                if (latestPayment != null)
+                {
+                    _context.Refunds.Add(new Domain.Entities.Refund
+                    {
+                        PaymentId = latestPayment.PaymentId,
+                        RefundAmount = latestPayment.Amount,
+                        RefundRef = Guid.NewGuid().ToString("N")[..12].ToUpper(),
+                        Reason = "Quá hạn duyệt",
+                        RefundTime = DateTime.UtcNow
+                    });
+                }
+
+                // Giải phóng inventory
+                foreach (var item in booking.BookingItems)
+                {
+                    var availability = await _context.ServiceAvailabilities
+                        .FirstOrDefaultAsync(a => a.ServiceId == item.ServiceId && a.Date == item.CheckInDate.Date);
+                    if (availability != null)
+                    {
+                        availability.BookedCount = Math.Max(0, availability.BookedCount - item.Quantity);
+                    }
+                }
+            }
+
+            await _context.SaveChangesAsync();
+        }
+
         var query = _context.BookingItems
             .AsNoTracking()
             .Include(bi => bi.Service)
@@ -332,8 +391,6 @@ public class PartnerController : ControllerBase
             query = query.Where(bi => bi.ServiceId == serviceId.Value);
         }
 
-        var now = DateTime.UtcNow;
-
         var orders = await query
             .Select(bi => new
             {
@@ -358,7 +415,26 @@ public class PartnerController : ControllerBase
             .OrderByDescending(x => x.checkInDate)
             .ToListAsync();
 
-        return Ok(orders);
+        // Convert UTC to Vietnam time
+        var ordersWithVnTime = orders.Select(o => new
+        {
+            o.bookingId,
+            o.serviceName,
+            o.serviceId,
+            o.customerName,
+            o.customerEmail,
+            o.checkInDate,
+            o.quantity,
+            o.totalAmount,
+            o.status,
+            createdAt = ToVietnamTime(o.createdAt),
+            o.isApprovedByPartner,
+            approvedAt = ToVietnamTime(o.approvedAt),
+            approvalDeadline = ToVietnamTime(o.approvalDeadline),
+            o.hoursUntilDeadline
+        }).ToList();
+
+        return Ok(ordersWithVnTime);
     }
 
     [HttpGet("orders/{bookingId:int}")]
@@ -410,13 +486,13 @@ public class PartnerController : ControllerBase
             customerEmail = booking.User.Email,
             status = booking.Status,
             totalAmount = booking.TotalAmount,
-            createdAt = booking.CreatedAt,
+            createdAt = ToVietnamTime(booking.CreatedAt),
             paymentMethod = latestPayment?.Method,
-            paymentTime = latestPayment?.PaymentTime,
+            paymentTime = ToVietnamTime(latestPayment?.PaymentTime),
             refundedAmount = totalRefunded,
             isApprovedByPartner = booking.IsApprovedByPartner,
-            approvedAt = booking.ApprovedAt,
-            approvalDeadline = booking.ApprovalDeadline,
+            approvedAt = ToVietnamTime(booking.ApprovedAt),
+            approvalDeadline = ToVietnamTime(booking.ApprovalDeadline),
             hoursUntilDeadline = booking.ApprovalDeadline.HasValue 
                 ? (booking.ApprovalDeadline.Value - DateTime.UtcNow).TotalHours 
                 : (double?)null,

@@ -9,13 +9,14 @@ using TravelAI.Infrastructure.Persistence;
 namespace TravelAI.Infrastructure.BackgroundJobs;
 
 /// <summary>
-/// Background job để tự động xử lý các đơn hàng quá hạn duyệt (24-48h)
+/// Background job để tự động HỦY các đơn hàng quá hạn duyệt (48h)
+/// Partner không duyệt trong 48h → Tự động hủy + hoàn tiền 100%
 /// </summary>
 public class OrderApprovalTimeoutJob : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<OrderApprovalTimeoutJob> _logger;
-    private readonly TimeSpan _checkInterval = TimeSpan.FromMinutes(10); // Kiểm tra mỗi 10 phút
+    private readonly TimeSpan _checkInterval = TimeSpan.FromMinutes(1); // Kiểm tra mỗi 1 phút
 
     public OrderApprovalTimeoutJob(
         IServiceProvider serviceProvider,
@@ -60,6 +61,8 @@ public class OrderApprovalTimeoutJob : BackgroundService
             .Include(b => b.BookingItems)
                 .ThenInclude(bi => bi.Service)
                     .ThenInclude(s => s.Partner)
+            .Include(b => b.Payments)
+                .ThenInclude(p => p.Refunds)
             .Where(b => b.Status == BookingStatus.Paid
                 && !b.IsApprovedByPartner
                 && b.ApprovalDeadline.HasValue
@@ -68,42 +71,91 @@ public class OrderApprovalTimeoutJob : BackgroundService
 
         if (expiredOrders.Any())
         {
-            _logger.LogInformation($"Found {expiredOrders.Count} expired orders to process.");
+            _logger.LogInformation($"Found {expiredOrders.Count} expired orders to auto-cancel.");
 
             foreach (var booking in expiredOrders)
             {
                 try
                 {
-                    // Tự động duyệt đơn hàng
-                    booking.IsApprovedByPartner = true;
-                    booking.ApprovedAt = DateTime.UtcNow;
+                    // TỰ ĐỘNG HỦY đơn hàng
+                    booking.Status = BookingStatus.Cancelled;
 
-                    _logger.LogInformation($"Auto-approved booking #{booking.BookingId} after deadline.");
+                    _logger.LogInformation($"Auto-cancelled booking #{booking.BookingId} after deadline.");
 
-                    // Gửi email thông báo cho khách hàng
-                    var firstService = booking.BookingItems.FirstOrDefault()?.Service;
-                    if (firstService != null)
+                    // Tạo refund 100%
+                    var latestPayment = booking.Payments
+                        .OrderByDescending(p => p.PaymentTime)
+                        .FirstOrDefault();
+
+                    if (latestPayment != null)
                     {
-                        await emailService.SendOrderApprovedAsync(
-                            booking.User.Email,
-                            booking.User.FullName,
-                            booking.BookingId,
-                            firstService.Name
-                        );
+                        var refundAmount = latestPayment.Amount;
+
+                        context.Refunds.Add(new Domain.Entities.Refund
+                        {
+                            PaymentId = latestPayment.PaymentId,
+                            RefundAmount = refundAmount,
+                            RefundRef = Guid.NewGuid().ToString("N")[..12].ToUpper(),
+                            Reason = "Quá hạn duyệt",
+                            RefundTime = DateTime.UtcNow
+                        });
+
+                        _logger.LogInformation($"Created refund of {refundAmount} for booking #{booking.BookingId}");
                     }
 
-                    // Gửi email cảnh báo cho partner về việc tự động duyệt
+                    // Giải phóng inventory
+                    var serviceIds = booking.BookingItems
+                        .Select(item => item.ServiceId)
+                        .Distinct()
+                        .ToList();
+
+                    var bookingDates = booking.BookingItems
+                        .Select(item => item.CheckInDate.Date)
+                        .Distinct()
+                        .ToList();
+
+                    var availabilities = await context.ServiceAvailabilities
+                        .Where(a => serviceIds.Contains(a.ServiceId) && bookingDates.Contains(a.Date))
+                        .ToListAsync(cancellationToken);
+
+                    foreach (var item in booking.BookingItems)
+                    {
+                        var availability = availabilities.FirstOrDefault(a =>
+                            a.ServiceId == item.ServiceId && a.Date == item.CheckInDate.Date);
+
+                        if (availability != null)
+                        {
+                            availability.BookedCount = Math.Max(0, availability.BookedCount - item.Quantity);
+                            _logger.LogInformation($"Released {item.Quantity} slots for service #{item.ServiceId} on {item.CheckInDate.Date:yyyy-MM-dd}");
+                        }
+                    }
+
+                    // Gửi email thông báo cho khách hàng
+                    await emailService.SendBookingCancellationAsync(
+                        booking.User.Email,
+                        booking.User.FullName,
+                        booking.BookingId,
+                        latestPayment?.Amount ?? 0
+                    );
+
+                    // Gửi email cảnh báo cho partner
                     var partner = booking.BookingItems.FirstOrDefault()?.Service?.Partner;
-                    if (partner != null)
+                    var firstService = booking.BookingItems.FirstOrDefault()?.Service;
+                    
+                    if (partner != null && firstService != null)
                     {
                         await emailService.SendEmailAsync(
                             partner.Email,
-                            $"Đơn hàng #{booking.BookingId} đã được tự động duyệt",
+                            $"Đơn hàng #{booking.BookingId} đã bị hủy do quá hạn",
                             $@"
                                 <h2>Xin chào {partner.FullName},</h2>
-                                <p>Đơn hàng <strong>#{booking.BookingId}</strong> đã quá thời hạn duyệt (48 giờ) và được hệ thống tự động phê duyệt.</p>
-                                <p>Vui lòng kiểm tra và chuẩn bị dịch vụ cho khách hàng.</p>
-                                <p><strong>Lưu ý:</strong> Hãy duyệt đơn hàng kịp thời để tránh tự động duyệt trong tương lai.</p>
+                                <p>Đơn hàng <strong>#{booking.BookingId}</strong> cho dịch vụ <strong>{firstService.Name}</strong> đã bị hủy do <strong>quá hạn duyệt</strong>.</p>
+                                <p><strong>Khách hàng:</strong> {booking.User.FullName}</p>
+                                <p><strong>Tổng tiền:</strong> {booking.TotalAmount:N0} VND</p>
+                                <p><strong>Thời hạn duyệt:</strong> {booking.ApprovalDeadline:dd/MM/yyyy HH:mm}</p>
+                                <p style='color: red;'>⚠️ Khách hàng đã được hoàn tiền 100%. Bạn đã mất doanh thu từ đơn hàng này.</p>
+                                <p><strong>Lưu ý:</strong> Hãy duyệt đơn hàng kịp thời để tránh mất doanh thu.</p>
+                                <p>Trân trọng,<br/>TravelAI Team</p>
                             "
                         );
                     }
@@ -115,7 +167,7 @@ public class OrderApprovalTimeoutJob : BackgroundService
             }
 
             await context.SaveChangesAsync(cancellationToken);
-            _logger.LogInformation($"Successfully processed {expiredOrders.Count} expired orders.");
+            _logger.LogInformation($"Successfully auto-cancelled {expiredOrders.Count} expired orders.");
         }
     }
 }

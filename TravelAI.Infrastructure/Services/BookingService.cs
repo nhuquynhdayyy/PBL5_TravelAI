@@ -30,8 +30,8 @@ public class BookingService : IBookingService
             UserId = userId,
             TotalAmount = avail.Price * request.Quantity,
             Status = BookingStatus.Pending, // Trạng thái chờ thanh toán
-            CreatedAt = DateTime.UtcNow,
-            ApprovalDeadline = DateTime.UtcNow.AddHours(48) // Partner có 48h để duyệt (mặc định)
+            CreatedAt = DateTime.UtcNow
+            // ApprovalDeadline sẽ được set khi khách thanh toán (Status = Paid)
         };
 
         _context.Bookings.Add(booking);

@@ -170,6 +170,7 @@ public class BookingsController : ControllerBase
         }
 
         booking.Status = BookingStatus.Paid;
+        booking.ApprovalDeadline = DateTime.UtcNow.AddHours(48); // Partner có 48h để duyệt kể từ khi thanh toán
 
         var items = await _context.BookingItems
             .Where(bi => bi.BookingId == id)

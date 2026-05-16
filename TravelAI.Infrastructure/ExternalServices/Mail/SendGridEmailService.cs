@@ -29,12 +29,13 @@ public class SendGridEmailService : IEmailService
 
     public Task SendBookingCancellationAsync(string toEmail, string customerName, int bookingId, decimal refundAmount)
     {
-        var subject = $"Huy don hang #{bookingId}";
+        var subject = $"Đơn hàng #{bookingId} đã bị hủy - Hoàn tiền {refundAmount:N0}đ";
         var body = $@"
-            <h2>Xin chao {customerName},</h2>
-            <p>Don hang #{bookingId} cua ban da duoc huy thanh cong.</p>
-            <p><strong>So tien hoan lai:</strong> {refundAmount:N0} VND</p>
-            <p>Neu co bat ky thac mac nao, vui long lien he voi chung toi.</p>
+            <h2>Xin chào {customerName},</h2>
+            <p>Đơn hàng <strong>#{bookingId}</strong> của bạn đã bị hủy do <strong>quá hạn duyệt</strong>.</p>
+            <p><strong>Số tiền hoàn lại:</strong> {refundAmount:N0} VND (trong vòng 3-5 ngày làm việc)</p>
+            <p>Bạn có thể tìm kiếm và đặt dịch vụ khác trên hệ thống.</p>
+            <p>Trân trọng,<br/>TravelAI Team</p>
         ";
         return SendEmailAsync(toEmail, subject, body);
     }

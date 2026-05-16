@@ -96,24 +96,17 @@ public class OrderApprovalReminderJob : BackgroundService
         bool isUrgent = false)
     {
         var urgentTag = isUrgent ? "[KHẨN CẤP] " : "";
-        var subject = $"{urgentTag}Nhắc nhở: Duyệt đơn hàng #{booking.BookingId} - Còn {timeRemaining}";
+        var subject = $"{urgentTag}Duyệt đơn #{booking.BookingId} - Còn {timeRemaining}";
 
         var body = $@"
             <h2>Xin chào {partner.FullName},</h2>
-            <p style='color: {(isUrgent ? "red" : "orange")}; font-weight: bold;'>
-                Đơn hàng <strong>#{booking.BookingId}</strong> cần được duyệt trong vòng {timeRemaining} nữa!
-            </p>
-            <p>Thông tin đơn hàng:</p>
-            <ul>
-                <li><strong>Mã đơn:</strong> #{booking.BookingId}</li>
-                <li><strong>Tổng tiền:</strong> {booking.TotalAmount:N0} VND</li>
-                <li><strong>Thời hạn duyệt:</strong> {booking.ApprovalDeadline:dd/MM/yyyy HH:mm}</li>
-            </ul>
-            <p>
-                {(isUrgent 
-                    ? "⚠️ <strong>Nếu không duyệt kịp, đơn hàng sẽ được tự động phê duyệt!</strong>" 
-                    : "Vui lòng đăng nhập vào hệ thống để duyệt hoặc từ chối đơn hàng.")}
-            </p>
+            <p>Đơn hàng <strong>#{booking.BookingId}</strong> cần được duyệt trong vòng <strong>{timeRemaining}</strong> nữa!</p>
+            <p><strong>Tổng tiền:</strong> {booking.TotalAmount:N0} VND</p>
+            <p><strong>Thời hạn:</strong> {booking.ApprovalDeadline:dd/MM/yyyy HH:mm}</p>
+            {(isUrgent 
+                ? "<p style='color: red;'><strong>⚠️ Nếu không duyệt kịp, đơn hàng sẽ bị HỦY và hoàn tiền 100% cho khách!</strong></p>" 
+                : "")}
+            <p>Vui lòng đăng nhập để duyệt hoặc từ chối đơn hàng.</p>
             <p>Trân trọng,<br/>TravelAI Team</p>
         ";
 
