@@ -43,6 +43,7 @@ const AdminManagePartners = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [reviewNote, setReviewNote] = useState('');
   const [activeTab, setActiveTab] = useState<'pending' | 'all'>('pending');
+  const [statusFilter, setStatusFilter] = useState<string>('all'); // all, Pending, Approved, Rejected, NeedMoreInfo
 
   const fetchPartners = async () => {
     try {
@@ -79,15 +80,23 @@ const AdminManagePartners = () => {
     const source = activeTab === 'pending' ? pendingPartners : allPartners;
     const keyword = searchQuery.trim().toLowerCase();
 
-    if (!keyword) {
-      return source;
+    let result = source;
+
+    // Filter by status
+    if (statusFilter !== 'all') {
+      result = result.filter((partner) => partner.verificationStatus === statusFilter);
     }
 
-    return source.filter((partner) =>
-      [partner.fullName, partner.businessName, partner.email, partner.taxCode ?? '']
-        .some((value) => value.toLowerCase().includes(keyword))
-    );
-  }, [activeTab, allPartners, pendingPartners, searchQuery]);
+    // Filter by search keyword
+    if (keyword) {
+      result = result.filter((partner) =>
+        [partner.fullName, partner.businessName, partner.email, partner.taxCode ?? '']
+          .some((value) => value.toLowerCase().includes(keyword))
+      );
+    }
+
+    return result;
+  }, [activeTab, allPartners, pendingPartners, searchQuery, statusFilter]);
 
   useEffect(() => {
     if (!selectedPartner && filteredPartners.length > 0) {
@@ -159,33 +168,9 @@ const AdminManagePartners = () => {
         </button>
       </div>
 
-      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={() => setActiveTab('pending')}
-            className={`rounded-full px-5 py-3 text-sm font-black transition ${
-              activeTab === 'pending'
-                ? 'bg-slate-900 text-white shadow-lg'
-                : 'bg-white text-slate-500 shadow-sm ring-1 ring-slate-200 hover:text-slate-900'
-            }`}
-          >
-            Cho duyet ({pendingPartners.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('all')}
-            className={`rounded-full px-5 py-3 text-sm font-black transition ${
-              activeTab === 'all'
-                ? 'bg-slate-900 text-white shadow-lg'
-                : 'bg-white text-slate-500 shadow-sm ring-1 ring-slate-200 hover:text-slate-900'
-            }`}
-          >
-            Tat ca partner ({allPartners.length})
-          </button>
-        </div>
-
-        <div className="relative w-full max-w-xl">
+      <div className="mb-6 flex flex-col gap-4">
+        {/* Search Bar */}
+        <div className="relative w-full">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input
             type="text"
@@ -194,6 +179,81 @@ const AdminManagePartners = () => {
             placeholder="Tim theo ten, email, doanh nghiep, ma so thue..."
             className="w-full rounded-full border-2 border-slate-100 bg-white py-3 pl-11 pr-5 font-semibold text-slate-700 outline-none transition focus:border-red-400"
           />
+        </div>
+
+        {/* Status Filter Tabs */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="mr-2 text-sm font-black text-slate-600">Lọc:</span>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('all');
+              setStatusFilter('all');
+            }}
+            className={`rounded-full px-4 py-2 text-sm font-bold transition ${
+              activeTab === 'all' && statusFilter === 'all'
+                ? 'bg-slate-900 text-white shadow-md'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            Tất cả ({allPartners.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('all');
+              setStatusFilter('Pending');
+            }}
+            className={`rounded-full px-4 py-2 text-sm font-bold transition ${
+              statusFilter === 'Pending'
+                ? 'bg-blue-600 text-white shadow-md'
+                : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+            }`}
+          >
+            Chờ duyệt ({pendingPartners.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('all');
+              setStatusFilter('Approved');
+            }}
+            className={`rounded-full px-4 py-2 text-sm font-bold transition ${
+              statusFilter === 'Approved'
+                ? 'bg-emerald-600 text-white shadow-md'
+                : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+            }`}
+          >
+            Đã duyệt
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('all');
+              setStatusFilter('Rejected');
+            }}
+            className={`rounded-full px-4 py-2 text-sm font-bold transition ${
+              statusFilter === 'Rejected'
+                ? 'bg-red-600 text-white shadow-md'
+                : 'bg-red-100 text-red-700 hover:bg-red-200'
+            }`}
+          >
+            Từ chối
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('all');
+              setStatusFilter('NeedMoreInfo');
+            }}
+            className={`rounded-full px-4 py-2 text-sm font-bold transition ${
+              statusFilter === 'NeedMoreInfo'
+                ? 'bg-amber-600 text-white shadow-md'
+                : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+            }`}
+          >
+            Cần bổ sung
+          </button>
         </div>
       </div>
 
@@ -206,7 +266,15 @@ const AdminManagePartners = () => {
           <div className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white shadow-xl">
             <div className="border-b border-slate-100 px-6 py-5 text-left">
               <h2 className="text-lg font-black text-slate-900">
-                {activeTab === 'pending' ? 'Danh sach partner cho duyet' : 'Danh sach tat ca partner'}
+                {statusFilter === 'all' 
+                  ? 'Tất cả partners' 
+                  : statusFilter === 'Pending' 
+                  ? 'Partners chờ duyệt'
+                  : statusFilter === 'Approved'
+                  ? 'Partners đã duyệt'
+                  : statusFilter === 'Rejected'
+                  ? 'Partners bị từ chối'
+                  : 'Partners cần bổ sung thông tin'}
               </h2>
             </div>
             <div className="max-h-[70vh] overflow-y-auto p-4">

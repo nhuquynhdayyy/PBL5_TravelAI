@@ -401,6 +401,81 @@ return Ok(new { success = true, message = "Da tu choi doi tac." });
         return Ok(new { success = true, message = "Da yeu cau doi tac bo sung thong tin." });
     }
 
+    // New endpoints using userId instead of profileId
+    [HttpGet("partners/{userId}/profile")]
+    public async Task<IActionResult> GetPartnerProfileByUserId(int userId)
+    {
+        var profile = await _context.PartnerProfiles
+            .AsNoTracking()
+            .Include(p => p.User)
+            .FirstOrDefaultAsync(p => p.UserId == userId);
+
+        if (profile == null)
+        {
+            return NotFound(new { message = "Khong tim thay ho so doi tac." });
+        }
+
+        var dto = new AdminPartnerReviewDto
+        {
+            ProfileId = profile.ProfileId,
+            UserId = profile.UserId,
+            FullName = profile.User.FullName,
+            Email = profile.User.Email,
+            BusinessName = profile.BusinessName,
+            TaxCode = profile.TaxCode,
+            ContactPhone = profile.ContactPhone,
+            BankAccount = profile.BankAccount,
+            Address = profile.Address,
+            Description = profile.Description,
+            BusinessLicenseUrl = profile.BusinessLicenseUrl,
+            VerificationStatus = profile.VerificationStatus.ToString(),
+            ReviewNote = profile.ReviewNote,
+            SubmittedAt = profile.SubmittedAt,
+            ReviewedAt = profile.ReviewedAt
+        };
+
+        return Ok(dto);
+    }
+
+    [HttpPost("partners/{userId}/approve")]
+    public async Task<IActionResult> ApprovePartnerByUserId(int userId, [FromBody] PartnerApprovalActionRequest? request)
+    {
+        var profile = await _context.PartnerProfiles.FirstOrDefaultAsync(p => p.UserId == userId);
+        if (profile == null)
+        {
+            return NotFound(new { message = "Khong tim thay ho so doi tac." });
+        }
+
+        profile.VerificationStatus = PartnerVerificationStatus.Approved;
+        profile.ReviewNote = NormalizeOptionalText(request?.ReviewNote);
+        profile.ReviewedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        return Ok(new { success = true, message = "Da duyet doi tac." });
+    }
+
+    [HttpPost("partners/{userId}/reject")]
+    public async Task<IActionResult> RejectPartnerByUserId(int userId, [FromBody] PartnerApprovalActionRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.ReviewNote))
+        {
+            return BadRequest(new { message = "Vui long nhap ly do tu choi." });
+        }
+
+        var profile = await _context.PartnerProfiles.FirstOrDefaultAsync(p => p.UserId == userId);
+        if (profile == null)
+        {
+            return NotFound(new { message = "Khong tim thay ho so doi tac." });
+        }
+
+        profile.VerificationStatus = PartnerVerificationStatus.Rejected;
+        profile.ReviewNote = request.ReviewNote.Trim();
+        profile.ReviewedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        return Ok(new { success = true, message = "Da tu choi doi tac." });
+    }
+
     // ──────────────────────────────────────────────
     //  HELPERS
     // ──────────────────────────────────────────────
