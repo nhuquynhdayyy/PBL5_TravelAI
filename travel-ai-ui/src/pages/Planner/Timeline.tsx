@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   CalendarDays,
+  ChevronRight,
   Download,
+  DollarSign,
   Loader2,
   MapPin,
   Route,
@@ -66,6 +68,95 @@ const EmptyItinerary = ({ onExplore }: { onExplore: () => void }) => (
   </div>
 );
 
+const getSavedTripId = (trip: any) => trip?.itineraryId ?? trip?.itinerary_id ?? trip?.id;
+
+const SavedTripsPanel = ({
+  trips,
+  loading,
+  onOpenTrip,
+  onExplore,
+}: {
+  trips: any[];
+  loading: boolean;
+  onOpenTrip: (tripId: number | string) => void;
+  onExplore: () => void;
+}) => {
+  if (loading) return <ItinerarySkeleton />;
+
+  if (!trips.length) {
+    return <EmptyItinerary onExplore={onExplore} />;
+  }
+
+  return (
+    <div className="mx-auto max-w-5xl px-4 py-8">
+      <div className="mb-8 rounded-[32px] bg-slate-950 p-8 text-white shadow-2xl shadow-slate-200">
+        <p className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-blue-100">
+          <Sparkles size={15} />
+          Itinerary Library
+        </p>
+        <h1 className="text-4xl font-black tracking-tight md:text-5xl">Lịch trình đã lưu</h1>
+        <p className="mt-3 max-w-2xl text-sm font-medium leading-6 text-slate-300">
+          Chọn một lịch trình bên dưới để mở timeline chi tiết, bản đồ lộ trình và các công cụ tối ưu bằng AI.
+        </p>
+      </div>
+
+      <div className="mb-5 flex items-center justify-between gap-4">
+        <h2 className="flex items-center gap-2 text-2xl font-black text-slate-900">
+          <MapPin className="text-[#0061ff]" />
+          {trips.length} lịch trình
+        </h2>
+        <button
+          type="button"
+          onClick={onExplore}
+          className="rounded-2xl bg-[#0061ff] px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700"
+        >
+          Tạo lịch trình mới
+        </button>
+      </div>
+
+      <div className="grid gap-4">
+        {trips.map((trip, index) => {
+          const tripId = getSavedTripId(trip);
+
+          return (
+            <button
+              key={tripId ?? index}
+              type="button"
+              onClick={() => tripId && onOpenTrip(tripId)}
+              className="group rounded-3xl border border-slate-100 bg-white p-6 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-2xl"
+            >
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <h3 className="truncate text-xl font-black text-slate-900 transition group-hover:text-[#0061ff]">
+                    {trip.tripTitle || trip.title || trip.name || 'Lịch trình TravelAI'}
+                  </h3>
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs font-black uppercase tracking-widest text-slate-400">
+                    {(trip.destination || trip.destinationName) && (
+                      <span className="inline-flex items-center gap-1 rounded-xl bg-blue-50 px-3 py-2 text-[#0061ff]">
+                        <MapPin size={13} />
+                        {trip.destination || trip.destinationName}
+                      </span>
+                    )}
+                    <span className="inline-flex items-center gap-1 rounded-xl bg-slate-50 px-3 py-2">
+                      <CalendarDays size={13} />
+                      {trip.createdAt ? new Date(trip.createdAt).toLocaleDateString('vi-VN') : 'Vừa tạo'}
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded-xl bg-emerald-50 px-3 py-2 text-emerald-700">
+                      <DollarSign size={13} />
+                      {formatCurrency(trip.totalEstimatedCost || trip.totalCost || 0)}
+                    </span>
+                  </div>
+                </div>
+                <ChevronRight className="shrink-0 text-slate-300 transition group-hover:translate-x-1 group-hover:text-[#0061ff]" />
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 const Timeline: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -79,6 +170,8 @@ const Timeline: React.FC = () => {
   const [loading, setLoading] = useState(Boolean(routeItineraryId && !stateData));
   const [optimizing, setOptimizing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savedTrips, setSavedTrips] = useState<any[]>([]);
+  const [loadingTrips, setLoadingTrips] = useState(false);
   const [activeDay, setActiveDay] = useState(1);
   const [error, setError] = useState<string | null>(null);
 
@@ -100,6 +193,26 @@ const Timeline: React.FC = () => {
     }
   }, []);
 
+  const fetchSavedTrips = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setSavedTrips([]);
+      return;
+    }
+
+    try {
+      setLoadingTrips(true);
+      setError(null);
+      const response = await axiosClient.get('/itinerary/my-trips');
+      setSavedTrips(response.data?.data || response.data || []);
+    } catch (tripsError) {
+      console.error(tripsError);
+      setError(getErrorMessage(tripsError, 'Không thể tải danh sách lịch trình đã lưu.'));
+    } finally {
+      setLoadingTrips(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (stateData) {
       const normalized = normalizeItinerary(stateData);
@@ -111,8 +224,16 @@ const Timeline: React.FC = () => {
 
     if (routeItineraryId) {
       fetchItineraryById(routeItineraryId);
+      return;
     }
-  }, [fetchItineraryById, routeItineraryId, stateData]);
+
+    fetchSavedTrips();
+  }, [fetchItineraryById, fetchSavedTrips, routeItineraryId, stateData]);
+
+  const handleOpenSavedTrip = async (tripId: number | string) => {
+    await fetchItineraryById(tripId);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const bookableActivity = useMemo(() => {
     if (!itinerary) return null;
@@ -206,7 +327,14 @@ const Timeline: React.FC = () => {
   }
 
   if (!itinerary || itinerary.days.length === 0) {
-    return <EmptyItinerary onExplore={() => navigate('/destinations')} />;
+    return (
+      <SavedTripsPanel
+        trips={savedTrips}
+        loading={loadingTrips}
+        onOpenTrip={handleOpenSavedTrip}
+        onExplore={() => navigate('/destinations')}
+      />
+    );
   }
 
   return (
