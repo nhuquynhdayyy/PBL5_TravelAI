@@ -1,6 +1,7 @@
 using Bogus;
 using BCrypt.Net;
 using Microsoft.EntityFrameworkCore;
+using TravelAI.Application.Helpers;
 using TravelAI.Domain.Entities;
 using TravelAI.Domain.Enums;
 
@@ -52,7 +53,7 @@ public static class DbInitializer
             Phone        = "0901000001",
             IsActive     = true,
             AvatarUrl    = "https://api.dicebear.com/7.x/initials/svg?seed=Admin",
-            CreatedAt    = DateTime.UtcNow.AddMonths(-6),
+            CreatedAt    = DateTimeHelper.Now.AddMonths(-6),
         };
         await context.Users.AddAsync(adminUser);
         await context.SaveChangesAsync();
@@ -69,7 +70,7 @@ public static class DbInitializer
             Phone        = "0902000001",
             IsActive     = true,
             AvatarUrl    = "https://api.dicebear.com/7.x/initials/svg?seed=TranMinhKhoa",
-            CreatedAt    = DateTime.UtcNow.AddMonths(-5),
+            CreatedAt    = DateTimeHelper.Now.AddMonths(-5),
         };
         var partner2 = new User
         {
@@ -80,7 +81,7 @@ public static class DbInitializer
             Phone        = "0902000002",
             IsActive     = true,
             AvatarUrl    = "https://api.dicebear.com/7.x/initials/svg?seed=NguyenThiLan",
-            CreatedAt    = DateTime.UtcNow.AddMonths(-4),
+            CreatedAt    = DateTimeHelper.Now.AddMonths(-4),
         };
         await context.Users.AddRangeAsync(partner1, partner2);
         await context.SaveChangesAsync();
@@ -96,8 +97,8 @@ public static class DbInitializer
             Description        = "Chuyên cung cấp dịch vụ khách sạn và tour tham quan tại Đà Nẵng và Hội An.",
             ContactPhone       = "02363123456",
             VerificationStatus = PartnerVerificationStatus.Approved,
-            SubmittedAt        = DateTime.UtcNow.AddMonths(-5),
-            ReviewedAt         = DateTime.UtcNow.AddMonths(-4),
+            SubmittedAt        = DateTimeHelper.Now.AddMonths(-5),
+            ReviewedAt         = DateTimeHelper.Now.AddMonths(-4),
         };
         var profile2 = new PartnerProfile
         {
@@ -109,8 +110,8 @@ public static class DbInitializer
             Description        = "Đơn vị lữ hành uy tín tại Hà Nội, chuyên tour miền Bắc và vé xe khách.",
             ContactPhone       = "02432123456",
             VerificationStatus = PartnerVerificationStatus.Approved,
-            SubmittedAt        = DateTime.UtcNow.AddMonths(-4),
-            ReviewedAt         = DateTime.UtcNow.AddMonths(-3),
+            SubmittedAt        = DateTimeHelper.Now.AddMonths(-4),
+            ReviewedAt         = DateTimeHelper.Now.AddMonths(-3),
         };
         await context.PartnerProfiles.AddRangeAsync(profile1, profile2);
         await context.SaveChangesAsync();
@@ -127,7 +128,7 @@ public static class DbInitializer
             Phone        = "0902000003",
             IsActive     = true,
             AvatarUrl    = "https://api.dicebear.com/7.x/initials/svg?seed=LeVanMinh",
-            CreatedAt    = DateTime.UtcNow.AddMonths(-3),
+            CreatedAt    = DateTimeHelper.Now.AddMonths(-3),
         };
         var partner4 = new User
         {
@@ -138,7 +139,7 @@ public static class DbInitializer
             Phone        = "0902000004",
             IsActive     = true,
             AvatarUrl    = "https://api.dicebear.com/7.x/initials/svg?seed=NguyenThiHong",
-            CreatedAt    = DateTime.UtcNow.AddMonths(-2),
+            CreatedAt    = DateTimeHelper.Now.AddMonths(-2),
         };
         await context.Users.AddRangeAsync(partner3, partner4);
         await context.SaveChangesAsync();
@@ -154,8 +155,8 @@ public static class DbInitializer
             Description        = "Hãng xe khách uy tín hàng đầu Việt Nam với hơn 30 năm kinh nghiệm, phục vụ hơn 60 tuyến đường liên tỉnh.",
             ContactPhone       = "02838386852",
             VerificationStatus = PartnerVerificationStatus.Approved,
-            SubmittedAt        = DateTime.UtcNow.AddMonths(-3),
-            ReviewedAt         = DateTime.UtcNow.AddMonths(-2).AddDays(-15),
+            SubmittedAt        = DateTimeHelper.Now.AddMonths(-3),
+            ReviewedAt         = DateTimeHelper.Now.AddMonths(-2).AddDays(-15),
         };
         var profile4 = new PartnerProfile
         {
@@ -167,8 +168,8 @@ public static class DbInitializer
             Description        = "Hãng hàng không giá rẻ hàng đầu Việt Nam, khai thác hơn 100 đường bay trong nước và quốc tế.",
             ContactPhone       = "02862221166",
             VerificationStatus = PartnerVerificationStatus.Approved,
-            SubmittedAt        = DateTime.UtcNow.AddMonths(-2),
-            ReviewedAt         = DateTime.UtcNow.AddMonths(-1).AddDays(-20),
+            SubmittedAt        = DateTimeHelper.Now.AddMonths(-2),
+            ReviewedAt         = DateTimeHelper.Now.AddMonths(-1).AddDays(-20),
         };
         await context.PartnerProfiles.AddRangeAsync(profile3, profile4);
         await context.SaveChangesAsync();
@@ -195,7 +196,7 @@ public static class DbInitializer
             Phone        = c.Item3,
             IsActive     = true,
             AvatarUrl    = $"https://api.dicebear.com/7.x/initials/svg?seed={Uri.EscapeDataString(c.Item1)}",
-            CreatedAt    = DateTime.UtcNow.AddMonths(-(3 - i)),
+            CreatedAt    = DateTimeHelper.Now.AddMonths(-(3 - i)),
         }).ToList();
 
         await context.Users.AddRangeAsync(customers);
@@ -283,7 +284,7 @@ public static class DbInitializer
         // =====================================================================
         // BƯỚC 6: SERVICES (Partner1 → Đà Nẵng, Partner2 → Hà Nội + HCM)
         // =====================================================================
-        var today = DateTime.UtcNow.Date;
+        var today = DateTimeHelper.Today;
 
         // --- Partner 1: Khách sạn + Tour tại Đà Nẵng ---
         var svc1 = new Service
@@ -1005,5 +1006,58 @@ public static class DbInitializer
         // BƯỚC 15: AUDIT LOGS - TỰ ĐỘNG GHI KHI CÓ THAO TÁC THỰC TẾ
         // =====================================================================
         // Không cần seed data - hệ thống sẽ tự động ghi log khi users thực hiện các thao tác
+
+        // =====================================================================
+        // BƯỚC 16: TỰ ĐỘNG CẬP NHẬT APPROVAL DEADLINE CHO ĐƠN CŨ
+        // =====================================================================
+        // Cập nhật các đơn đã thanh toán (Paid) nhưng chưa có ApprovalDeadline
+        var paidBookingsWithoutDeadline = await context.Bookings
+            .Where(b => b.Status == BookingStatus.Paid && b.ApprovalDeadline == null)
+            .ToListAsync();
+
+        if (paidBookingsWithoutDeadline.Any())
+        {
+            var now = DateTimeHelper.Now;
+            var random = new Random(FakerSeed);
+
+            foreach (var booking in paidBookingsWithoutDeadline)
+            {
+                // Tạo deadline ngẫu nhiên để test các trường hợp khác nhau:
+                // - 30% đơn quá hạn (để test auto-cancel)
+                // - 30% đơn khẩn cấp < 2 giờ (màu đỏ, nhấp nháy)
+                // - 20% đơn khẩn cấp < 12 giờ (màu vàng)
+                // - 20% đơn bình thường > 12 giờ (màu xám)
+                
+                var randomValue = random.NextDouble();
+                
+                if (randomValue < 0.3)
+                {
+                    // 30% - Quá hạn (để test auto-cancel)
+                    booking.ApprovalDeadline = now.AddHours(-random.Next(1, 48));
+                }
+                else if (randomValue < 0.6)
+                {
+                    // 30% - Khẩn cấp < 2 giờ (màu đỏ, nhấp nháy)
+                    booking.ApprovalDeadline = now.AddMinutes(random.Next(15, 120));
+                }
+                else if (randomValue < 0.8)
+                {
+                    // 20% - Khẩn cấp < 12 giờ (màu vàng)
+                    booking.ApprovalDeadline = now.AddHours(random.Next(2, 12));
+                }
+                else
+                {
+                    // 20% - Bình thường > 12 giờ (màu xám)
+                    booking.ApprovalDeadline = now.AddHours(random.Next(12, 48));
+                }
+
+                // Đảm bảo chưa được duyệt
+                booking.IsApprovedByPartner = false;
+            }
+
+            await context.SaveChangesAsync();
+            
+            Console.WriteLine($"✅ Đã cập nhật ApprovalDeadline cho {paidBookingsWithoutDeadline.Count} đơn hàng cũ");
+        }
     }
 }

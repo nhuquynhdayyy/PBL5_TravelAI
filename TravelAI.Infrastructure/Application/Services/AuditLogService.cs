@@ -1,4 +1,5 @@
 using TravelAI.Application.Interfaces;
+using TravelAI.Application.Helpers;
 using TravelAI.Domain.Entities;
 using TravelAI.Infrastructure.Persistence;
 
@@ -21,7 +22,7 @@ public class AuditLogService : IAuditLogService
             Action = action,
             TableName = tableName,
             RecordId = recordId,
-            Timestamp = DateTime.UtcNow
+            Timestamp = DateTimeHelper.Now
         };
 
         _context.AuditLogs.Add(log);

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using TravelAI.Application.DTOs.Booking;
+using TravelAI.Application.Helpers;
 using TravelAI.Application.Interfaces;
 using TravelAI.Domain.Entities;
 using TravelAI.Domain.Enums;
@@ -175,7 +176,7 @@ public class BookingsController : ControllerBase
         }
 
         booking.Status = BookingStatus.Paid;
-        booking.ApprovalDeadline = DateTime.UtcNow.AddHours(48); // Partner có 48h để duyệt kể từ khi thanh toán
+        booking.ApprovalDeadline = DateTimeHelper.Now.AddHours(24); // Partner có 24h để duyệt kể từ khi thanh toán
 
         var items = await _context.BookingItems
             .Where(bi => bi.BookingId == id)
@@ -202,7 +203,7 @@ public class BookingsController : ControllerBase
             Method = "Mock",
             TransactionRef = Guid.NewGuid().ToString("N")[..12].ToUpper(),
             Amount = booking.TotalAmount,
-            PaymentTime = DateTime.UtcNow
+            PaymentTime = DateTimeHelper.Now
         });
 
         var result = await _context.SaveChangesAsync();
@@ -246,7 +247,7 @@ public class BookingsController : ControllerBase
             return NotFound(new { message = "Khong tim thay don hang." });
         }
 
-        var evaluation = EvaluateCancellationPolicy(booking, DateTime.UtcNow);
+        var evaluation = EvaluateCancellationPolicy(booking, DateTimeHelper.Now);
         if (!evaluation.CanCancel)
         {
             return BadRequest(new { message = evaluation.PolicyMessage });
@@ -305,7 +306,7 @@ public class BookingsController : ControllerBase
                 RefundAmount = refundAmount,
                 RefundRef = Guid.NewGuid().ToString("N")[..12].ToUpper(),
                 Reason = evaluation.PolicyMessage,
-                RefundTime = DateTime.UtcNow
+                RefundTime = DateTimeHelper.Now
             });
         }
 
@@ -328,7 +329,7 @@ public class BookingsController : ControllerBase
 
     private static BookingDetailResponse MapToBookingDetail(Booking booking)
     {
-        var evaluation = EvaluateCancellationPolicy(booking, DateTime.UtcNow);
+        var evaluation = EvaluateCancellationPolicy(booking, DateTimeHelper.Now);
         var item = booking.BookingItems
             .OrderBy(bi => bi.ItemId)
             .FirstOrDefault();
@@ -340,6 +341,21 @@ public class BookingsController : ControllerBase
             .SelectMany(payment => payment.Refunds)
             .OrderByDescending(refund => refund.RefundTime)
             .FirstOrDefault();
+
+        // Xác định lý do hủy
+        string? cancellationReason = null;
+        if (booking.Status == BookingStatus.Cancelled || booking.Status == BookingStatus.Refunded)
+        {
+            // Nếu có refund reason thì dùng
+            cancellationReason = latestRefund?.Reason;
+            
+            // Đối với customer: Ẩn lý do "Quá hạn duyệt", chỉ hiện lý do từ customer hoặc partner
+            // "Quá hạn duyệt" là lý do hệ thống tự động, không cần hiện cho customer
+            if (cancellationReason == "Quá hạn duyệt")
+            {
+                cancellationReason = null; // Không hiển thị lý do này cho customer
+            }
+        }
 
         return new BookingDetailResponse
         {
@@ -354,7 +370,8 @@ public class BookingsController : ControllerBase
             RefundedAmount = latestRefund?.RefundAmount ?? 0,
             EstimatedRefundAmount = evaluation.EstimatedRefundAmount,
             CanCancel = evaluation.CanCancel,
-            CancelPolicy = evaluation.PolicyMessage
+            CancelPolicy = evaluation.PolicyMessage,
+            CancellationReason = cancellationReason
         };
     }
 
@@ -375,7 +392,8 @@ public class BookingsController : ControllerBase
             RefundedAmount = detail.RefundedAmount,
             EstimatedRefundAmount = detail.EstimatedRefundAmount,
             CanCancel = detail.CanCancel,
-            CancelPolicy = detail.CancelPolicy
+            CancelPolicy = detail.CancelPolicy,
+            CancellationReason = detail.CancellationReason
         };
     }
 

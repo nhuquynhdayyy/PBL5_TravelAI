@@ -4,6 +4,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using TravelAI.Application.DTOs.Review;
+using TravelAI.Application.Helpers;
 using TravelAI.Application.Interfaces;
 using TravelAI.Domain.Entities;
 using TravelAI.Domain.Enums;
@@ -67,7 +68,7 @@ public class ReviewsController : ControllerBase
             UserId = userId.Value,
             Rating = request.Rating,
             Comment = string.IsNullOrWhiteSpace(request.Comment) ? null : request.Comment.Trim(),
-            CreatedAt = DateTime.Now // Giờ local (Việt Nam)
+            CreatedAt = DateTimeHelper.Now // Vietnam time (UTC+7)
         };
 
         _context.Reviews.Add(review);
@@ -293,7 +294,7 @@ public class ReviewsController : ControllerBase
         }
 
         review.ReplyText = request.ReplyText.Trim();
-        review.ReplyTime = DateTime.Now; // Giờ local (Việt Nam)
+        review.ReplyTime = DateTimeHelper.Now; // Vietnam time (UTC+7)
         await _context.SaveChangesAsync();
 
         return Ok(new { success = true, message = "Da phan hoi review thanh cong." });
@@ -334,7 +335,7 @@ public class ReviewsController : ControllerBase
         }
 
         review.ReplyText = request.ReplyText.Trim();
-        review.ReplyTime = DateTime.Now; // Giờ local (Việt Nam)
+        review.ReplyTime = DateTimeHelper.Now; // Vietnam time (UTC+7)
         await _context.SaveChangesAsync();
 
         return Ok(new { success = true, message = "Da cap nhat phan hoi thanh cong." });

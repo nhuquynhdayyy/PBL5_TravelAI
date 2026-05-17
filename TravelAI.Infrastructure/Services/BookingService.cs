@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TravelAI.Application.Helpers;
 using TravelAI.Application.Interfaces;
 using TravelAI.Application.DTOs.Booking;
 using TravelAI.Domain.Entities;
@@ -30,7 +31,7 @@ public class BookingService : IBookingService
             UserId = userId,
             TotalAmount = avail.Price * request.Quantity,
             Status = BookingStatus.Pending, // Trạng thái chờ thanh toán
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTimeHelper.Now
             // ApprovalDeadline sẽ được set khi khách thanh toán (Status = Paid)
         };
 

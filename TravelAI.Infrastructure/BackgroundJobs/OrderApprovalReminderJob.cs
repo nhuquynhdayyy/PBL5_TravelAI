@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using TravelAI.Application.Helpers;
 using TravelAI.Application.Interfaces;
 using TravelAI.Domain.Enums;
 using TravelAI.Infrastructure.Persistence;
@@ -53,7 +54,7 @@ public class OrderApprovalReminderJob : BackgroundService
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var emailService = scope.ServiceProvider.GetRequiredService<IEmailService>();
 
-        var now = DateTime.UtcNow;
+        var now = DateTimeHelper.Now;
 
         // Tìm các đơn hàng cần nhắc nhở (còn 12h hoặc 2h)
         var ordersNeedingReminder = await context.Bookings

@@ -8,7 +8,7 @@ public class Review {
     public string? Comment { get; set; }
     public string? ReplyText { get; set; }
     public DateTime? ReplyTime { get; set; }
-    public DateTime CreatedAt { get; set; } = DateTime.Now; // Giờ local (Việt Nam)
+    public DateTime CreatedAt { get; set; } // Vietnam time (UTC+7)
 
     public Service Service { get; set; } = null!;
     public User User { get; set; } = null!;

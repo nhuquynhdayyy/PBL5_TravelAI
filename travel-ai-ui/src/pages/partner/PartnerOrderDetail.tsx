@@ -13,6 +13,7 @@ import {
     AlertCircle
 } from 'lucide-react';
 import axiosClient from '../../api/axiosClient';
+import { formatVietnameseDate, formatVietnameseDateTime } from '../../utils/dateTimeUtils';
 
 type OrderItem = {
     serviceId: number;
@@ -33,6 +34,7 @@ type OrderDetail = {
     paymentMethod?: string;
     paymentTime?: string;
     refundedAmount: number;
+    cancellationReason?: string; // Lý do hủy
     isApprovedByPartner?: boolean;
     approvedAt?: string;
     items: OrderItem[];
@@ -60,6 +62,19 @@ const PartnerOrderDetail = () => {
     useEffect(() => {
         fetchOrderDetail();
     }, [bookingId]);
+
+    // Lock body scroll when modal is open
+    useEffect(() => {
+        if (showRejectModal) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
+        }
+
+        return () => {
+            document.body.style.overflow = 'unset';
+        };
+    }, [showRejectModal]);
 
     const fetchOrderDetail = async () => {
         try {
@@ -212,7 +227,7 @@ const PartnerOrderDetail = () => {
                             </span>
                         </div>
                         <p className="text-lg font-bold text-slate-900">
-                            {new Date(order.createdAt).toLocaleString('vi-VN')}
+                            {formatVietnameseDateTime(order.createdAt)}
                         </p>
                     </div>
 
@@ -225,7 +240,7 @@ const PartnerOrderDetail = () => {
                                 </span>
                             </div>
                             <p className="text-lg font-bold text-slate-900">
-                                {new Date(order.paymentTime).toLocaleString('vi-VN')}
+                                {formatVietnameseDateTime(order.paymentTime)}
                             </p>
                         </div>
                     )}
@@ -239,7 +254,7 @@ const PartnerOrderDetail = () => {
                                 </span>
                             </div>
                             <p className="text-lg font-bold text-purple-900">
-                                {new Date(order.approvedAt).toLocaleString('vi-VN')}
+                                {formatVietnameseDateTime(order.approvedAt)}
                             </p>
                             <p className="text-sm text-purple-600 mt-2">
                                 ✓ Don hang da duoc duyet boi partner
@@ -247,6 +262,21 @@ const PartnerOrderDetail = () => {
                         </div>
                     )}
                 </div>
+
+                {/* Hiển thị lý do hủy nếu đơn đã hủy */}
+                {order.status === 4 && order.cancellationReason && (
+                    <div className="mb-6 rounded-2xl bg-rose-50 border-2 border-rose-200 p-5">
+                        <div className="flex items-center gap-3 mb-3">
+                            <XCircle className="text-rose-600" size={20} />
+                            <span className="text-xs font-black uppercase tracking-[0.18em] text-rose-600">
+                                Lý do hủy
+                            </span>
+                        </div>
+                        <p className="text-base font-semibold text-rose-700">
+                            {order.cancellationReason.replace(/^Partner rejected:\s*/i, '')}
+                        </p>
+                    </div>
+                )}
 
                 <div className="border-t border-slate-200 pt-6">
                     <h2 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2">
@@ -276,7 +306,7 @@ const PartnerOrderDetail = () => {
                                     <div className="col-span-2">
                                         <span className="text-slate-500">Check-in:</span>
                                         <span className="ml-2 font-bold text-slate-900">
-                                            {new Date(item.checkInDate).toLocaleDateString('vi-VN')}
+                                            {formatVietnameseDate(item.checkInDate)}
                                         </span>
                                     </div>
                                     {item.notes && (
@@ -322,8 +352,17 @@ const PartnerOrderDetail = () => {
 
             {/* Reject Modal */}
             {showRejectModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-[2rem] p-8 max-w-md w-full">
+                <div 
+                    className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto"
+                    onClick={() => {
+                        setShowRejectModal(false);
+                        setRejectReason('');
+                    }}
+                >
+                    <div 
+                        className="bg-white rounded-[2rem] p-8 max-w-md w-full my-8 max-h-[90vh] overflow-y-auto custom-scrollbar"
+                        onClick={(e) => e.stopPropagation()}
+                    >
                         <h2 className="text-2xl font-black text-slate-900 mb-4">Tu choi don hang</h2>
                         <p className="text-slate-600 mb-4">
                             Vui long nhap ly do tu choi don hang. Khach hang se nhan duoc email thong bao va duoc hoan tien.

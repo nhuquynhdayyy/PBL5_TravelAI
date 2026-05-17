@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import axiosClient from '../../api/axiosClient';
 import { Calendar, DollarSign, Package, Save, ArrowLeft, Loader2, Plus, Trash2, TrendingUp, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { formatVietnameseDate, formatVietnameseDateShort } from '../../utils/dateTimeUtils';
+import { getTodayVietnam, getDateAfterMonthsVietnam } from '../../utils/dateUtils';
 
 interface Service {
     serviceId: number;
@@ -76,10 +78,9 @@ const InventoryPricingManager = () => {
     const fetchAvailabilities = async () => {
         if (!selectedServiceId) return;
         try {
-            const today = new Date().toISOString().split('T')[0];
-            const endDate = new Date();
-            endDate.setMonth(endDate.getMonth() + 2);
-            const res = await axiosClient.get(`/availability/my-services?startDate=${today}&endDate=${endDate.toISOString().split('T')[0]}`);
+            const today = getTodayVietnam();
+            const endDate = getDateAfterMonthsVietnam(2);
+            const res = await axiosClient.get(`/availability/my-services?startDate=${today}&endDate=${endDate}`);
             const serviceData = res.data.find((s: any) => s.serviceId === selectedServiceId);
             setAvailabilities(serviceData?.availabilities || []);
         } catch (err) {
@@ -159,10 +160,6 @@ const InventoryPricingManager = () => {
 
     const formatCurrency = (amount: number) => {
         return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
-    };
-
-    const formatDate = (dateStr: string) => {
-        return new Date(dateStr).toLocaleDateString('vi-VN');
     };
 
     const isWeekend = (dateStr: string) => {
@@ -334,7 +331,7 @@ const InventoryPricingManager = () => {
                                                     className={`border-b hover:bg-slate-50 ${isWeekend(avail.date) ? 'bg-blue-50' : ''}`}
                                                 >
                                                     <td className="p-3 font-semibold">
-                                                        {formatDate(avail.date)}
+                                                        {formatVietnameseDate(avail.date)}
                                                         {isWeekend(avail.date) && <span className="ml-2 text-xs bg-blue-600 text-white px-2 py-1 rounded">Cuối tuần</span>}
                                                     </td>
                                                     <td className="p-3 text-right text-slate-600">{formatCurrency(avail.basePrice)}</td>
@@ -440,7 +437,7 @@ const InventoryPricingManager = () => {
                                                 <div>
                                                     <h4 className="font-bold text-lg">{rule.description || 'Pricing Rule'}</h4>
                                                     <p className="text-sm text-slate-600">
-                                                        {formatDate(rule.startDate)} → {formatDate(rule.endDate)}
+                                                        {formatVietnameseDate(rule.startDate)} → {formatVietnameseDate(rule.endDate)}
                                                     </p>
                                                     <p className="text-sm font-semibold text-purple-600 mt-1">
                                                         Hệ số: ×{rule.priceMultiplier} ({((rule.priceMultiplier - 1) * 100).toFixed(0)}%)

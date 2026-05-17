@@ -8,7 +8,7 @@ public class PricingRule
     public DateTime EndDate { get; set; }
     public decimal PriceMultiplier { get; set; } // Ví dụ: 1.3 = tăng 30%
     public string? Description { get; set; } // Ví dụ: "Giá mùa hè"
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; }
 
     public Service Service { get; set; } = null!;
 }

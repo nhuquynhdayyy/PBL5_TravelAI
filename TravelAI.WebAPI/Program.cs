@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using TravelAI.Infrastructure.Persistence;
+using TravelAI.Infrastructure.Persistence.Interceptors;
 using TravelAI.Infrastructure.Services; 
 using TravelAI.Application.Interfaces;
 using TravelAI.Application.Services;
@@ -24,6 +25,8 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     // Suppress pending model changes warning (we handle schema via SQL scripts)
     options.ConfigureWarnings(warnings => 
         warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+    // Add interceptor to automatically set CreatedAt with Vietnam timezone
+    options.AddInterceptors(new VietnamTimezoneInterceptor());
 });
 
 // --- 2. Cấu hình JWT AUTHENTICATION ---

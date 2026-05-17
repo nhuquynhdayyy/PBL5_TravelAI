@@ -7,7 +7,7 @@ public class Booking {
     public int? PromoId { get; set; }
     public decimal TotalAmount { get; set; }
     public BookingStatus Status { get; set; }
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; }
     public bool IsApprovedByPartner { get; set; } = false;
     public DateTime? ApprovedAt { get; set; }
     public DateTime? ApprovalDeadline { get; set; }

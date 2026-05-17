@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
 import { LayoutDashboard, Calendar, Star, Settings, ArrowLeft, Loader2, Info, CheckCircle, Package } from 'lucide-react';
+import { formatVietnameseDateShort } from '../../utils/dateTimeUtils';
+import { getTodayVietnam } from '../../utils/dateUtils';
 
 const ServiceConsole = () => {
     const { id } = useParams();
@@ -18,7 +20,7 @@ const ServiceConsole = () => {
                 const [sRes, aRes] = await Promise.all([
                     axiosClient.get(`/services/${id}`),
                     // Lấy lịch chỗ trống 30 ngày tới để Partner xem
-                    axiosClient.get(`/availability/${id}?start=${new Date().toISOString()}&end=${new Date(Date.now() + 30*24*60*60*1000).toISOString()}`)
+                    axiosClient.get(`/availability/${id}?start=${getTodayVietnam()}&end=${new Date(Date.now() + 30*24*60*60*1000).toISOString()}`)
                 ]);
                 setService(sRes.data);
                 setAvailData(aRes.data);
@@ -76,7 +78,7 @@ const ServiceConsole = () => {
                                     <div key={i} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
                                         <div className="flex items-center gap-4">
                                             <div className="bg-white p-2 rounded-xl font-black text-blue-600 shadow-sm">
-                                                {new Date(a.date).toLocaleDateString('vi-VN', {day:'2-digit', month:'2-digit'})}
+                                                {formatVietnameseDateShort(a.date)}
                                             </div>
                                             <div>
                                                 <p className="text-sm font-black text-slate-700">{new Intl.NumberFormat('vi-VN').format(a.price)}₫</p>

@@ -20,6 +20,8 @@ import {
 } from 'recharts';
 import { Link } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
+import { formatVietnameseDate, formatVietnameseDateShort } from '../../utils/dateTimeUtils';
+import { getTodayVietnam } from '../../utils/dateUtils';
 
 type RevenueByService = {
     serviceName: string;
@@ -53,14 +55,14 @@ const periodOptions: Array<{ value: PeriodFilter; label: string }> = [
     { value: 'custom', label: 'Tuy chon' }
 ];
 
-const getTodayInputValue = () => new Date().toISOString().slice(0, 10);
+// Removed - using getTodayVietnam from utils
 
 const PartnerDashboard = () => {
     const [summary, setSummary] = useState<PartnerRevenueSummary | null>(null);
     const [loading, setLoading] = useState(true);
     const [period, setPeriod] = useState<PeriodFilter>('month');
-    const [startDate, setStartDate] = useState(getTodayInputValue());
-    const [endDate, setEndDate] = useState(getTodayInputValue());
+    const [startDate, setStartDate] = useState(getTodayVietnam());
+    const [endDate, setEndDate] = useState(getTodayVietnam());
 
     const fetchSummary = async (nextPeriod = period, nextStartDate = startDate, nextEndDate = endDate) => {
         try {
@@ -105,15 +107,12 @@ const PartnerDashboard = () => {
 
     const chartData = (summary?.revenueByDay ?? []).map(item => ({
         ...item,
-        label: new Date(item.date).toLocaleDateString('vi-VN', {
-            day: '2-digit',
-            month: '2-digit'
-        })
+        label: formatVietnameseDateShort(item.date)
     }));
 
     const topServices = (summary?.revenueByService ?? []).slice(0, 5);
     const rangeLabel = summary
-        ? `${new Date(summary.rangeStart).toLocaleDateString('vi-VN')} - ${new Date(summary.rangeEnd).toLocaleDateString('vi-VN')}`
+        ? `${formatVietnameseDate(summary.rangeStart)} - ${formatVietnameseDate(summary.rangeEnd)}`
         : '';
     const periodLabel = periodOptions.find(option => option.value === (summary?.period ?? period))?.label ?? 'Thang';
 

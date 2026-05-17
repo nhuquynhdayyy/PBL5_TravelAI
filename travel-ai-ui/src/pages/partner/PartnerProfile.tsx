@@ -14,6 +14,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import axiosClient from '../../api/axiosClient';
+import { formatVietnameseDateTime } from '../../utils/dateTimeUtils';
 
 type PartnerProfileForm = {
   businessName: string;
@@ -209,7 +210,7 @@ const PartnerProfile = () => {
 
           <div className="rounded-[1.5rem] bg-slate-50 px-5 py-4 text-sm font-medium text-slate-600">
             <p>Co the dang dich vu: <span className="font-black text-slate-900">{profileMeta?.canCreateServices ? 'Co' : 'Chua'}</span></p>
-            <p className="mt-1">Lan gui gan nhat: <span className="font-black text-slate-900">{profileMeta?.submittedAt ? new Date(profileMeta.submittedAt).toLocaleString('vi-VN') : 'Chua gui'}</span></p>
+            <p className="mt-1">Lan gui gan nhat: <span className="font-black text-slate-900">{profileMeta?.submittedAt ? formatVietnameseDateTime(profileMeta.submittedAt) : 'Chua gui'}</span></p>
           </div>
         </div>
 

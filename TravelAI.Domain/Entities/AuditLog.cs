@@ -6,7 +6,7 @@ public class AuditLog {
     public string Action { get; set; } = string.Empty;
     public string TableName { get; set; } = string.Empty;
     public int RecordId { get; set; }
-    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+    public DateTime Timestamp { get; set; }
 
     public User User { get; set; } = null!;
 }

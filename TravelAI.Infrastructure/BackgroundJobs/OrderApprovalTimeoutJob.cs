@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using TravelAI.Application.Helpers;
 using TravelAI.Application.Interfaces;
 using TravelAI.Domain.Enums;
 using TravelAI.Infrastructure.Persistence;
@@ -53,7 +54,7 @@ public class OrderApprovalTimeoutJob : BackgroundService
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var emailService = scope.ServiceProvider.GetRequiredService<IEmailService>();
 
-        var now = DateTime.UtcNow;
+        var now = DateTimeHelper.Now;
 
         // Tìm các đơn hàng đã thanh toán, chưa được duyệt, và đã quá deadline
         var expiredOrders = await context.Bookings
@@ -97,7 +98,7 @@ public class OrderApprovalTimeoutJob : BackgroundService
                             RefundAmount = refundAmount,
                             RefundRef = Guid.NewGuid().ToString("N")[..12].ToUpper(),
                             Reason = "Quá hạn duyệt",
-                            RefundTime = DateTime.UtcNow
+                            RefundTime = DateTimeHelper.Now
                         });
 
                         _logger.LogInformation($"Created refund of {refundAmount} for booking #{booking.BookingId}");

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, MessageSquareReply, Star, Store, Filter, Trash2, Edit2 } from 'lucide-react';
 import axiosClient from '../../api/axiosClient';
+import { formatVietnameseDate, formatVietnameseDateTime } from '../../utils/dateTimeUtils';
 
 type PartnerReviewItem = {
   reviewId: number;
@@ -47,22 +48,6 @@ const getInitials = (name: string) =>
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? '')
     .join('');
-
-const formatDate = (value: string) =>
-  new Date(value).toLocaleDateString('vi-VN', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric'
-  });
-
-const formatDateTime = (value: string) =>
-  new Date(value).toLocaleString('vi-VN', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
 
 const getApiErrorMessage = (err: any, fallback: string) => {
   const data = err?.response?.data;
@@ -362,7 +347,7 @@ const PartnerReviews = () => {
                     >
                       <Store size={18} /> {review.serviceName}
                     </button>
-                    <p className="mt-1 text-sm text-slate-400">Review ngày {formatDate(review.createdAt)}</p>
+                    <p className="mt-1 text-sm text-slate-400">Review ngày {formatVietnameseDate(review.createdAt)}</p>
                   </div>
                   {renderStars(review.rating)}
                 </div>
@@ -412,7 +397,7 @@ const PartnerReviews = () => {
                         <p className="mt-2 text-slate-700">{review.replyText}</p>
                         {review.replyTime && (
                           <p className="mt-2 text-xs text-slate-500">
-                            Phản hồi lúc {formatDateTime(review.replyTime)}
+                            Phản hồi lúc {formatVietnameseDateTime(review.replyTime)}
                           </p>
                         )}
                       </div>

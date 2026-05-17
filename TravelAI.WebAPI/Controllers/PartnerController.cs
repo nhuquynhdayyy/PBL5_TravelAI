@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TravelAI.Application.DTOs.Partner;
+using TravelAI.Application.Helpers;
 using TravelAI.Application.Interfaces;
 using TravelAI.Domain.Entities;
 using TravelAI.Domain.Enums;
@@ -119,7 +120,7 @@ public class PartnerController : ControllerBase
 
         profile.VerificationStatus = PartnerVerificationStatus.Pending;
         profile.ReviewNote = null;
-        profile.SubmittedAt = DateTime.UtcNow;
+        profile.SubmittedAt = DateTimeHelper.Now;
         profile.ReviewedAt = null;
 
         await _context.SaveChangesAsync();
@@ -140,7 +141,7 @@ public class PartnerController : ControllerBase
         }
 
         var partnerId = int.Parse(partnerIdClaim.Value);
-        var utcToday = DateTime.UtcNow.Date;
+        var vietnamToday = DateTimeHelper.Today;
         var normalizedPeriod = (period ?? "month").Trim().ToLowerInvariant();
 
         if (normalizedPeriod is not ("day" or "week" or "month" or "custom"))
@@ -154,12 +155,12 @@ public class PartnerController : ControllerBase
         switch (normalizedPeriod)
         {
             case "day":
-                rangeStart = utcToday;
-                rangeEnd = utcToday;
+                rangeStart = vietnamToday;
+                rangeEnd = vietnamToday;
                 break;
             case "week":
-                var diff = ((int)utcToday.DayOfWeek + 6) % 7;
-                rangeStart = utcToday.AddDays(-diff);
+                var diff = ((int)vietnamToday.DayOfWeek + 6) % 7;
+                rangeStart = vietnamToday.AddDays(-diff);
                 rangeEnd = rangeStart.AddDays(6);
                 break;
             case "custom":
@@ -172,7 +173,7 @@ public class PartnerController : ControllerBase
                 rangeEnd = endDate.Value.Date;
                 break;
             default:
-                rangeStart = new DateTime(utcToday.Year, utcToday.Month, 1);
+                rangeStart = new DateTime(vietnamToday.Year, vietnamToday.Month, 1);
                 rangeEnd = rangeStart.AddMonths(1).AddDays(-1);
                 break;
         }
@@ -316,7 +317,7 @@ public class PartnerController : ControllerBase
         var partnerId = int.Parse(partnerIdClaim.Value);
 
         // TỰ ĐỘNG HỦY CÁC ĐƠN QUÁ HẠN TRƯỚC KHI LOAD
-        var now = DateTime.UtcNow;
+        var now = DateTimeHelper.Now;
         var expiredOrders = await _context.Bookings
             .Include(b => b.BookingItems)
             .Include(b => b.Payments)
@@ -344,7 +345,7 @@ public class PartnerController : ControllerBase
                         RefundAmount = latestPayment.Amount,
                         RefundRef = Guid.NewGuid().ToString("N")[..12].ToUpper(),
                         Reason = "Quá hạn duyệt",
-                        RefundTime = DateTime.UtcNow
+                        RefundTime = DateTimeHelper.Now
                     });
                 }
 
@@ -413,7 +414,13 @@ public class PartnerController : ControllerBase
                 // Tính thời gian còn lại để duyệt (giờ)
                 hoursUntilDeadline = bi.Booking.ApprovalDeadline.HasValue 
                     ? (bi.Booking.ApprovalDeadline.Value - now).TotalHours 
-                    : (double?)null
+                    : (double?)null,
+                // Lý do hủy (từ Refund.Reason)
+                cancellationReason = bi.Booking.Payments
+                    .SelectMany(p => p.Refunds)
+                    .OrderByDescending(r => r.RefundTime)
+                    .Select(r => r.Reason)
+                    .FirstOrDefault()
             })
             .OrderByDescending(x => x.checkInDate)
             .ToListAsync();
@@ -434,7 +441,8 @@ public class PartnerController : ControllerBase
             o.isApprovedByPartner,
             approvedAt = ToVietnamTime(o.approvedAt),
             approvalDeadline = ToVietnamTime(o.approvalDeadline),
-            o.hoursUntilDeadline
+            o.hoursUntilDeadline,
+            o.cancellationReason
         }).ToList();
 
         return Ok(ordersWithVnTime);
@@ -482,6 +490,11 @@ public class PartnerController : ControllerBase
             .SelectMany(p => p.Refunds)
             .Sum(r => r.RefundAmount);
 
+        var latestRefund = booking.Payments
+            .SelectMany(p => p.Refunds)
+            .OrderByDescending(r => r.RefundTime)
+            .FirstOrDefault();
+
         var result = new
         {
             bookingId = booking.BookingId,
@@ -493,11 +506,12 @@ public class PartnerController : ControllerBase
             paymentMethod = latestPayment?.Method,
             paymentTime = ToVietnamTime(latestPayment?.PaymentTime),
             refundedAmount = totalRefunded,
+            cancellationReason = latestRefund?.Reason, // Lý do hủy
             isApprovedByPartner = booking.IsApprovedByPartner,
             approvedAt = ToVietnamTime(booking.ApprovedAt),
             approvalDeadline = ToVietnamTime(booking.ApprovalDeadline),
             hoursUntilDeadline = booking.ApprovalDeadline.HasValue 
-                ? (booking.ApprovalDeadline.Value - DateTime.UtcNow).TotalHours 
+                ? (booking.ApprovalDeadline.Value - DateTimeHelper.Now).TotalHours 
                 : (double?)null,
             items = booking.BookingItems.Select(item => new
             {

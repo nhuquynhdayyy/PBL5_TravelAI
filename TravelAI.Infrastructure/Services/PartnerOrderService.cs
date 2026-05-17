@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TravelAI.Application.Helpers;
 using TravelAI.Application.Interfaces;
 using TravelAI.Domain.Entities;
 using TravelAI.Domain.Enums;
@@ -54,7 +55,7 @@ public class PartnerOrderService : IPartnerOrderService
 
         // 5. Cập nhật trạng thái approved
         booking.IsApprovedByPartner = true;
-        booking.ApprovedAt = DateTime.UtcNow;
+        booking.ApprovedAt = DateTimeHelper.Now;
         await _context.SaveChangesAsync();
 
         // 6. Gửi email thông báo cho khách hàng
@@ -120,8 +121,8 @@ public class PartnerOrderService : IPartnerOrderService
                 PaymentId = latestPayment.PaymentId,
                 RefundAmount = refundAmount,
                 RefundRef = Guid.NewGuid().ToString("N")[..12].ToUpper(),
-                Reason = $"Partner rejected: {reason}",
-                RefundTime = DateTime.UtcNow
+                Reason = reason, // Chỉ lưu lý do, không thêm prefix
+                RefundTime = DateTimeHelper.Now
             });
         }
 

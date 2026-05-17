@@ -6,6 +6,7 @@ using TravelAI.Application.DTOs.Admin;
 using TravelAI.Application.DTOs.Partner;
 using TravelAI.Application.DTOs.Service;
 using TravelAI.Application.DTOs.User;
+using TravelAI.Application.Helpers;
 using TravelAI.Application.Interfaces;
 using TravelAI.Domain.Enums;
 using TravelAI.Infrastructure.Persistence;
@@ -35,7 +36,7 @@ public class AdminController : ControllerBase
     [HttpGet("stats")]
     public async Task<IActionResult> GetStats()
     {
-        var today = DateTime.UtcNow.Date;
+        var today = DateTimeHelper.Today;
         var rangeStart = today.AddDays(-29);
         var rangeEndExclusive = today.AddDays(1);
 
@@ -403,7 +404,7 @@ public async Task<IActionResult> RejectService(int id, [FromBody] RejectServiceR
 
         profile.VerificationStatus = PartnerVerificationStatus.Approved;
         profile.ReviewNote = NormalizeOptionalText(request?.ReviewNote);
-        profile.ReviewedAt = DateTime.UtcNow;
+        profile.ReviewedAt = DateTimeHelper.Now;
         await _context.SaveChangesAsync();
 
         return Ok(new { success = true, message = "Da duyet doi tac." });
@@ -425,7 +426,7 @@ public async Task<IActionResult> RejectService(int id, [FromBody] RejectServiceR
 
         profile.VerificationStatus = PartnerVerificationStatus.Rejected;
         profile.ReviewNote = request.ReviewNote.Trim();
-        profile.ReviewedAt = DateTime.UtcNow;
+        profile.ReviewedAt = DateTimeHelper.Now;
         await _context.SaveChangesAsync();
 return Ok(new { success = true, message = "Da tu choi doi tac." });
     }
@@ -446,7 +447,7 @@ return Ok(new { success = true, message = "Da tu choi doi tac." });
 
         profile.VerificationStatus = PartnerVerificationStatus.NeedMoreInfo;
         profile.ReviewNote = request.ReviewNote.Trim();
-        profile.ReviewedAt = DateTime.UtcNow;
+        profile.ReviewedAt = DateTimeHelper.Now;
         await _context.SaveChangesAsync();
 
         return Ok(new { success = true, message = "Da yeu cau doi tac bo sung thong tin." });
@@ -499,7 +500,7 @@ return Ok(new { success = true, message = "Da tu choi doi tac." });
 
         profile.VerificationStatus = PartnerVerificationStatus.Approved;
         profile.ReviewNote = NormalizeOptionalText(request?.ReviewNote);
-        profile.ReviewedAt = DateTime.UtcNow;
+        profile.ReviewedAt = DateTimeHelper.Now;
         await _context.SaveChangesAsync();
 
         return Ok(new { success = true, message = "Da duyet doi tac." });
@@ -521,7 +522,7 @@ return Ok(new { success = true, message = "Da tu choi doi tac." });
 
         profile.VerificationStatus = PartnerVerificationStatus.Rejected;
         profile.ReviewNote = request.ReviewNote.Trim();
-        profile.ReviewedAt = DateTime.UtcNow;
+        profile.ReviewedAt = DateTimeHelper.Now;
         await _context.SaveChangesAsync();
 
         return Ok(new { success = true, message = "Da tu choi doi tac." });

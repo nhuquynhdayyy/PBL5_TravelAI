@@ -19,6 +19,7 @@ import {
   Clock,
   Database,
 } from 'lucide-react';
+import { formatVietnameseDate, formatVietnameseDateTime } from '../../utils/dateTimeUtils';
 
 type UserItem = {
   userId: number;
@@ -109,6 +110,19 @@ const AdminUsers = () => {
     void fetchUsers(page, searchQuery, activeTab);
   }, [page, searchQuery, activeTab, fetchUsers]);
 
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (showActivityLog) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showActivityLog]);
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setPage(1);
@@ -175,23 +189,6 @@ const AdminUsers = () => {
     for (let i = start; i <= end; i++) range.push(i);
     return range;
   }, [page, totalPages]);
-
-  const formatDate = (iso: string) => {
-    const d = new Date(iso);
-    return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  };
-
-  const formatDateTime = (iso: string) => {
-    const d = new Date(iso);
-    return d.toLocaleString('vi-VN', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
-  };
 
   const getActionColor = (action: string) => {
     switch (action.toUpperCase()) {
@@ -370,7 +367,7 @@ const AdminUsers = () => {
 
                       {/* Created */}
                       <td className="px-6 py-4 text-sm font-semibold text-slate-600">
-                        {formatDate(user.createdAt)}
+                        {formatVietnameseDate(user.createdAt)}
                       </td>
 
                       {/* Status */}
@@ -478,8 +475,14 @@ const AdminUsers = () => {
 
       {/* Activity Log Modal */}
       {showActivityLog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="relative w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-3xl bg-white shadow-2xl">
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto"
+          onClick={() => setShowActivityLog(false)}
+        >
+          <div 
+            className="relative w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-3xl bg-white shadow-2xl my-8"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Header */}
             <div className="sticky top-0 z-10 border-b border-slate-100 bg-white px-8 py-6">
               <div className="flex items-start justify-between">
@@ -504,7 +507,7 @@ const AdminUsers = () => {
             </div>
 
             {/* Content */}
-            <div className="overflow-y-auto p-8" style={{ maxHeight: 'calc(90vh - 180px)' }}>
+            <div className="overflow-y-auto custom-scrollbar p-8" style={{ maxHeight: 'calc(90vh - 180px)' }}>
               {activityLogLoading ? (
                 <div className="flex justify-center py-20">
                   <Loader2 className="animate-spin text-indigo-600" size={40} />
@@ -540,7 +543,7 @@ const AdminUsers = () => {
                           </div>
                           <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
                             <Clock size={12} />
-                            {formatDateTime(log.timestamp)}
+                            {formatVietnameseDateTime(log.timestamp)}
                           </div>
                         </div>
                       </div>

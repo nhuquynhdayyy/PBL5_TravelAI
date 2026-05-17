@@ -219,7 +219,7 @@ const AdminManageServices = () => {
               </p>
             </div>
 
-            <div className="max-h-[70vh] overflow-y-auto p-4">
+            <div className="max-h-[70vh] overflow-y-auto custom-scrollbar p-4">
               {filteredServices.length === 0 ? (
                 <div className="rounded-[1.5rem] border border-dashed border-slate-200 bg-slate-50 px-6 py-14 text-center">
                   <p className="font-bold text-slate-400">Khong co dich vu nao phu hop bo loc hien tai.</p>

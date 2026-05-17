@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TravelAI.Application.Helpers;
 using TravelAI.Application.Interfaces;
 using TravelAI.Application.DTOs.Pricing;
 using TravelAI.Domain.Entities;
@@ -32,7 +33,7 @@ public class PricingService : IPricingService
             EndDate = endDate.Date,
             PriceMultiplier = priceMultiplier,
             Description = description,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTimeHelper.Now
         };
 
         _context.PricingRules.Add(rule);

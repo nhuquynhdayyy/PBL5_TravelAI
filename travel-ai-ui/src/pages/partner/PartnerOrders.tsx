@@ -16,6 +16,11 @@ import {
     XCircle
 } from 'lucide-react';
 import axiosClient from '../../api/axiosClient';
+import { 
+    formatVietnameseDate, 
+    formatVietnameseTime, 
+    formatVietnameseCurrency 
+} from '../../utils/dateTimeUtils';
 
 type PartnerOrder = {
     bookingId: number;
@@ -31,6 +36,7 @@ type PartnerOrder = {
     approvedAt?: string;
     approvalDeadline?: string;
     hoursUntilDeadline?: number;
+    cancellationReason?: string; // Lý do hủy đơn
 };
 
 const statusMap: Record<number, { label: string; className: string }> = {
@@ -49,7 +55,8 @@ const stringStatusMap: Record<string, number> = {
     cancelled: 4
 };
 
-const currencyFormatter = new Intl.NumberFormat('vi-VN');
+// Removed: const currencyFormatter = new Intl.NumberFormat('vi-VN');
+// Now using formatVietnameseCurrency from dateTimeUtils
 
 type FilterType = 'all' | 'pending-approval' | 'urgent' | 'approved' | 'cancelled';
 
@@ -136,6 +143,19 @@ const PartnerOrders = () => {
     useEffect(() => {
         fetchOrders();
     }, []);
+
+    // Lock body scroll when any modal is open
+    useEffect(() => {
+        if (showApproveModal || showRejectModal || showSuccessModal) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
+        }
+
+        return () => {
+            document.body.style.overflow = 'unset';
+        };
+    }, [showApproveModal, showRejectModal, showSuccessModal]);
 
     // Filter orders based on active filter
     const filteredOrders = orders.filter(order => {
@@ -295,7 +315,7 @@ const PartnerOrders = () => {
                         <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Tong gia tri</span>
                         <DollarSign className="text-amber-500" size={22} />
                     </div>
-                    <div className="text-3xl font-black text-slate-900">{currencyFormatter.format(totalRevenue)}d</div>
+                    <div className="text-3xl font-black text-slate-900">{formatVietnameseCurrency(totalRevenue)}₫</div>
                 </div>
             </div>
 
@@ -476,30 +496,39 @@ const PartnerOrders = () => {
 
                                     {/* Content Row */}
                                     <div className="px-6 py-4">
-                                        <div className="grid grid-cols-5 gap-6">
+                                        <div className="grid grid-cols-5 gap-4">
                                             <div>
                                                 <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
                                                     Khách hàng
                                                 </div>
-                                                <div className="font-bold text-slate-900">{order.customerName}</div>
+                                                <div className="font-bold text-slate-900 text-sm">{order.customerName}</div>
                                                 <div className="text-xs text-slate-500 mt-0.5">{order.customerEmail}</div>
+                                            </div>
+
+                                            <div>
+                                                <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                                                    Ngày đặt
+                                                </div>
+                                                <div className="font-bold text-slate-900 text-sm flex items-center gap-1">
+                                                    <Clock size={14} className="text-purple-500" />
+                                                    {formatVietnameseDate(order.createdAt)}
+                                                </div>
+                                                <div className="text-xs text-slate-500 mt-0.5">
+                                                    {formatVietnameseTime(order.createdAt)}
+                                                </div>
                                             </div>
 
                                             <div>
                                                 <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
                                                     Check-in
                                                 </div>
-                                                <div className="font-bold text-slate-900 flex items-center gap-2">
+                                                <div className="font-bold text-slate-900 text-sm flex items-center gap-1">
                                                     <CalendarDays size={14} className="text-blue-500" />
-                                                    {new Date(order.checkInDate).toLocaleDateString('vi-VN')}
+                                                    {formatVietnameseDate(order.checkInDate)}
                                                 </div>
-                                            </div>
-
-                                            <div>
-                                                <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
-                                                    Số lượng
+                                                <div className="text-xs text-slate-500 mt-0.5">
+                                                    SL: {order.quantity}
                                                 </div>
-                                                <div className="text-lg font-black text-slate-900">{order.quantity}</div>
                                             </div>
 
                                             <div>
@@ -507,7 +536,7 @@ const PartnerOrders = () => {
                                                     Tổng tiền
                                                 </div>
                                                 <div className="text-lg font-black text-emerald-600">
-                                                    {currencyFormatter.format(order.totalAmount)}₫
+                                                    {formatVietnameseCurrency(order.totalAmount)}₫
                                                 </div>
                                             </div>
 
@@ -618,9 +647,12 @@ const PartnerOrders = () => {
 
                                             <div className="bg-slate-50 rounded-xl p-3">
                                                 <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
-                                                    Số lượng
+                                                    Ngày đặt
                                                 </div>
-                                                <div className="font-black text-slate-900 text-lg">{order.quantity}</div>
+                                                <div className="font-bold text-slate-900 text-sm flex items-center gap-1">
+                                                    <Clock size={14} className="text-purple-500" />
+                                                    {formatVietnameseDate(order.createdAt)}
+                                                </div>
                                             </div>
 
                                             <div className="bg-slate-50 rounded-xl p-3">
@@ -629,16 +661,23 @@ const PartnerOrders = () => {
                                                 </div>
                                                 <div className="font-bold text-slate-900 text-sm flex items-center gap-1">
                                                     <CalendarDays size={14} className="text-blue-500" />
-                                                    {new Date(order.checkInDate).toLocaleDateString('vi-VN')}
+                                                    {formatVietnameseDate(order.checkInDate)}
                                                 </div>
                                             </div>
 
                                             <div className="bg-slate-50 rounded-xl p-3">
                                                 <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                                                    Số lượng
+                                                </div>
+                                                <div className="font-black text-slate-900 text-lg">{order.quantity}</div>
+                                            </div>
+
+                                            <div className="bg-slate-50 rounded-xl p-3 col-span-2">
+                                                <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
                                                     Tổng tiền
                                                 </div>
-                                                <div className="font-black text-emerald-600 text-base">
-                                                    {currencyFormatter.format(order.totalAmount)}₫
+                                                <div className="font-black text-emerald-600 text-xl">
+                                                    {formatVietnameseCurrency(order.totalAmount)}₫
                                                 </div>
                                             </div>
                                         </div>
@@ -719,8 +758,14 @@ const PartnerOrders = () => {
 
             {/* Approve Confirmation Modal */}
             {showApproveModal && (
-                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl animate-in fade-in zoom-in duration-200">
+                <div 
+                    className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm overflow-y-auto"
+                    onClick={() => setShowApproveModal(false)}
+                >
+                    <div 
+                        className="bg-white rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl animate-in fade-in zoom-in duration-200 my-8"
+                        onClick={(e) => e.stopPropagation()}
+                    >
                         <div className="text-center mb-6">
                             <div className="mx-auto w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
                                 <CheckCircle className="text-emerald-600" size={32} />
@@ -765,8 +810,17 @@ const PartnerOrders = () => {
 
             {/* Reject Modal */}
             {showRejectModal && (
-                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl animate-in fade-in zoom-in duration-200">
+                <div 
+                    className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm overflow-y-auto"
+                    onClick={() => {
+                        setShowRejectModal(false);
+                        setRejectReason('');
+                    }}
+                >
+                    <div 
+                        className="bg-white rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl animate-in fade-in zoom-in duration-200 my-8 max-h-[90vh] overflow-y-auto custom-scrollbar"
+                        onClick={(e) => e.stopPropagation()}
+                    >
                         <div className="text-center mb-6">
                             <div className="mx-auto w-16 h-16 bg-rose-100 rounded-full flex items-center justify-center mb-4">
                                 <XCircle className="text-rose-600" size={32} />
@@ -822,8 +876,14 @@ const PartnerOrders = () => {
 
             {/* Success Modal */}
             {showSuccessModal && (
-                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl animate-in fade-in zoom-in duration-200">
+                <div 
+                    className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm overflow-y-auto"
+                    onClick={() => setShowSuccessModal(false)}
+                >
+                    <div 
+                        className="bg-white rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl animate-in fade-in zoom-in duration-200 my-8"
+                        onClick={(e) => e.stopPropagation()}
+                    >
                         <div className="text-center">
                             <div className="mx-auto w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mb-4 animate-bounce">
                                 <CheckCircle className="text-emerald-600" size={40} />

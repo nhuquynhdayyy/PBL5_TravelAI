@@ -3,6 +3,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using TravelAI.Application.DTOs.AI;
+using TravelAI.Application.Helpers;
 using TravelAI.Application.Interfaces;
 using TravelAI.Application.Services.AI;
 using TravelAI.Domain.Entities;
@@ -108,7 +109,7 @@ public class ItineraryService : IItineraryService
             UserId = userId,
             UserPrompt = prompt,
             AiResponseJson = rawAiResponse,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTimeHelper.Now
         };
 
         _db.AISuggestionLogs.Add(aiLog);
