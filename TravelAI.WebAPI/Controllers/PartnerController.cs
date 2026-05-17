@@ -16,6 +16,24 @@ namespace TravelAI.WebAPI.Controllers;
 [Authorize(Roles = "Partner")]
 public class PartnerController : ControllerBase
 {
+    private const long MaxBusinessLicenseSizeBytes = 10 * 1024 * 1024;
+    private static readonly HashSet<string> AllowedBusinessLicenseExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".pdf",
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".webp"
+    };
+
+    private static readonly HashSet<string> AllowedBusinessLicenseContentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "application/pdf",
+        "image/jpeg",
+        "image/png",
+        "image/webp"
+    };
+
     private readonly ApplicationDbContext _context;
     private readonly IWebHostEnvironment _environment;
     private readonly IPartnerOrderService _partnerOrderService;
@@ -76,8 +94,7 @@ public class PartnerController : ControllerBase
         {
             return Unauthorized(new { message = "Vui long dang nhap!" });
         }
-
-        var partnerId = int.Parse(partnerIdClaim.Value);
+var partnerId = int.Parse(partnerIdClaim.Value);
 
         var profile = await _context.PartnerProfiles
             .FirstOrDefaultAsync(item => item.UserId == partnerId);
@@ -110,7 +127,14 @@ public class PartnerController : ControllerBase
 
         if (request.BusinessLicenseFile != null)
         {
-            profile.BusinessLicenseUrl = await SaveBusinessLicenseAsync(request.BusinessLicenseFile);
+            try
+            {
+                profile.BusinessLicenseUrl = await SaveBusinessLicenseAsync(request.BusinessLicenseFile);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         if (string.IsNullOrWhiteSpace(profile.BusinessLicenseUrl))
@@ -156,7 +180,7 @@ public class PartnerController : ControllerBase
         {
             case "day":
                 rangeStart = vietnamToday;
-                rangeEnd = vietnamToday;
+rangeEnd = vietnamToday;
                 break;
             case "week":
                 var diff = ((int)vietnamToday.DayOfWeek + 6) % 7;
@@ -231,7 +255,7 @@ public class PartnerController : ControllerBase
         var revenueByDay = Enumerable.Range(0, totalDays)
             .Select(offset => rangeStart.AddDays(offset))
             .Select(date => new PartnerDailyRevenueDto
-            {
+{
                 Date = date,
                 Revenue = dailyRevenueLookup.GetValueOrDefault(date, 0m)
             })
@@ -253,19 +277,90 @@ public class PartnerController : ControllerBase
 
     private async Task<string> SaveBusinessLicenseAsync(IFormFile file)
     {
+        var extension = await ValidateBusinessLicenseAsync(file);
         var folderPath = Path.Combine(_environment.WebRootPath, "uploads", "partner-documents");
         if (!Directory.Exists(folderPath))
         {
             Directory.CreateDirectory(folderPath);
         }
 
-        var fileName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+        var fileName = $"{Guid.NewGuid():N}{extension}";
         var filePath = Path.Combine(folderPath, fileName);
 
         await using var stream = new FileStream(filePath, FileMode.Create);
         await file.CopyToAsync(stream);
 
         return $"/uploads/partner-documents/{fileName}";
+    }
+
+    private static async Task<string> ValidateBusinessLicenseAsync(IFormFile file)
+    {
+        if (file.Length <= 0)
+        {
+            throw new InvalidOperationException("File giay phep kinh doanh khong duoc de trong.");
+        }
+
+        if (file.Length > MaxBusinessLicenseSizeBytes)
+        {
+            throw new InvalidOperationException("File giay phep kinh doanh khong duoc vuot qua 10MB.");
+        }
+
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (!AllowedBusinessLicenseExtensions.Contains(extension))
+        {
+            throw new InvalidOperationException("Chi chap nhan giay phep kinh doanh dang .pdf, .jpg, .jpeg, .png, .webp.");
+        }
+
+        if (string.IsNullOrWhiteSpace(file.ContentType) ||
+            !AllowedBusinessLicenseContentTypes.Contains(file.ContentType))
+        {
+            throw new InvalidOperationException("File giay phep kinh doanh khong dung dinh dang hop le.");
+        }
+
+        await using var stream = file.OpenReadStream();
+        var header = new byte[12];
+        var bytesRead = await stream.ReadAsync(header);
+        if (!HasValidBusinessLicenseSignature(header.AsSpan(0, bytesRead), extension))
+        {
+            throw new InvalidOperationException("Noi dung file giay phep kinh doanh khong hop le.");
+        }
+
+        return extension;
+    }
+
+    private static bool HasValidBusinessLicenseSignature(ReadOnlySpan<byte> header, string extension)
+    {
+        return extension switch
+        {
+            ".pdf" => header.Length >= 4 &&
+                header[0] == 0x25 &&
+                header[1] == 0x50 &&
+                header[2] == 0x44 &&
+header[3] == 0x46,
+            ".jpg" or ".jpeg" => header.Length >= 3 &&
+                header[0] == 0xFF &&
+                header[1] == 0xD8 &&
+                header[2] == 0xFF,
+            ".png" => header.Length >= 8 &&
+                header[0] == 0x89 &&
+                header[1] == 0x50 &&
+                header[2] == 0x4E &&
+                header[3] == 0x47 &&
+                header[4] == 0x0D &&
+                header[5] == 0x0A &&
+                header[6] == 0x1A &&
+                header[7] == 0x0A,
+            ".webp" => header.Length >= 12 &&
+                header[0] == 0x52 &&
+                header[1] == 0x49 &&
+                header[2] == 0x46 &&
+                header[3] == 0x46 &&
+                header[8] == 0x57 &&
+                header[9] == 0x45 &&
+                header[10] == 0x42 &&
+                header[11] == 0x50,
+            _ => false
+        };
     }
 
     private static PartnerProfileDto MapToPartnerProfileDto(PartnerProfile profile)
@@ -325,7 +420,7 @@ public class PartnerController : ControllerBase
                 && !b.IsApprovedByPartner
                 && b.ApprovalDeadline.HasValue
                 && b.ApprovalDeadline.Value <= now
-                && b.BookingItems.Any(bi => bi.Service.PartnerId == partnerId))
+&& b.BookingItems.Any(bi => bi.Service.PartnerId == partnerId))
             .ToListAsync();
 
         if (expiredOrders.Any())
@@ -407,7 +502,7 @@ public class PartnerController : ControllerBase
                 quantity = bi.Quantity,
                 totalAmount = bi.PriceAtBooking * bi.Quantity,
                 status = bi.Booking.Status,
-                createdAt = bi.Booking.CreatedAt,
+createdAt = bi.Booking.CreatedAt,
                 isApprovedByPartner = bi.Booking.IsApprovedByPartner,
                 approvedAt = bi.Booking.ApprovedAt,
                 approvalDeadline = bi.Booking.ApprovalDeadline,
@@ -492,7 +587,7 @@ public class PartnerController : ControllerBase
 
         var latestRefund = booking.Payments
             .SelectMany(p => p.Refunds)
-            .OrderByDescending(r => r.RefundTime)
+.OrderByDescending(r => r.RefundTime)
             .FirstOrDefault();
 
         var result = new
@@ -570,8 +665,7 @@ public class PartnerController : ControllerBase
         {
             return BadRequest(new { message = "Khong the tu choi don hang nay. Vui long kiem tra lai." });
         }
-
-        return Ok(new { message = "Da tu choi don hang va hoan tien cho khach hang." });
+return Ok(new { message = "Da tu choi don hang va hoan tien cho khach hang." });
     }
 
     [HttpGet("orders/pending-count")]

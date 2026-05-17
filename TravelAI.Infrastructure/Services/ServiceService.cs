@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using TravelAI.Application.DTOs.Service;
 using TravelAI.Application.Interfaces;
@@ -9,6 +10,24 @@ namespace TravelAI.Infrastructure.Services;
 
 public class ServiceService : IServiceService
 {
+    private const long MaxServiceImageSizeBytes = 5 * 1024 * 1024;
+    private static readonly HashSet<string> AllowedServiceImageExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".webp",
+        ".gif"
+    };
+
+    private static readonly HashSet<string> AllowedServiceImageContentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/gif"
+    };
+
     private readonly ApplicationDbContext _context;
     private readonly TravelAI.Infrastructure.ExternalServices.GeminiService _geminiService;
 
@@ -82,7 +101,7 @@ public class ServiceService : IServiceService
         {
             UserId = adminUserId,
             TableName = "Services",
-            RecordId = service.ServiceId,
+RecordId = service.ServiceId,
             Action = BuildRejectAuditMessage(reason)
         });
 
@@ -130,7 +149,8 @@ public async Task<ServiceDto> CreateAsync(int partnerId, CreateServiceRequest re
         {
             foreach (var file in request.Images)
             {
-                var fileName = Guid.NewGuid() + Path.GetExtension(file.FileName);
+                var extension = await ValidateServiceImageAsync(file);
+                var fileName = $"{Guid.NewGuid():N}{extension}";
                 var folderPath = Path.Combine(webRootPath, "uploads", "services");
                 if (!Directory.Exists(folderPath))
                 {
@@ -157,7 +177,7 @@ public async Task<ServiceDto> CreateAsync(int partnerId, CreateServiceRequest re
         return MapToDto(createdService);
     }
 
-    public async Task<bool> UpdateAsync(int id, CreateServiceRequest request, string webRootPath)
+    public async Task<bool> UpdateAsync(int id, CreateServiceRequest request, int requestingUserId, bool isAdmin, string webRootPath)
     {
         var service = await _context.Services
             .Include(x => x.Images)
@@ -168,7 +188,11 @@ public async Task<ServiceDto> CreateAsync(int partnerId, CreateServiceRequest re
             return false;
         }
 
-        await EnsurePartnerApprovedAsync(service.PartnerId);
+        if (!isAdmin && service.PartnerId != requestingUserId)
+        {
+            return false;
+        }
+await EnsurePartnerApprovedAsync(service.PartnerId);
         var validatedSpotId = await GetValidatedSpotIdAsync(request.SpotId);
 
         service.Name = request.Name;
@@ -190,7 +214,8 @@ public async Task<ServiceDto> CreateAsync(int partnerId, CreateServiceRequest re
 
             foreach (var file in request.Images)
             {
-var fileName = Guid.NewGuid() + Path.GetExtension(file.FileName);
+                var extension = await ValidateServiceImageAsync(file);
+                var fileName = $"{Guid.NewGuid():N}{extension}";
                 var filePath = Path.Combine(folderPath, fileName);
                 using var stream = new FileStream(filePath, FileMode.Create);
                 await file.CopyToAsync(stream);
@@ -205,13 +230,90 @@ var fileName = Guid.NewGuid() + Path.GetExtension(file.FileName);
         return await _context.SaveChangesAsync() > 0;
     }
 
-    public async Task<bool> DeleteAsync(int id, string webRootPath)
+    private static async Task<string> ValidateServiceImageAsync(IFormFile file)
+    {
+        if (file.Length <= 0)
+        {
+            throw new InvalidOperationException("File anh khong duoc de trong.");
+        }
+
+        if (file.Length > MaxServiceImageSizeBytes)
+        {
+            throw new InvalidOperationException("File anh khong duoc vuot qua 5MB.");
+        }
+
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (!AllowedServiceImageExtensions.Contains(extension))
+        {
+            throw new InvalidOperationException("Chi chap nhan file anh .jpg, .jpeg, .png, .webp, .gif.");
+        }
+
+        if (string.IsNullOrWhiteSpace(file.ContentType) ||
+            !AllowedServiceImageContentTypes.Contains(file.ContentType))
+        {
+            throw new InvalidOperationException("File khong phai dinh dang anh hop le.");
+        }
+
+        await using var stream = file.OpenReadStream();
+        var header = new byte[12];
+        var bytesRead = await stream.ReadAsync(header);
+        if (!HasValidImageSignature(header.AsSpan(0, bytesRead), extension))
+        {
+            throw new InvalidOperationException("Noi dung file anh khong hop le.");
+        }
+
+        return extension;
+    }
+
+    private static bool HasValidImageSignature(ReadOnlySpan<byte> header, string extension)
+    {
+        return extension switch
+        {
+            ".jpg" or ".jpeg" => header.Length >= 3 &&
+                header[0] == 0xFF &&
+header[1] == 0xD8 &&
+                header[2] == 0xFF,
+            ".png" => header.Length >= 8 &&
+                header[0] == 0x89 &&
+                header[1] == 0x50 &&
+                header[2] == 0x4E &&
+                header[3] == 0x47 &&
+                header[4] == 0x0D &&
+                header[5] == 0x0A &&
+                header[6] == 0x1A &&
+                header[7] == 0x0A,
+            ".gif" => header.Length >= 6 &&
+                header[0] == 0x47 &&
+                header[1] == 0x49 &&
+                header[2] == 0x46 &&
+                header[3] == 0x38 &&
+                (header[4] == 0x37 || header[4] == 0x39) &&
+                header[5] == 0x61,
+            ".webp" => header.Length >= 12 &&
+                header[0] == 0x52 &&
+                header[1] == 0x49 &&
+                header[2] == 0x46 &&
+                header[3] == 0x46 &&
+                header[8] == 0x57 &&
+                header[9] == 0x45 &&
+                header[10] == 0x42 &&
+                header[11] == 0x50,
+            _ => false
+        };
+    }
+
+    public async Task<bool> DeleteAsync(int id, int requestingUserId, bool isAdmin, string webRootPath)
     {
         var service = await _context.Services
             .Include(x => x.Images)
             .FirstOrDefaultAsync(x => x.ServiceId == id);
 
         if (service == null)
+        {
+            return false;
+        }
+
+        if (!isAdmin && service.PartnerId != requestingUserId)
         {
             return false;
         }
@@ -258,7 +360,7 @@ var fileName = Guid.NewGuid() + Path.GetExtension(file.FileName);
             partnerName,
             service.Name,
             service.Description ?? string.Empty,
-            service.BasePrice,
+service.BasePrice,
             service.ServiceType.ToString(),
             service.RatingAvg,
             service.SpotId,
@@ -348,7 +450,7 @@ Chỉ trả về đoạn tóm tắt, không thêm tiêu đề hay giải thích.
 
             // Cache lại kết quả
             service.ReviewSummary = summary.Trim();
-            await _context.SaveChangesAsync();
+await _context.SaveChangesAsync();
 
             return service.ReviewSummary;
         }
