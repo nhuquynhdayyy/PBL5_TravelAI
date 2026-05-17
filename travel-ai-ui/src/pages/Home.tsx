@@ -159,13 +159,17 @@ const FeaturedServicesSection = () => {
     const fetchServices = async () => {
       try {
         setLoading(true);
-        const response = await axiosClient.post('/services/filter', {
+        const requestBody = {
           pageNumber: 1,
           pageSize: 20,
           sortBy: 'rating',
           sortDescending: true,
-        });
+        };
+        console.log('🏠 Home Services Request:', requestBody);
+        
+        const response = await axiosClient.post('/services/filter', requestBody);
 
+        console.log('✅ Home Services Response:', response.data);
         const ranked = (response.data?.services || [])
           .filter(isHotelOrTour)
           .sort((a: any, b: any) => Number(b.ratingAvg || 0) - Number(a.ratingAvg || 0))
@@ -173,7 +177,7 @@ const FeaturedServicesSection = () => {
 
         setServices(ranked);
       } catch (error) {
-        console.error('Lỗi tải dịch vụ nổi bật:', error);
+        console.error('❌ Lỗi tải dịch vụ nổi bật:', error);
         setServices([]);
       } finally {
         setLoading(false);

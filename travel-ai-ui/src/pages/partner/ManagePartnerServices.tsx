@@ -5,6 +5,7 @@ import {
   BarChart3,
   Loader2,
   Plus,
+  RefreshCw,
   Settings2,
   Trash2
 } from 'lucide-react';
@@ -20,6 +21,7 @@ const ManagePartnerServices = () => {
   const [myServices, setMyServices] = useState<any[]>([]);
   const [profile, setProfile] = useState<PartnerProfileGate | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const navigate = useNavigate();
 
   const fetchData = async () => {
@@ -42,6 +44,23 @@ const ManagePartnerServices = () => {
     void fetchData();
   }, []);
 
+  useEffect(() => {
+    // Auto-refresh profile status every 10 seconds if not approved yet
+    if (!profile?.canCreateServices) {
+      const intervalId = setInterval(() => {
+        axiosClient.get('/partner/profile')
+          .then(response => {
+            setProfile(response.data || null);
+          })
+          .catch(error => {
+            console.error('Failed to refresh profile:', error);
+          });
+      }, 10000);
+
+      return () => clearInterval(intervalId);
+    }
+  }, [profile?.canCreateServices]);
+
   const canCreateServices = Boolean(profile?.canCreateServices);
 
   const handleDelete = async (id: number) => {
@@ -59,6 +78,23 @@ const ManagePartnerServices = () => {
   const handleBlockedAction = () => {
     alert('Ho so doi tac chua duoc duyet. Vui long hoan thien va gui ho so trong trang Business.');
     navigate('/partner/profile');
+  };
+
+  const handleRefreshProfile = async () => {
+    try {
+      setRefreshing(true);
+      const profileResponse = await axiosClient.get('/partner/profile');
+      setProfile(profileResponse.data || null);
+      
+      if (profileResponse.data?.canCreateServices) {
+        alert('Ho so cua ban da duoc duyet! Ban co the dang dich vu ngay bay gio.');
+      }
+    } catch (error) {
+      console.error('Failed to refresh profile:', error);
+      alert('Khong the cap nhat trang thai. Vui long thu lai.');
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   return (
@@ -90,7 +126,7 @@ const ManagePartnerServices = () => {
         <div className="mb-8 rounded-[2rem] border border-amber-200 bg-amber-50 p-5">
           <div className="flex items-start gap-3">
             <AlertCircle className="mt-0.5 text-amber-600" size={18} />
-            <div>
+            <div className="flex-grow">
               <p className="font-black text-amber-900">Tai khoan partner chua duoc phe duyet</p>
               <p className="mt-1 text-sm font-medium text-amber-800">
                 Chi khi ho so o trang Business duoc admin duyet thi ban moi co the dang hoac cap nhat dich vu.
@@ -99,6 +135,15 @@ const ManagePartnerServices = () => {
                 <p className="mt-2 text-sm font-semibold text-amber-900">Ghi chu admin: {profile.reviewNote}</p>
               )}
             </div>
+            <button
+              onClick={handleRefreshProfile}
+              disabled={refreshing}
+              className="flex items-center gap-2 rounded-xl bg-amber-600 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-amber-700 disabled:opacity-50"
+              title="Kiem tra lai trang thai duyet"
+            >
+              <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
+              {refreshing ? 'Dang kiem tra...' : 'Kiem tra lai'}
+            </button>
           </div>
         </div>
       )}

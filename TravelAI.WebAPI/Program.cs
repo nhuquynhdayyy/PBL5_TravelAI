@@ -131,6 +131,12 @@ using (var scope = app.Services.CreateScope())
             ADD [ReplyText] nvarchar(1000) NULL;
         END
 
+        IF COL_LENGTH('Reviews', 'ReplyTime') IS NULL
+        BEGIN
+            ALTER TABLE [Reviews]
+            ADD [ReplyTime] datetime2 NULL;
+        END
+
         IF NOT EXISTS (
             SELECT 1
             FROM sys.indexes
