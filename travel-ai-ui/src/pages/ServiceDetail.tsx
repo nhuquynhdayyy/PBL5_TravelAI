@@ -5,12 +5,15 @@ import {
   Loader2,
   MapPin,
   MessageSquareReply,
+  ShoppingCart,
   Star,
   Users,
   Zap
 } from 'lucide-react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import axiosClient from '../api/axiosClient';
+import AvailabilityCalendar, { getDisplayAvailabilityPrice } from '../components/AvailabilityCalendar';
+import { useCart } from '../contexts/CartContext';
 import { formatVietnameseDate, formatVietnameseDateTime } from '../utils/dateTimeUtils';
 import { getTodayVietnam } from '../utils/dateUtils';
 
@@ -112,6 +115,7 @@ const ServiceDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const { addItem } = useCart();
   const preselectedDate = new URLSearchParams(location.search).get('date') ?? '';
 
   const [service, setService] = useState<ServiceDetailDto | null>(null);
@@ -223,7 +227,8 @@ const ServiceDetail = () => {
       })
       .then((res) => {
         if (!isActive) return;
-        setActualPrice(res.data?.price ?? service.basePrice ?? 0);
+        const price = res.data?.price ?? service.basePrice ?? 0;
+        setActualPrice(getDisplayAvailabilityPrice({ date: selectedDate, price }));
       })
       .catch(() => {
         if (!isActive) return;
@@ -266,6 +271,25 @@ const ServiceDetail = () => {
     } finally {
       setBookingLoading(false);
     }
+  };
+
+  const handleAddToCart = () => {
+    if (!service) return;
+
+    if (!selectedDate) {
+      alert('Vui long chon ngay su dung truoc khi them vao gio hang.');
+      return;
+    }
+
+    addItem({
+      serviceId: service.serviceId,
+      serviceName: service.name,
+      checkInDate: new Date(selectedDate),
+      quantity,
+      price: actualPrice
+    });
+
+    alert('Da them dich vu vao gio hang.');
   };
 
   const handleSubmitReview = async () => {
@@ -331,10 +355,10 @@ const ServiceDetail = () => {
         <ArrowLeft size={20} /> Quay lại danh sách
       </button>
 
-      <div className="grid grid-cols-1 gap-12 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-10 xl:grid-cols-[minmax(0,1fr)_500px]">
         {/* LEFT: Images + Info */}
-        <div className="space-y-8 lg:col-span-2">
-          <div className="h-[500px] overflow-hidden rounded-[3rem] border-8 border-white shadow-2xl">
+        <div className="space-y-8">
+          <div className="h-[580px] overflow-hidden rounded-[3rem] border-8 border-white shadow-2xl">
             <img
               src={`http://localhost:5134${service.imageUrls[activeImg]}`}
               className="h-full w-full object-cover"
@@ -375,29 +399,30 @@ const ServiceDetail = () => {
         </div>
 
         {/* RIGHT: Booking Card */}
-        <div className="lg:col-span-1">
-          <div className="sticky top-32 rounded-[3rem] border border-slate-50 bg-white p-8 text-left shadow-2xl">
-            <div className="mb-6">
-              <p className="mb-1 text-xs font-black uppercase tracking-widest text-slate-400">Giá mỗi lượt từ</p>
-              <div className="flex items-baseline gap-1">
-                <span className="text-4xl font-black text-blue-600">
+        <div>
+          <div className="sticky top-28 rounded-[2.5rem] border border-slate-100 bg-white p-3 text-left shadow-2xl shadow-slate-200/70 sm:p-4">
+            <div className="mb-5 rounded-[2rem] bg-slate-50 p-5">
+              <p className="mb-2 text-xs font-black uppercase tracking-widest text-slate-400">Giá mỗi lượt từ</p>
+              <div className="flex flex-wrap items-end gap-x-2 gap-y-1">
+                <span className="whitespace-nowrap text-4xl font-black leading-none text-blue-600">
                   {new Intl.NumberFormat('vi-VN').format(actualPrice)}₫
                 </span>
-                <span className="text-sm font-bold text-slate-400">/ khách</span>
+                <span className="pb-1 text-sm font-bold text-slate-400">/ khách</span>
               </div>
             </div>
 
-            <div className="space-y-6 border-t pt-6">
+            <div className="space-y-5">
               <div>
-                <label className="mb-3 flex items-center gap-2 text-xs font-black uppercase text-slate-400">
+                <label className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-500">
                   <Calendar size={14} /> Chọn ngày sử dụng
                 </label>
-                <input
-                  type="date"
-                  className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 p-4 font-bold text-slate-700 outline-none transition-all focus:border-blue-500"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  min={getTodayVietnam()}
+                <AvailabilityCalendar
+                  serviceId={service.serviceId}
+                  selectedDate={selectedDate}
+                  onSelect={(day) => {
+                    setSelectedDate(day.date);
+                    setActualPrice(day.price);
+                  }}
                 />
               </div>
 
@@ -443,6 +468,13 @@ const ServiceDetail = () => {
                   <Zap size={20} fill="currentColor" />
                 )}
                 ĐẶT CHỖ NGAY
+              </button>
+              <button
+                type="button"
+                onClick={handleAddToCart}
+                className="flex w-full items-center justify-center gap-2 rounded-[2rem] border-2 border-slate-200 bg-white py-4 text-sm font-black text-slate-700 transition-all hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 active:scale-95"
+              >
+                <ShoppingCart size={18} /> THEM VAO GIO HANG
               </button>
             </div>
           </div>

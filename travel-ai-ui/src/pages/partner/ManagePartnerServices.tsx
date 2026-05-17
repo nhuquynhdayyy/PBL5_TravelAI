@@ -10,6 +10,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { refreshPartnerStatus, getUser } from '../../utils/userUtils';
 
 type PartnerProfileGate = {
   verificationStatus?: string;
@@ -27,6 +28,10 @@ const ManagePartnerServices = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
+      
+      // Refresh partner status và cập nhật localStorage
+      await refreshPartnerStatus();
+      
       const [servicesResponse, profileResponse] = await Promise.all([
         axiosClient.get('/services/my-services'),
         axiosClient.get('/partner/profile')
@@ -47,15 +52,19 @@ const ManagePartnerServices = () => {
   useEffect(() => {
     // Auto-refresh profile status every 10 seconds if not approved yet
     if (!profile?.canCreateServices) {
-      const intervalId = setInterval(() => {
-        axiosClient.get('/partner/profile')
-          .then(response => {
-            setProfile(response.data || null);
-          })
-          .catch(error => {
-            console.error('Failed to refresh profile:', error);
-          });
-      }, 10000);
+      const intervalId = setInterval(async () => {
+        // Refresh partner status và cập nhật localStorage
+        const updatedUser = await refreshPartnerStatus();
+        
+        // Cũng cập nhật state local
+        const profileResponse = await axiosClient.get('/partner/profile');
+        setProfile(profileResponse.data || null);
+        
+        // Nếu đã được duyệt, trigger re-render toàn bộ app
+        if (updatedUser?.canCreateServices) {
+          window.dispatchEvent(new Event('userUpdated'));
+        }
+      }, 10000); // 10 seconds
 
       return () => clearInterval(intervalId);
     }
@@ -83,11 +92,17 @@ const ManagePartnerServices = () => {
   const handleRefreshProfile = async () => {
     try {
       setRefreshing(true);
+      
+      // Refresh partner status và cập nhật localStorage
+      const updatedUser = await refreshPartnerStatus();
+      
       const profileResponse = await axiosClient.get('/partner/profile');
       setProfile(profileResponse.data || null);
       
       if (profileResponse.data?.canCreateServices) {
         alert('Ho so cua ban da duoc duyet! Ban co the dang dich vu ngay bay gio.');
+        // Trigger re-render toàn bộ app
+        window.dispatchEvent(new Event('userUpdated'));
       }
     } catch (error) {
       console.error('Failed to refresh profile:', error);

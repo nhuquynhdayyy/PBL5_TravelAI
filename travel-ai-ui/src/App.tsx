@@ -7,6 +7,7 @@ import AdminManageServices from './pages/Admin/AdminManageServices';
 import AdminManagePartners from './pages/Admin/AdminManagePartners';
 import AdminStats from './pages/Admin/AdminStats';
 import AdminUsers from './pages/Admin/AdminUsers';
+import AdminVietQrPayments from './pages/Admin/AdminVietQrPayments';
 import DestinationForm from './pages/Admin/DestinationForm';
 import EditDestination from './pages/Admin/EditDestination';
 import EditSpot from './pages/Admin/EditSpot';
@@ -15,10 +16,13 @@ import SpotForm from './pages/Admin/SpotForm';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import BookingSuccess from './pages/customer/BookingSuccess';
+import Cart from './pages/customer/Cart';
 import Checkout from './pages/customer/Checkout';
+import CheckoutFailed from './pages/customer/CheckoutFailed';
 import HotelsPage from './pages/customer/HotelsPage';
 import MockPayment from './pages/customer/MockPayment';
 import MyBookings from './pages/customer/MyBookings';
+import PaymentResult from './pages/customer/PaymentResult';
 import ToursPage from './pages/customer/ToursPage';
 import DestinationDetail from './pages/DestinationDetail';
 import Destinations from './pages/Destinations';
@@ -56,7 +60,11 @@ function App() {
         <Route path="/tours" element={<MainLayout><ToursPage /></MainLayout>} />
         <Route path="/transportation" element={<MainLayout><Transportation /></MainLayout>} />
         <Route path="/services/:id" element={<MainLayout><ServiceDetail /></MainLayout>} />
+        <Route path="/cart" element={<MainLayout><Cart /></MainLayout>} />
         <Route path="/checkout/:bookingId" element={<MainLayout><Checkout /></MainLayout>} />
+        <Route path="/checkout/failed/:bookingId" element={<MainLayout><CheckoutFailed /></MainLayout>} />
+        <Route path="/checkout/success/:bookingId" element={<MainLayout><BookingSuccess /></MainLayout>} />
+        <Route path="/payment-result/:method" element={<MainLayout><PaymentResult /></MainLayout>} />
         <Route path="/mock-payment/:provider/:bookingId" element={<MainLayout><MockPayment /></MainLayout>} />
         <Route path="/booking-success/:bookingId" element={<MainLayout><BookingSuccess /></MainLayout>} />
 
@@ -211,6 +219,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['admin']}>
               <MainLayout><AdminUsers /></MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/vietqr-payments"
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <MainLayout><AdminVietQrPayments /></MainLayout>
             </ProtectedRoute>
           }
         />

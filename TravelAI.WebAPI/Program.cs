@@ -12,6 +12,7 @@ using TravelAI.Domain.Interfaces;
 using TravelAI.Infrastructure.Repositories; 
 using TravelAI.Infrastructure.Services.AI;
 using TravelAI.Infrastructure.ExternalServices;
+using TravelAI.Infrastructure.ExternalServices.Payment;
 using TravelAI.Application.Services.AI;
 using TravelAI.Infrastructure.BackgroundJobs;
 using TravelAI.Infrastructure.Application.Services;
@@ -95,6 +96,10 @@ builder.Services.AddScoped<IEmailService, TravelAI.Infrastructure.ExternalServic
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IAIAnalyticsService, AIAnalyticsService>();
 
+builder.Services.Configure<VnPayOptions>(builder.Configuration.GetSection("VnPay"));
+builder.Services.AddHttpClient<IPaymentService, VnPayService>();
+builder.Services.Configure<MomoOptions>(builder.Configuration.GetSection("Momo"));
+builder.Services.AddHttpClient<IMomoService, MomoService>();
 builder.Services.AddHttpClient<GeminiService>();
 builder.Services.AddHttpClient<WeatherService>();
 builder.Services.AddScoped<AIParserService>();
@@ -122,7 +127,7 @@ using (var scope = app.Services.CreateScope())
     // Chạy migration tự động
     dbContext.Database.Migrate();
 
-    // Patch schema thủ công (tương thích migration cũ)
+    // Patch schema thủ công
     dbContext.Database.ExecuteSqlRaw(
         """
         IF COL_LENGTH('Reviews', 'ReplyText') IS NULL
@@ -131,11 +136,51 @@ using (var scope = app.Services.CreateScope())
             ADD [ReplyText] nvarchar(1000) NULL;
         END
 
+        -- Giữ phần của main: Thêm thời gian phản hồi review
         IF COL_LENGTH('Reviews', 'ReplyTime') IS NULL
         BEGIN
             ALTER TABLE [Reviews]
             ADD [ReplyTime] datetime2 NULL;
         END
+
+        -- Giữ phần của PAYMENT: Cấu trúc lại bảng Payments
+        IF COL_LENGTH('Payments', 'Provider') IS NULL
+        BEGIN
+            ALTER TABLE [Payments]
+            ADD [Provider] nvarchar(20) NOT NULL CONSTRAINT [DF_Payments_Provider] DEFAULT N'';
+        END
+
+        IF COL_LENGTH('Payments', 'Status') IS NULL
+        BEGIN
+            ALTER TABLE [Payments]
+            ADD [Status] int NOT NULL CONSTRAINT [DF_Payments_Status] DEFAULT 1;
+        END
+
+        IF COL_LENGTH('Payments', 'CreatedAt') IS NULL
+        BEGIN
+            ALTER TABLE [Payments]
+            ADD [CreatedAt] datetime2 NOT NULL CONSTRAINT [DF_Payments_CreatedAt] DEFAULT SYSUTCDATETIME();
+        END
+
+        IF COL_LENGTH('Payments', 'PaidAt') IS NULL
+        BEGIN
+            ALTER TABLE [Payments]
+            ADD [PaidAt] datetime2 NULL;
+        END
+
+        -- Cập nhật dữ liệu cũ cho bảng Payments
+        UPDATE [Payments]
+        SET [Provider] = [Method]
+        WHERE ([Provider] IS NULL OR [Provider] = N'')
+          AND COL_LENGTH('Payments', 'Method') IS NOT NULL;
+
+        UPDATE [Payments]
+        SET [Status] = 2,
+            [PaidAt] = [PaymentTime],
+            [CreatedAt] = [PaymentTime]
+        WHERE [Status] = 1
+          AND COL_LENGTH('Payments', 'PaymentTime') IS NOT NULL
+          AND [PaymentTime] > '1900-01-01';
 
         IF NOT EXISTS (
             SELECT 1

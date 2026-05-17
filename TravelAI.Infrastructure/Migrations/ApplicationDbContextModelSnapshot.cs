@@ -326,13 +326,27 @@ namespace TravelAI.Infrastructure.Migrations
                     b.Property<int>("BookingId")
                         .HasColumnType("int");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("Method")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<DateTime?>("PaidAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime>("PaymentTime")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
 
                     b.Property<string>("TransactionRef")
                         .HasMaxLength(100)
@@ -341,6 +355,8 @@ namespace TravelAI.Infrastructure.Migrations
                     b.HasKey("PaymentId");
 
                     b.HasIndex("BookingId");
+
+                    b.HasIndex("TransactionRef");
 
                     b.ToTable("Payments");
                 });
