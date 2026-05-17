@@ -128,13 +128,13 @@ const Header: React.FC = () => {
             {role === 'admin' && (
               <>
                 <Link to="/admin/stats" className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl font-black text-xs hover:bg-emerald-700 transition-all uppercase">
-                  <BarChart3 size={14} /> THONG KE
+                  <BarChart3 size={14} /> THỐNG KÊ
                 </Link>
                 <Link to="/admin/partners" className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl font-black text-xs hover:bg-red-700 transition-all uppercase">
-                  <LayoutDashboard size={14} /> DUYỆT PARTNER
+                  <LayoutDashboard size={14} /> QUẢN LÝ PARTNER
                 </Link>
                 <Link to="/admin/services" className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl font-black text-xs hover:bg-slate-700 transition-all uppercase">
-                  <Store size={14} /> DUYỆT DỊCH VỤ
+                  <Store size={14} /> QUẢN LÝ DỊCH VỤ
                 </Link>
                 <Link to="/admin/users" className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all uppercase">
                   <User size={14} /> QUẢN LÝ USER
