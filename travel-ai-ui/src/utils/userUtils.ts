@@ -54,8 +54,11 @@ export const refreshPartnerStatus = async (): Promise<UserData | null> => {
     setUser(updatedUser);
     
     return updatedUser;
-  } catch (error) {
-    console.error('Failed to refresh partner status:', error);
+  } catch (error: any) {
+    // Nếu lỗi 401/403 thì không log error (có thể là user không phải partner)
+    if (error.response?.status !== 401 && error.response?.status !== 403) {
+      console.error('Failed to refresh partner status:', error);
+    }
     return user;
   }
 };

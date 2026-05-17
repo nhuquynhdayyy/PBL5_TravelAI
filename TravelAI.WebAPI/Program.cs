@@ -127,7 +127,7 @@ using (var scope = app.Services.CreateScope())
     // Chạy migration tự động
     dbContext.Database.Migrate();
 
-    // Patch schema thủ công (tương thích migration cũ)
+    // Patch schema thủ công
     dbContext.Database.ExecuteSqlRaw(
         """
         IF COL_LENGTH('Reviews', 'ReplyText') IS NULL
@@ -136,6 +136,14 @@ using (var scope = app.Services.CreateScope())
             ADD [ReplyText] nvarchar(1000) NULL;
         END
 
+        -- Giữ phần của main: Thêm thời gian phản hồi review
+        IF COL_LENGTH('Reviews', 'ReplyTime') IS NULL
+        BEGIN
+            ALTER TABLE [Reviews]
+            ADD [ReplyTime] datetime2 NULL;
+        END
+
+        -- Giữ phần của PAYMENT: Cấu trúc lại bảng Payments
         IF COL_LENGTH('Payments', 'Provider') IS NULL
         BEGIN
             ALTER TABLE [Payments]
@@ -160,6 +168,7 @@ using (var scope = app.Services.CreateScope())
             ADD [PaidAt] datetime2 NULL;
         END
 
+        -- Cập nhật dữ liệu cũ cho bảng Payments
         UPDATE [Payments]
         SET [Provider] = [Method]
         WHERE ([Provider] IS NULL OR [Provider] = N'')

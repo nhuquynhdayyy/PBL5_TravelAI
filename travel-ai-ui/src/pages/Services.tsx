@@ -72,18 +72,23 @@ const Services: React.FC<ServicesProps> = ({ defaultType = '' }) => {
     const fetchServices = async () => {
       try {
         setLoading(true);
+        const requestBody = buildRequest(filters, debouncedKeyword, pageNumber);
+        console.log('🔍 Services Filter Request:', requestBody);
+        
         const response = await axiosClient.post<FilterResponse>(
           '/services/filter',
-          buildRequest(filters, debouncedKeyword, pageNumber),
+          requestBody,
           { signal: controller.signal },
         );
 
+        console.log('✅ Services Response:', response.data);
         setServices(response.data.services || []);
         setTotalCount(response.data.totalCount || 0);
         setTotalPages(response.data.totalPages || 1);
       } catch (error: any) {
         if (error.name !== 'CanceledError') {
-          console.error('Lỗi lấy danh sách dịch vụ:', error);
+          console.error('❌ Lỗi lấy danh sách dịch vụ:', error);
+          console.error('Error response:', error.response?.data);
           setServices([]);
         }
       } finally {
