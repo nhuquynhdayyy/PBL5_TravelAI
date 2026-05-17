@@ -3,16 +3,16 @@
 import React, { useState, useEffect } from 'react';
 import { Menu, X, Plane, LogOut, LayoutDashboard, Store, User, ChevronDown, Hotel, Compass, ClipboardList, MessageSquare, BarChart3, Building2, Package } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
+import { getUser } from '../../utils/userUtils';
 
 const Header: React.FC = () => {
   const [isServicesOpen, setIsServicesOpen] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [userState, setUserState] = useState(getUser());
   const navigate = useNavigate();
 
-  const userStr = localStorage.getItem('user');
-  const user = userStr ? JSON.parse(userStr) : null;
-  const role = user?.roleName?.toLowerCase(); 
+  const role = userState?.roleName?.toLowerCase(); 
 
   const handleLogout = () => {
     localStorage.clear();
@@ -24,6 +24,16 @@ const Header: React.FC = () => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    // Lắng nghe event userUpdated để cập nhật state
+    const handleUserUpdated = () => {
+      setUserState(getUser());
+    };
+    
+    window.addEventListener('userUpdated', handleUserUpdated);
+    return () => window.removeEventListener('userUpdated', handleUserUpdated);
   }, []);
 
   return (
@@ -145,11 +155,11 @@ const Header: React.FC = () => {
 
           {/* USER ACTIONS */}
           <div className="hidden md:flex items-center gap-3">
-            {user ? (
+            {userState ? (
                 <div className="flex items-center gap-4">
                     <div className="flex flex-col items-end">
                       <Link to="/profile" className="text-sm font-black text-slate-900 hover:text-blue-600 transition-all flex items-center gap-1">
-                        {user.fullName} <User size={14} className="text-blue-500" />
+                        {userState.fullName} <User size={14} className="text-blue-500" />
                       </Link>
                     </div>
                     <button onClick={handleLogout} className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors">

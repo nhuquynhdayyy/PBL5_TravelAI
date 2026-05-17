@@ -5,9 +5,11 @@ import {
   ArrowLeft,
   Loader2,
   MapPinned,
+  RefreshCw,
   Save,
   Upload,
 } from 'lucide-react';
+import { refreshPartnerStatus, getUser } from '../../utils/userUtils';
 
 type DestinationOption = {
   id: number;
@@ -26,6 +28,8 @@ const ServiceForm = () => {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [canCreateServices, setCanCreateServices] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [profileChecked, setProfileChecked] = useState(false);
   const [destinations, setDestinations] = useState<DestinationOption[]>([]);
   const [spots, setSpots] = useState<SpotOption[]>([]);
   const [loadingSpots, setLoadingSpots] = useState(false);
@@ -42,17 +46,43 @@ const ServiceForm = () => {
   const [previews, setPreviews] = useState<string[]>([]);
 
   useEffect(() => {
-    const user = JSON.parse(localStorage.getItem('user') || 'null');
+    const user = getUser();
     if (user?.roleName?.toLowerCase() === 'partner') {
-      axiosClient.get('/partner/profile')
-        .then((res) => {
-          if (res.data?.canCreateServices === false) {
+      // Refresh partner status và cập nhật localStorage
+      refreshPartnerStatus()
+        .then((updatedUser) => {
+          if (updatedUser?.canCreateServices === false) {
             setCanCreateServices(false);
           }
+          setProfileChecked(true);
         })
-        .catch((err) => console.error(err));
+        .catch((err) => {
+          console.error(err);
+          setProfileChecked(true);
+        });
+    } else {
+      setProfileChecked(true);
     }
   }, []);
+
+  useEffect(() => {
+    const user = getUser();
+    if (user?.roleName?.toLowerCase() === 'partner' && !canCreateServices) {
+      // Auto-refresh profile status every 10 seconds if not approved yet
+      const intervalId = setInterval(async () => {
+        const updatedUser = await refreshPartnerStatus();
+        if (updatedUser?.canCreateServices === true) {
+          setCanCreateServices(true);
+          // Trigger re-render toàn bộ app
+          window.dispatchEvent(new Event('userUpdated'));
+        } else if (updatedUser?.canCreateServices === false) {
+          setCanCreateServices(false);
+        }
+      }, 10000); // 10 seconds
+
+      return () => clearInterval(intervalId);
+    }
+  }, [canCreateServices]);
 
   useEffect(() => {
     const fetchDestinations = async () => {
@@ -183,6 +213,26 @@ const ServiceForm = () => {
     }
   };
 
+  const handleRefreshProfile = async () => {
+    try {
+      setRefreshing(true);
+      const updatedUser = await refreshPartnerStatus();
+      if (updatedUser?.canCreateServices === true) {
+        setCanCreateServices(true);
+        alert('Ho so cua ban da duoc duyet! Ban co the dang dich vu ngay bay gio.');
+        // Trigger re-render toàn bộ app
+        window.dispatchEvent(new Event('userUpdated'));
+      } else {
+        alert('Ho so cua ban van chua duoc duyet. Vui long cho admin xem xet.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Khong the cap nhat trang thai. Vui long thu lai.');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   if (fetching) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
@@ -196,16 +246,30 @@ const ServiceForm = () => {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16">
         <div className="rounded-[2.5rem] border border-amber-200 bg-amber-50 p-10 text-left">
-          <h2 className="mb-3 text-3xl font-black text-amber-900">Ho so partner chua duoc duyet</h2>
-          <p className="font-medium leading-7 text-amber-800">
-            Ban can hoan thien ho so doanh nghiep va cho admin phe duyet truoc khi dang hoac cap nhat dich vu.
-          </p>
-          <button
-            onClick={() => navigate('/partner/profile')}
-            className="mt-6 rounded-2xl bg-amber-600 px-6 py-3 font-black text-white"
-          >
-            Ve trang Business
-          </button>
+          <div className="mb-6 flex items-start justify-between gap-4">
+            <div>
+              <h2 className="mb-3 text-3xl font-black text-amber-900">Ho so partner chua duoc duyet</h2>
+              <p className="font-medium leading-7 text-amber-800">
+                Ban can hoan thien ho so doanh nghiep va cho admin phe duyet truoc khi dang hoac cap nhat dich vu.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={() => navigate('/partner/profile')}
+              className="rounded-2xl bg-amber-600 px-6 py-3 font-black text-white transition-all hover:bg-amber-700"
+            >
+              Ve trang Business
+            </button>
+            <button
+              onClick={handleRefreshProfile}
+              disabled={refreshing}
+              className="flex items-center gap-2 rounded-2xl bg-slate-600 px-6 py-3 font-black text-white transition-all hover:bg-slate-700 disabled:opacity-50"
+            >
+              <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
+              {refreshing ? 'Dang kiem tra...' : 'Kiem tra lai'}
+            </button>
+          </div>
         </div>
       </div>
     );
