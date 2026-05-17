@@ -16,4 +16,8 @@ public interface IServiceService
     Task<bool> RejectAsync(int id, string reason, int adminUserId);
     Task<bool> ToggleStatusAsync(int id);
     Task<string?> GetReviewSummaryAsync(int serviceId);
+    
+    // New filtering methods
+    Task<ServiceFilterResponse> FilterServicesAsync(ServiceFilterRequest request);
+    Task<ServiceFilterMetadata> GetFilterMetadataAsync(string? serviceType = null);
 }

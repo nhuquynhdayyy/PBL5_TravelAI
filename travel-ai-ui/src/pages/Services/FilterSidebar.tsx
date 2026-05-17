@@ -1,29 +1,108 @@
 import React, { useState, useEffect } from 'react';
-import { Star, SlidersHorizontal, RotateCcw, BadgeDollarSign, LayoutGrid } from 'lucide-react';
+import { Star, SlidersHorizontal, RotateCcw, BadgeDollarSign, LayoutGrid, Hotel, Compass, Car, UtensilsCrossed, Clock, MapPin } from 'lucide-react';
 
 export interface FilterState {
   types: string[];
   minPrice: number | '';
   maxPrice: number | '';
   ratings: number[];
+  // Hotel specific
+  hotelStars?: number;
+  hotelAmenities?: string[];
+  // Tour specific
+  tourThemes?: string[];
+  tourDuration?: string;
+  // Transport specific
+  transportType?: string;
+  departureTime?: string;
+  // Restaurant specific
+  cuisineTypes?: string[];
+  mealType?: string;
+  // Dynamic attributes
+  attributes?: Record<string, string>;
 }
 
 interface FilterSidebarProps {
   onFilterChange: (filters: FilterState) => void;
+  selectedServiceType?: string; // Để hiển thị filter động theo loại dịch vụ
 }
 
 const SERVICE_TYPES = [
   { id: 'Hotel', label: 'Khách sạn', emoji: '🏨' },
   { id: 'Tour', label: 'Tour du lịch', emoji: '🗺️' },
-  { id: 'Experience', label: 'Trải nghiệm', emoji: '✨' },
+  { id: 'Transport', label: 'Vận chuyển', emoji: '🚗' },
+  { id: 'Restaurant', label: 'Nhà hàng', emoji: '🍽️' },
+  { id: 'Activity', label: 'Hoạt động', emoji: '✨' },
 ];
 
-const FilterSidebar: React.FC<FilterSidebarProps> = ({ onFilterChange }) => {
+// Hotel amenities
+const HOTEL_AMENITIES = [
+  { id: 'Wifi', label: 'Wifi miễn phí', icon: '📶' },
+  { id: 'Pool', label: 'Hồ bơi', icon: '🏊' },
+  { id: 'Breakfast', label: 'Ăn sáng', icon: '🍳' },
+  { id: 'Parking', label: 'Bãi đỗ xe', icon: '🅿️' },
+  { id: 'Gym', label: 'Phòng gym', icon: '💪' },
+  { id: 'Spa', label: 'Spa', icon: '💆' },
+];
+
+// Tour themes
+const TOUR_THEMES = [
+  { id: 'Culture', label: 'Văn hóa', icon: '🏛️' },
+  { id: 'Adventure', label: 'Mạo hiểm', icon: '🏔️' },
+  { id: 'Relax', label: 'Nghỉ dưỡng', icon: '🏖️' },
+  { id: 'Food', label: 'Ẩm thực', icon: '🍜' },
+  { id: 'Nature', label: 'Thiên nhiên', icon: '🌿' },
+];
+
+// Tour durations
+const TOUR_DURATIONS = [
+  { id: '1day', label: '1 ngày' },
+  { id: '2days1night', label: '2 ngày 1 đêm' },
+  { id: '3days2nights', label: '3 ngày 2 đêm' },
+  { id: '4days3nights', label: '4 ngày 3 đêm' },
+];
+
+// Transport types
+const TRANSPORT_TYPES = [
+  { id: 'Limousine', label: 'Limousine', icon: '🚙' },
+  { id: 'Bus', label: 'Xe khách', icon: '🚌' },
+  { id: 'Train', label: 'Tàu hỏa', icon: '🚂' },
+  { id: 'Plane', label: 'Máy bay', icon: '✈️' },
+];
+
+// Departure times
+const DEPARTURE_TIMES = [
+  { id: 'morning', label: 'Sáng (6h-12h)', icon: '🌅' },
+  { id: 'afternoon', label: 'Chiều (12h-18h)', icon: '☀️' },
+  { id: 'evening', label: 'Tối (18h-24h)', icon: '🌙' },
+];
+
+// Cuisine types
+const CUISINE_TYPES = [
+  { id: 'Vietnamese', label: 'Việt Nam', icon: '🇻🇳' },
+  { id: 'Japanese', label: 'Nhật Bản', icon: '🇯🇵' },
+  { id: 'Korean', label: 'Hàn Quốc', icon: '🇰🇷' },
+  { id: 'Chinese', label: 'Trung Quốc', icon: '🇨🇳' },
+  { id: 'Western', label: 'Âu Mỹ', icon: '🍔' },
+  { id: 'Italian', label: 'Ý', icon: '🇮🇹' },
+];
+
+// Meal types
+const MEAL_TYPES = [
+  { id: 'breakfast', label: 'Bữa sáng', icon: '🌅' },
+  { id: 'lunch', label: 'Bữa trưa', icon: '☀️' },
+  { id: 'dinner', label: 'Bữa tối', icon: '🌙' },
+];
+
+const FilterSidebar: React.FC<FilterSidebarProps> = ({ onFilterChange, selectedServiceType }) => {
   const [filters, setFilters] = useState<FilterState>({
     types: [],
     minPrice: '',
     maxPrice: '',
     ratings: [],
+    hotelAmenities: [],
+    tourThemes: [],
+    cuisineTypes: [],
   });
 
   useEffect(() => {
@@ -55,11 +134,100 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({ onFilterChange }) => {
     }));
   };
 
+  // Hotel filters
+  const toggleAmenity = (amenity: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      hotelAmenities: prev.hotelAmenities?.includes(amenity)
+        ? prev.hotelAmenities.filter((a) => a !== amenity)
+        : [...(prev.hotelAmenities || []), amenity],
+    }));
+  };
+
+  const setHotelStars = (stars: number) => {
+    setFilters((prev) => ({
+      ...prev,
+      hotelStars: prev.hotelStars === stars ? undefined : stars,
+    }));
+  };
+
+  // Tour filters
+  const toggleTourTheme = (theme: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      tourThemes: prev.tourThemes?.includes(theme)
+        ? prev.tourThemes.filter((t) => t !== theme)
+        : [...(prev.tourThemes || []), theme],
+    }));
+  };
+
+  const setTourDuration = (duration: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      tourDuration: prev.tourDuration === duration ? undefined : duration,
+    }));
+  };
+
+  // Transport filters
+  const setTransportType = (type: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      transportType: prev.transportType === type ? undefined : type,
+    }));
+  };
+
+  const setDepartureTime = (time: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      departureTime: prev.departureTime === time ? undefined : time,
+    }));
+  };
+
+  // Restaurant filters
+  const toggleCuisineType = (cuisine: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      cuisineTypes: prev.cuisineTypes?.includes(cuisine)
+        ? prev.cuisineTypes.filter((c) => c !== cuisine)
+        : [...(prev.cuisineTypes || []), cuisine],
+    }));
+  };
+
+  const setMealType = (meal: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      mealType: prev.mealType === meal ? undefined : meal,
+    }));
+  };
+
+  const resetFilters = () => {
+    setFilters({
+      types: [],
+      minPrice: '',
+      maxPrice: '',
+      ratings: [],
+      hotelAmenities: [],
+      tourThemes: [],
+      cuisineTypes: [],
+    });
+  };
+
   const isActive =
     filters.types.length > 0 ||
     filters.minPrice !== '' ||
     filters.maxPrice !== '' ||
-    filters.ratings.length > 0;
+    filters.ratings.length > 0 ||
+    (filters.hotelAmenities && filters.hotelAmenities.length > 0) ||
+    filters.hotelStars !== undefined ||
+    (filters.tourThemes && filters.tourThemes.length > 0) ||
+    filters.tourDuration !== undefined ||
+    filters.transportType !== undefined ||
+    filters.departureTime !== undefined ||
+    (filters.cuisineTypes && filters.cuisineTypes.length > 0) ||
+    filters.mealType !== undefined;
+
+  // Determine which service type to show specific filters for
+  const activeServiceType = selectedServiceType || (filters.types.length === 1 ? filters.types[0] : null);
 
   return (
     <>
@@ -80,7 +248,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({ onFilterChange }) => {
           </div>
           {isActive && (
             <button
-              onClick={() => setFilters({ types: [], minPrice: '', maxPrice: '', ratings: [] })}
+              onClick={resetFilters}
               className="flex items-center gap-1.5 text-white/80 hover:text-white text-xs font-semibold transition-colors"
             >
               <RotateCcw size={12} />
@@ -200,6 +368,270 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({ onFilterChange }) => {
               })}
             </div>
           </div>
+
+          {/* ── HOTEL SPECIFIC FILTERS ── */}
+          {activeServiceType === 'Hotel' && (
+            <>
+              {/* Divider */}
+              <div className="border-t border-dashed border-slate-100" />
+
+              {/* Hotel Stars */}
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <Hotel size={15} className="text-amber-500" />
+                  <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Hạng sao khách sạn</h3>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  {[5, 4, 3, 2, 1].map((stars) => (
+                    <button
+                      key={stars}
+                      onClick={() => setHotelStars(stars)}
+                      className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${
+                        filters.hotelStars === stars
+                          ? 'bg-amber-500 text-white shadow-md'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {stars}⭐
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Hotel Amenities */}
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-amber-500">🏨</span>
+                  <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Tiện ích</h3>
+                </div>
+                <div className="space-y-1">
+                  {HOTEL_AMENITIES.map((amenity) => {
+                    const active = filters.hotelAmenities?.includes(amenity.id);
+                    return (
+                      <button
+                        key={amenity.id}
+                        onClick={() => toggleAmenity(amenity.id)}
+                        className={`filter-chip w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                          active
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                            : 'text-slate-600 hover:bg-slate-50 border border-transparent'
+                        }`}
+                      >
+                        <span className="text-base">{amenity.icon}</span>
+                        <span>{amenity.label}</span>
+                        {active && (
+                          <span className="ml-auto w-2 h-2 rounded-full bg-amber-500" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ── TOUR SPECIFIC FILTERS ── */}
+          {activeServiceType === 'Tour' && (
+            <>
+              {/* Divider */}
+              <div className="border-t border-dashed border-slate-100" />
+
+              {/* Tour Themes */}
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <Compass size={15} className="text-amber-500" />
+                  <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Chủ đề tour</h3>
+                </div>
+                <div className="space-y-1">
+                  {TOUR_THEMES.map((theme) => {
+                    const active = filters.tourThemes?.includes(theme.id);
+                    return (
+                      <button
+                        key={theme.id}
+                        onClick={() => toggleTourTheme(theme.id)}
+                        className={`filter-chip w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                          active
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                            : 'text-slate-600 hover:bg-slate-50 border border-transparent'
+                        }`}
+                      >
+                        <span className="text-base">{theme.icon}</span>
+                        <span>{theme.label}</span>
+                        {active && (
+                          <span className="ml-auto w-2 h-2 rounded-full bg-amber-500" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Tour Duration */}
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <Clock size={15} className="text-amber-500" />
+                  <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Thời lượng</h3>
+                </div>
+                <div className="space-y-1">
+                  {TOUR_DURATIONS.map((duration) => {
+                    const active = filters.tourDuration === duration.id;
+                    return (
+                      <button
+                        key={duration.id}
+                        onClick={() => setTourDuration(duration.id)}
+                        className={`filter-chip w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                          active
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                            : 'text-slate-600 hover:bg-slate-50 border border-transparent'
+                        }`}
+                      >
+                        <span>{duration.label}</span>
+                        {active && (
+                          <span className="ml-auto w-2 h-2 rounded-full bg-amber-500" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ── TRANSPORT SPECIFIC FILTERS ── */}
+          {activeServiceType === 'Transport' && (
+            <>
+              {/* Divider */}
+              <div className="border-t border-dashed border-slate-100" />
+
+              {/* Transport Type */}
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <Car size={15} className="text-amber-500" />
+                  <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Loại phương tiện</h3>
+                </div>
+                <div className="space-y-1">
+                  {TRANSPORT_TYPES.map((type) => {
+                    const active = filters.transportType === type.id;
+                    return (
+                      <button
+                        key={type.id}
+                        onClick={() => setTransportType(type.id)}
+                        className={`filter-chip w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                          active
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                            : 'text-slate-600 hover:bg-slate-50 border border-transparent'
+                        }`}
+                      >
+                        <span className="text-base">{type.icon}</span>
+                        <span>{type.label}</span>
+                        {active && (
+                          <span className="ml-auto w-2 h-2 rounded-full bg-amber-500" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Departure Time */}
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <Clock size={15} className="text-amber-500" />
+                  <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Giờ khởi hành</h3>
+                </div>
+                <div className="space-y-1">
+                  {DEPARTURE_TIMES.map((time) => {
+                    const active = filters.departureTime === time.id;
+                    return (
+                      <button
+                        key={time.id}
+                        onClick={() => setDepartureTime(time.id)}
+                        className={`filter-chip w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                          active
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                            : 'text-slate-600 hover:bg-slate-50 border border-transparent'
+                        }`}
+                      >
+                        <span className="text-base">{time.icon}</span>
+                        <span>{time.label}</span>
+                        {active && (
+                          <span className="ml-auto w-2 h-2 rounded-full bg-amber-500" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ── RESTAURANT SPECIFIC FILTERS ── */}
+          {activeServiceType === 'Restaurant' && (
+            <>
+              {/* Divider */}
+              <div className="border-t border-dashed border-slate-100" />
+
+              {/* Cuisine Types */}
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <UtensilsCrossed size={15} className="text-amber-500" />
+                  <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Loại ẩm thực</h3>
+                </div>
+                <div className="space-y-1">
+                  {CUISINE_TYPES.map((cuisine) => {
+                    const active = filters.cuisineTypes?.includes(cuisine.id);
+                    return (
+                      <button
+                        key={cuisine.id}
+                        onClick={() => toggleCuisineType(cuisine.id)}
+                        className={`filter-chip w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                          active
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                            : 'text-slate-600 hover:bg-slate-50 border border-transparent'
+                        }`}
+                      >
+                        <span className="text-base">{cuisine.icon}</span>
+                        <span>{cuisine.label}</span>
+                        {active && (
+                          <span className="ml-auto w-2 h-2 rounded-full bg-amber-500" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Meal Type */}
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <Clock size={15} className="text-amber-500" />
+                  <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Bữa ăn</h3>
+                </div>
+                <div className="space-y-1">
+                  {MEAL_TYPES.map((meal) => {
+                    const active = filters.mealType === meal.id;
+                    return (
+                      <button
+                        key={meal.id}
+                        onClick={() => setMealType(meal.id)}
+                        className={`filter-chip w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                          active
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                            : 'text-slate-600 hover:bg-slate-50 border border-transparent'
+                        }`}
+                      >
+                        <span className="text-base">{meal.icon}</span>
+                        <span>{meal.label}</span>
+                        {active && (
+                          <span className="ml-auto w-2 h-2 rounded-full bg-amber-500" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Active filter count footer */}

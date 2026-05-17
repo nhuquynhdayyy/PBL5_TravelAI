@@ -1,126 +1,135 @@
 import React from 'react';
-import { Bus, Plane, MapPin, Star, Clock, ArrowRight, Calendar } from 'lucide-react';
+import { ArrowRight, Bus, Clock, MapPin, Plane, Star } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface TransportCardProps {
-    service: any;
+  service: any;
 }
 
+const toAttributes = (attributes: any) => {
+  if (Array.isArray(attributes)) {
+    return attributes;
+  }
+
+  return Object.entries(attributes || {}).map(([attrKey, attrValue]) => ({
+    attrKey,
+    attrValue: String(attrValue),
+  }));
+};
+
+const includesAny = (value: string | undefined, terms: string[]) => {
+  const normalized = (value || '').toLowerCase();
+  return terms.some((term) => normalized.includes(term.toLowerCase()));
+};
+
 const TransportCard: React.FC<TransportCardProps> = ({ service }) => {
-    const navigate = useNavigate();
+  const navigate = useNavigate();
+  const attributes = toAttributes(service.attributes);
 
-    const getImageUrl = (urls: string[]) => {
-        if (!urls || urls.length === 0) return 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=800';
-        return urls[0].startsWith('http') ? urls[0] : `http://localhost:5134${urls[0]}`;
-    };
+  const getImageUrl = (urls: string[]) => {
+    if (!urls || urls.length === 0) return 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=800';
+    return urls[0].startsWith('http') ? urls[0] : `http://localhost:5134${urls[0]}`;
+  };
 
-    // Phân loại: Bus hoặc Flight dựa vào attributes hoặc tên
-    const isFlight = service.name?.toLowerCase().includes('máy bay') || 
-                     service.name?.toLowerCase().includes('vé bay') ||
-                     service.attributes?.some((attr: any) => attr.attrKey === 'Hãng bay');
+  const hasFlightAttribute = attributes.some((attr: any) =>
+    includesAny(attr.attrKey, ['Hãng bay', 'Hang bay', 'Airline']),
+  );
+  const isFlight = includesAny(service.name, ['máy bay', 'vé bay', 'flight']) || hasFlightAttribute;
+  const transportType = isFlight
+    ? { icon: Plane, label: 'Máy bay', color: 'bg-sky-600' }
+    : { icon: Bus, label: 'Xe khách', color: 'bg-purple-600' };
+  const Icon = transportType.icon;
 
-    const getTransportType = () => {
-        if (isFlight) return { icon: Plane, label: 'Máy bay', color: 'bg-sky-600' };
-        return { icon: Bus, label: 'Xe khách', color: 'bg-purple-600' };
-    };
+  const findAttribute = (keys: string[]) =>
+    attributes.find((attr: any) => keys.some((key) => includesAny(attr.attrKey, [key])));
 
-    const transportType = getTransportType();
-    const Icon = transportType.icon;
+  const getDuration = () => {
+    const timeAttr = findAttribute(['Thời gian', 'Thời gian bay', 'Duration']);
+    return timeAttr?.attrValue || 'Đang cập nhật';
+  };
 
-    // Lấy thông tin từ attributes
-    const getDuration = () => {
-        const timeAttr = service.attributes?.find((a: any) => 
-            a.attrKey === 'Thời gian' || a.attrKey === 'Thời gian bay'
-        );
-        return timeAttr?.attrValue || 'Đang cập nhật';
-    };
+  const getCarrier = () => {
+    const carrierAttr = findAttribute(['Hãng bay', 'Loại xe', 'Nhà xe', 'Phương tiện']);
+    return carrierAttr?.attrValue || service.partnerName;
+  };
 
-    const getCarrier = () => {
-        const carrierAttr = service.attributes?.find((a: any) => 
-            a.attrKey === 'Hãng bay' || a.attrKey === 'Loại xe'
-        );
-        return carrierAttr?.attrValue || service.partnerName;
-    };
-
-    return (
-        <div 
-            onClick={() => navigate(`/services/${service.serviceId}`)}
-            className="group bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden hover:shadow-2xl transition-all duration-500 cursor-pointer flex flex-col h-full"
-        >
-            <div className="h-48 overflow-hidden relative">
-                <img 
-                    src={getImageUrl(service.imageUrls)} 
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
-                    alt={service.name} 
-                />
-                <div className="absolute top-4 left-4">
-                    <div className={`${transportType.color} backdrop-blur-md px-4 py-1.5 rounded-full text-[10px] font-black uppercase text-white flex items-center gap-1.5`}>
-                        <Icon size={14} /> {transportType.label}
-                    </div>
-                </div>
-                <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-1">
-                    <Star size={12} className="text-orange-400 fill-orange-400" />
-                    <span className="text-xs font-black text-slate-800">{service.ratingAvg || 4.5}</span>
-                </div>
-            </div>
-
-            <div className="p-6 flex flex-col flex-grow text-left">
-                <div className="mb-4">
-                    <h3 className="font-black text-lg text-slate-800 line-clamp-2 mb-2 leading-tight">
-                        {service.name}
-                    </h3>
-                    
-                    <div className="flex flex-col gap-2 text-xs">
-                        <div className="flex items-center gap-1.5 text-slate-500">
-                            <Clock size={12} className="text-blue-500" />
-                            <span className="font-bold">{getDuration()}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-slate-500">
-                            <MapPin size={12} className="text-red-500" />
-                            <span className="font-bold">{getCarrier()}</span>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Hiển thị một số tiện ích nổi bật */}
-                <div className="flex flex-wrap gap-2 mb-4">
-                    {service.attributes?.slice(0, 3).map((attr: any, idx: number) => (
-                        <span 
-                            key={idx}
-                            className="text-[9px] font-bold uppercase tracking-wider px-2 py-1 bg-slate-100 text-slate-600 rounded-lg"
-                        >
-                            {attr.attrValue}
-                        </span>
-                    ))}
-                </div>
-
-                <div className="mt-auto pt-4 border-t border-slate-50">
-                    <div className="flex items-end justify-between mb-4">
-                        <div>
-                            <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Giá từ</p>
-                            <p className="text-purple-600 font-black text-2xl">
-                                {new Intl.NumberFormat('vi-VN').format(service.basePrice)}₫
-                            </p>
-                        </div>
-                        <div className="text-[10px] text-slate-400 font-bold">
-                            Cung cấp bởi<br/>
-                            <span className="text-blue-500">{service.partnerName}</span>
-                        </div>
-                    </div>
-
-                    <button 
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/services/${service.serviceId}`);
-                        }}
-                        className="w-full py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-2xl font-bold text-sm flex items-center justify-center gap-2 group-hover:shadow-lg transition-all"
-                    >
-                        XEM CHI TIẾT <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-                    </button>
-                </div>
-            </div>
+  return (
+    <div
+      onClick={() => navigate(`/services/${service.serviceId}`)}
+      className="group flex h-full cursor-pointer flex-col overflow-hidden rounded-[2.5rem] border border-slate-100 bg-white shadow-sm transition-all duration-500 hover:shadow-2xl"
+    >
+      <div className="relative h-48 overflow-hidden">
+        <img
+          src={getImageUrl(service.imageUrls)}
+          className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
+          alt={service.name}
+        />
+        <div className="absolute left-4 top-4">
+          <div className={`${transportType.color} flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[10px] font-black uppercase text-white backdrop-blur-md`}>
+            <Icon size={14} /> {transportType.label}
+          </div>
         </div>
-    );
+        <div className="absolute right-4 top-4 flex items-center gap-1 rounded-full bg-white/90 px-3 py-1.5 backdrop-blur-sm">
+          <Star size={12} className="fill-orange-400 text-orange-400" />
+          <span className="text-xs font-black text-slate-800">{service.ratingAvg || 4.5}</span>
+        </div>
+      </div>
+
+      <div className="flex flex-grow flex-col p-6 text-left">
+        <div className="mb-4">
+          <h3 className="mb-2 line-clamp-2 text-lg font-black leading-tight text-slate-800">
+            {service.name}
+          </h3>
+          <div className="flex flex-col gap-2 text-xs">
+            <div className="flex items-center gap-1.5 text-slate-500">
+              <Clock size={12} className="text-blue-500" />
+              <span className="font-bold">{getDuration()}</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-slate-500">
+              <MapPin size={12} className="text-red-500" />
+              <span className="font-bold">{getCarrier()}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="mb-4 flex flex-wrap gap-2">
+          {attributes.slice(0, 3).map((attr: any, idx: number) => (
+            <span
+              key={`${attr.attrKey}-${idx}`}
+              className="rounded-lg bg-slate-100 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-slate-600"
+            >
+              {attr.attrValue}
+            </span>
+          ))}
+        </div>
+
+        <div className="mt-auto border-t border-slate-50 pt-4">
+          <div className="mb-4 flex items-end justify-between">
+            <div>
+              <p className="mb-1 text-[10px] font-black uppercase text-slate-400">Giá từ</p>
+              <p className="text-2xl font-black text-purple-600">
+                {new Intl.NumberFormat('vi-VN').format(service.basePrice)}đ
+              </p>
+            </div>
+            <div className="text-[10px] font-bold text-slate-400">
+              Cung cấp bởi<br />
+              <span className="text-blue-500">{service.partnerName}</span>
+            </div>
+          </div>
+
+          <button
+            onClick={(event) => {
+              event.stopPropagation();
+              navigate(`/services/${service.serviceId}`);
+            }}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-purple-600 to-blue-600 py-3 text-sm font-bold text-white transition-all group-hover:shadow-lg"
+          >
+            Xem chi tiết <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export default TransportCard;

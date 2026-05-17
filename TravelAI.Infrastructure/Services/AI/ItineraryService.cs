@@ -1,9 +1,8 @@
 using System.Globalization;
-using System.Text.Encodings.Web;
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using TravelAI.Application.DTOs.AI;
 using TravelAI.Application.Helpers;
+using TravelAI.Application.DTOs.Service;
 using TravelAI.Application.Interfaces;
 using TravelAI.Application.Services.AI;
 using TravelAI.Domain.Entities;
@@ -20,19 +19,25 @@ public class ItineraryService : IItineraryService
     private readonly AIParserService _parserService;
     private readonly ISpotScoringService _spotScoringService;
     private readonly PromptBuilder _promptBuilder;
+    private readonly WeatherService _weatherService;
+    private readonly IRealtimeNotificationService _notificationService;
 
     public ItineraryService(
         ApplicationDbContext db, 
         GeminiService gemini, 
         AIParserService parserService,
         ISpotScoringService spotScoringService,
-        PromptBuilder promptBuilder)
+        PromptBuilder promptBuilder,
+        WeatherService weatherService,
+        IRealtimeNotificationService notificationService)
     {
         _db = db;
         _gemini = gemini;
         _parserService = parserService;
         _spotScoringService = spotScoringService;
         _promptBuilder = promptBuilder;
+        _weatherService = weatherService;
+        _notificationService = notificationService;
     }
 
     public async Task<ItineraryResponseDto?> GenerateAndLogItineraryAsync(int userId, GenerateItineraryRequest request)
@@ -46,6 +51,14 @@ public class ItineraryService : IItineraryService
         {
             throw new InvalidOperationException("So ngay phai lon hon 0.");
         }
+
+        await _notificationService.NotifyUserAsync(userId, "itinerary_processing", new
+        {
+            status = "started",
+            destinationId = request.DestinationId,
+            days = request.NumberOfDays,
+            message = "AI dang phan tich so thich, thoi tiet va dich vu phu hop."
+        });
 
         var dest = await _db.Destinations.FindAsync(request.DestinationId);
         if (dest == null)
@@ -90,7 +103,17 @@ public class ItineraryService : IItineraryService
             centerLat, 
             centerLng);
         
-        var promptServices = await GetAvailableServicesForPromptAsync(dest, tripStartDate, request.NumberOfDays);
+        var promptServices = await GetAvailableServicesForPromptAsync(dest, tripStartDate, request.NumberOfDays, request.ServiceFilters);
+        var availableServiceEntities = await GetAvailableServiceEntitiesForPromptAsync(dest, tripStartDate, request.NumberOfDays, request.ServiceFilters);
+        var historyLogs = await _db.AISuggestionLogs
+            .AsNoTracking()
+            .Where(log => log.UserId == userId)
+            .OrderByDescending(log => log.CreatedAt)
+            .Take(3)
+            .ToListAsync();
+        var weatherData = centerLat.HasValue && centerLng.HasValue
+            ? await _weatherService.GetWeatherAsync(centerLat.Value, centerLng.Value)
+            : null;
         var spotReviews = spots
             .SelectMany(spot => spot.Services.SelectMany(service => service.Reviews)
                 .Concat(spot.ServiceSpots.SelectMany(serviceSpot => serviceSpot.Service.Reviews)))
@@ -98,7 +121,19 @@ public class ItineraryService : IItineraryService
             .Select(group => group.First())
             .ToList();
 
-        var prompt = _promptBuilder.Build(pref, dest, spots, request.NumberOfDays, tripStartDate, promptServices, rankedSpots, spotReviews);
+        var prompt = _promptBuilder.Build(
+            pref,
+            dest,
+            spots,
+            request.NumberOfDays,
+            tripStartDate,
+            promptServices,
+            rankedSpots,
+            spotReviews,
+            historyLogs,
+            weatherData,
+            availableServiceEntities,
+            request.ServiceFilters);
         var rawAiResponse = await _gemini.CallApiAsync(
             prompt,
             systemPrompt: AIPrompts.ItinerarySystemPrompt,
@@ -142,11 +177,26 @@ public class ItineraryService : IItineraryService
 
         if (parsed == null)
         {
+            await _notificationService.NotifyUserAsync(userId, "itinerary_processing", new
+            {
+                status = "failed",
+                destinationId = request.DestinationId,
+                message = "AI chua tra ve lich trinh hop le."
+            });
+
             throw new InvalidOperationException(BuildInvalidJsonMessage(rawAiResponse));
         }
 
         parsed.StartDate = tripStartDate;
         parsed.EndDate = tripStartDate.AddDays(parsed.Days.Count);
+
+        await _notificationService.NotifyUserAsync(userId, "itinerary_processing", new
+        {
+            status = "completed",
+            destination = dest.Name,
+            days = parsed.Days.Count,
+            message = "AI da tao xong lich trinh."
+        });
 
         return parsed;
     }
@@ -335,67 +385,25 @@ public class ItineraryService : IItineraryService
             .ThenBy(item => item.Item.ActivityOrder)
             .ToList();
 
-        if (optimizableItems.Count < 2)
+        if (optimizableItems.Count == 0)
         {
-            throw new InvalidOperationException("Lich trinh can it nhat 2 dia diem co toa do de toi uu.");
+            throw new InvalidOperationException("Lich trinh can it nhat mot dia diem co toa do de toi uu.");
         }
 
-        var promptItems = optimizableItems
-            .Select(item => new OptimizePromptItem(
-                item.Item.ItemId,
-                item.Spot!.Name,
-                item.Spot.Latitude,
-                item.Spot.Longitude,
+        var candidates = optimizableItems
+            .Select(item => new OptimizeCandidate(
+                item.Item,
+                item.Spot!,
                 ResolveDurationMinutes(item.Item.Service, item.Spot)))
             .ToList();
+        var scheduledItems = FindOptimalSequence(candidates, itinerary.StartDate, itinerary.EndDate);
 
-        var promptJson = JsonSerializer.Serialize(promptItems, new JsonSerializerOptions
+        var order = 1;
+        foreach (var scheduledItem in scheduledItems)
         {
-            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
-
-        var prompt = $@"Sap xep lai thu tu tham quan cac dia diem sau de toi uu lo trinh di chuyen, tranh di long vong:
-{promptJson}
-
-Tra ve JSON duy nhat theo format:
-{{ ""order"": [itemId1, itemId2, itemId3] }}
-Chi dung cac itemId da cung cap, khong them markdown hay giai thich.";
-
-        var rawAiResponse = await _gemini.CallApiAsync(
-            prompt,
-            systemPrompt: "Ban la bo toi uu lo trinh du lich. Chi tra ve JSON hop le.",
-            requireJsonResponse: true);
-
-        if (GeminiService.TryExtractErrorMessage(rawAiResponse, out var aiError))
-        {
-            throw new InvalidOperationException(aiError);
-        }
-
-        var orderedItemIds = ParseOptimizedItemIds(rawAiResponse, promptItems.Select(item => item.ItemId).ToHashSet());
-        if (orderedItemIds.Count != promptItems.Count)
-        {
-            orderedItemIds = BuildNearestNeighborOrder(promptItems);
-        }
-
-        var itemsById = optimizableItems.ToDictionary(item => item.Item.ItemId, item => item.Item);
-        var originalSlots = optimizableItems
-            .Select(item => new
-            {
-                item.Item.StartTime,
-                Duration = item.Item.EndTime > item.Item.StartTime
-                    ? item.Item.EndTime - item.Item.StartTime
-                    : TimeSpan.FromMinutes(ResolveDurationMinutes(item.Item.Service, item.Spot))
-            })
-            .ToList();
-
-        for (var index = 0; index < orderedItemIds.Count; index++)
-        {
-            var item = itemsById[orderedItemIds[index]];
-            var slot = originalSlots[index];
-            item.ActivityOrder = index + 1;
-            item.StartTime = slot.StartTime;
-            item.EndTime = slot.StartTime.Add(slot.Duration);
+            scheduledItem.Candidate.Item.ActivityOrder = order++;
+            scheduledItem.Candidate.Item.StartTime = scheduledItem.StartTime;
+            scheduledItem.Candidate.Item.EndTime = scheduledItem.EndTime;
         }
 
         await _db.SaveChangesAsync();
@@ -403,7 +411,11 @@ Chi dung cac itemId da cung cap, khong them markdown hay giai thich.";
         return await GetByIdAsync(id, userId);
     }
 
-    private async Task<List<PromptServiceOption>> GetAvailableServicesForPromptAsync(Destination destination, DateTime tripStartDate, int totalDays)
+    private async Task<List<PromptServiceOption>> GetAvailableServicesForPromptAsync(
+        Destination destination,
+        DateTime tripStartDate,
+        int totalDays,
+        ServiceFilterRequest? filters)
     {
         var tripDates = Enumerable.Range(0, Math.Max(totalDays, 1))
             .Select(offset => tripStartDate.Date.AddDays(offset))
@@ -415,11 +427,16 @@ Chi dung cac itemId da cung cap, khong them markdown hay giai thich.";
             .Include(service => service.ServiceSpots)
                 .ThenInclude(serviceSpot => serviceSpot.TouristSpot)
             .Include(service => service.Availabilities)
+            .Include(service => service.Attributes)
             .Where(service => service.IsActive
                 && (service.ServiceType == ServiceType.Hotel || service.ServiceType == ServiceType.Tour)
                 && ((service.TouristSpot != null && service.TouristSpot.DestinationId == destination.DestinationId)
                     || service.ServiceSpots.Any(serviceSpot => serviceSpot.TouristSpot.DestinationId == destination.DestinationId)))
             .ToListAsync();
+
+        candidateServices = candidateServices
+            .Where(service => MatchesPromptServiceFilters(service, filters))
+            .ToList();
 
         var promptServices = candidateServices
             .Select(service =>
@@ -463,6 +480,153 @@ Chi dung cac itemId da cung cap, khong them markdown hay giai thich.";
             .ToList();
 
         return promptServices;
+    }
+
+    private async Task<List<Service>> GetAvailableServiceEntitiesForPromptAsync(
+        Destination destination,
+        DateTime tripStartDate,
+        int totalDays,
+        ServiceFilterRequest? filters)
+    {
+        var tripDates = Enumerable.Range(0, Math.Max(totalDays, 1))
+            .Select(offset => tripStartDate.Date.AddDays(offset))
+            .ToHashSet();
+
+        var services = await _db.Services
+            .AsNoTracking()
+            .Include(service => service.TouristSpot)
+            .Include(service => service.ServiceSpots)
+                .ThenInclude(serviceSpot => serviceSpot.TouristSpot)
+            .Include(service => service.Availabilities)
+            .Include(service => service.Attributes)
+            .Where(service => service.IsActive
+                && ((service.TouristSpot != null && service.TouristSpot.DestinationId == destination.DestinationId)
+                    || service.ServiceSpots.Any(serviceSpot => serviceSpot.TouristSpot.DestinationId == destination.DestinationId)))
+            .ToListAsync();
+
+        // Chi dua cac service co availability dung lich trinh vao context combo.
+        return services
+            .Where(service => MatchesPromptServiceFilters(service, filters))
+            .Where(service => service.Availabilities.Any(availability =>
+                IsAvailabilityUsable(service.ServiceType, availability, tripStartDate.Date, tripDates)))
+            .ToList();
+    }
+
+    private static bool MatchesPromptServiceFilters(Service service, ServiceFilterRequest? filters)
+    {
+        if (filters == null)
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(filters.ServiceType)
+            && Enum.TryParse<ServiceType>(filters.ServiceType, true, out var serviceType)
+            && service.ServiceType != serviceType)
+        {
+            return false;
+        }
+
+        if (filters.MinPrice.HasValue && service.BasePrice < filters.MinPrice.Value)
+        {
+            return false;
+        }
+
+        if (filters.MaxPrice.HasValue && service.BasePrice > filters.MaxPrice.Value)
+        {
+            return false;
+        }
+
+        var rating = filters.MinRating ?? filters.Rating;
+        if (rating.HasValue && service.RatingAvg < rating.Value)
+        {
+            return false;
+        }
+
+        if (filters.HotelStars.HasValue
+            && !HasAttribute(service, "star", filters.HotelStars.Value.ToString(CultureInfo.InvariantCulture)))
+        {
+            return false;
+        }
+
+        if (filters.HotelAmenities?.Any() == true
+            && filters.HotelAmenities.Any(amenity => !HasAttribute(service, amenity, amenity)))
+        {
+            return false;
+        }
+
+        if (filters.TourThemes?.Any() == true
+            && !filters.TourThemes.Any(theme => HasAttribute(service, "theme", theme) || HasAttribute(service, "chu de", theme)))
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(filters.TourDuration)
+            && !HasAttribute(service, "thoi", NormalizePromptDuration(filters.TourDuration)))
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(filters.TransportType)
+            && !HasAttribute(service, "loai xe", filters.TransportType)
+            && !HasAttribute(service, "transporttype", filters.TransportType))
+        {
+            return false;
+        }
+
+        return filters.Attributes == null
+            || filters.Attributes.All(attribute => HasAttribute(service, attribute.Key, attribute.Value));
+    }
+
+    private static bool HasAttribute(Service service, string key, string value)
+    {
+        var normalizedKey = NormalizeFilterText(key);
+        var normalizedValue = NormalizeFilterText(value);
+
+        return service.Attributes.Any(attribute =>
+            NormalizeFilterText(attribute.AttrKey).Contains(normalizedKey, StringComparison.Ordinal)
+            && (string.IsNullOrWhiteSpace(normalizedValue)
+                || NormalizeFilterText(attribute.AttrValue).Contains(normalizedValue, StringComparison.Ordinal)))
+            || service.Attributes.Any(attribute =>
+                NormalizeFilterText(attribute.AttrValue).Contains(normalizedValue, StringComparison.Ordinal));
+    }
+
+    private static string NormalizePromptDuration(string duration)
+    {
+        return duration.ToLowerInvariant() switch
+        {
+            "1day" => "1 ngay",
+            "2days1night" => "2 ngay",
+            "3days2nights" => "3 ngay",
+            _ => duration
+        };
+    }
+
+    private static string NormalizeFilterText(string value)
+    {
+        return value
+            .Trim()
+            .ToLowerInvariant()
+            .Replace("ờ", "o", StringComparison.Ordinal)
+            .Replace("ở", "o", StringComparison.Ordinal)
+            .Replace("ồ", "o", StringComparison.Ordinal)
+            .Replace("ố", "o", StringComparison.Ordinal)
+            .Replace("ơ", "o", StringComparison.Ordinal)
+            .Replace("á", "a", StringComparison.Ordinal)
+            .Replace("à", "a", StringComparison.Ordinal)
+            .Replace("ạ", "a", StringComparison.Ordinal)
+            .Replace("ả", "a", StringComparison.Ordinal)
+            .Replace("ã", "a", StringComparison.Ordinal)
+            .Replace("â", "a", StringComparison.Ordinal)
+            .Replace("ă", "a", StringComparison.Ordinal)
+            .Replace("ê", "e", StringComparison.Ordinal)
+            .Replace("é", "e", StringComparison.Ordinal)
+            .Replace("è", "e", StringComparison.Ordinal)
+            .Replace("í", "i", StringComparison.Ordinal)
+            .Replace("ì", "i", StringComparison.Ordinal)
+            .Replace("ú", "u", StringComparison.Ordinal)
+            .Replace("ù", "u", StringComparison.Ordinal)
+            .Replace("ư", "u", StringComparison.Ordinal)
+            .Replace("đ", "d", StringComparison.Ordinal);
     }
 
     private static List<DayPlanDto> BuildDayPlans(Itinerary itinerary, List<ItineraryItem> orderedItems)
@@ -700,112 +864,323 @@ Yeu cau:
         return $"AI tra ve du lieu khong dung dinh dang lich trinh JSON. Preview: {preview}";
     }
 
-    private static List<int> ParseOptimizedItemIds(string rawJson, HashSet<int> validItemIds)
+    private static List<ScheduledOptimizeItem> FindOptimalSequence(
+        List<OptimizeCandidate> candidates,
+        DateTime itineraryStartDate,
+        DateTime itineraryEndDate)
     {
-        try
-        {
-            using var document = JsonDocument.Parse(rawJson);
-            var root = document.RootElement;
-            var orderElement = ResolveOrderElement(root);
-
-            if (orderElement.ValueKind != JsonValueKind.Array)
-            {
-                return new List<int>();
-            }
-
-            var result = new List<int>();
-            foreach (var element in orderElement.EnumerateArray())
-            {
-                var itemId = ReadItemId(element);
-                if (itemId.HasValue && validItemIds.Contains(itemId.Value) && !result.Contains(itemId.Value))
-                {
-                    result.Add(itemId.Value);
-                }
-            }
-
-            return result;
-        }
-        catch (JsonException)
-        {
-            return new List<int>();
-        }
-    }
-
-    private static JsonElement ResolveOrderElement(JsonElement root)
-    {
-        if (root.ValueKind == JsonValueKind.Array)
-        {
-            return root;
-        }
-
-        foreach (var propertyName in new[] { "order", "orderedItemIds", "ordered_item_ids", "items", "route" })
-        {
-            if (root.TryGetProperty(propertyName, out var value))
-            {
-                return value;
-            }
-        }
-
-        return default;
-    }
-
-    private static int? ReadItemId(JsonElement element)
-    {
-        if (element.ValueKind == JsonValueKind.Number && element.TryGetInt32(out var numericId))
-        {
-            return numericId;
-        }
-
-        if (element.ValueKind == JsonValueKind.Object)
-        {
-            foreach (var propertyName in new[] { "itemId", "item_id", "id" })
-            {
-                if (element.TryGetProperty(propertyName, out var value)
-                    && value.ValueKind == JsonValueKind.Number
-                    && value.TryGetInt32(out var objectId))
-                {
-                    return objectId;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    private static List<int> BuildNearestNeighborOrder(List<OptimizePromptItem> items)
-    {
-        var remaining = items
-            .OrderBy(item => item.ItemId)
+        var remaining = candidates
+            .OrderBy(candidate => candidate.Item.StartTime)
+            .ThenBy(candidate => candidate.Item.ActivityOrder)
             .ToList();
-        var ordered = new List<OptimizePromptItem> { remaining[0] };
-        remaining.RemoveAt(0);
+        var scheduledItems = new List<ScheduledOptimizeItem>();
+        var dayCount = Math.Max(1, (itineraryEndDate.Date - itineraryStartDate.Date).Days);
+        var maxIterations = remaining.Count * 2;
+        var iteration = 0;
 
-        while (remaining.Count > 0)
+        for (var dayIndex = 0; dayIndex < dayCount && remaining.Count > 0; dayIndex++)
         {
-            var current = ordered[^1];
-            var next = remaining
-                .OrderBy(item => CalculateDistance(current.Lat, current.Lng, item.Lat, item.Lng))
-                .ThenBy(item => item.ItemId)
-                .First();
+            var day = itineraryStartDate.Date.AddDays(dayIndex);
+            TouristSpot? previousSpot = null;
 
-            ordered.Add(next);
-            remaining.Remove(next);
+            foreach (var session in BuildDaySessions(day))
+            {
+                var currentTime = session.Start;
+                if (session.Kind == DaySessionKind.Afternoon)
+                {
+                    currentTime = MaxDateTime(currentTime, day.AddHours(13));
+                }
+
+                while (remaining.Count > 0 && currentTime < session.End && iteration++ < maxIterations)
+                {
+                    var next = SelectBestCandidate(remaining, previousSpot, currentTime, session);
+                    if (next == null)
+                    {
+                        break;
+                    }
+
+                    var travelMinutes = previousSpot == null
+                        ? 0
+                        : EstimateTravelMinutes(previousSpot, next.Spot);
+                    var startTime = currentTime.AddMinutes(travelMinutes);
+                    if (!TryAdjustStartToOpeningHours(next.Spot, startTime, next.DurationMinutes, session.End, out startTime))
+                    {
+                        remaining.Remove(next);
+                        remaining.Add(next);
+                        break;
+                    }
+
+                    var endTime = startTime.AddMinutes(next.DurationMinutes);
+                    scheduledItems.Add(new ScheduledOptimizeItem(next, startTime, endTime));
+                    remaining.Remove(next);
+
+                    previousSpot = next.Spot;
+                    currentTime = endTime;
+                }
+            }
         }
 
-        return ordered.Select(item => item.ItemId).ToList();
+        if (remaining.Count > 0)
+        {
+            AppendOverflowItems(remaining, scheduledItems, itineraryStartDate, dayCount);
+        }
+
+        return scheduledItems
+            .OrderBy(item => item.StartTime)
+            .ThenBy(item => item.Candidate.Item.ItemId)
+            .ToList();
     }
 
-    private static double CalculateDistance(double lat1, double lng1, double lat2, double lng2)
+    private static OptimizeCandidate? SelectBestCandidate(
+        List<OptimizeCandidate> candidates,
+        TouristSpot? previousSpot,
+        DateTime currentTime,
+        DaySession session)
     {
-        var dLat = lat1 - lat2;
-        var dLng = lng1 - lng2;
-        return (dLat * dLat) + (dLng * dLng);
+        return candidates
+            .Select(candidate =>
+            {
+                var travelMinutes = previousSpot == null
+                    ? 0
+                    : EstimateTravelMinutes(previousSpot, candidate.Spot);
+                var candidateStart = currentTime.AddMinutes(travelMinutes);
+                var isTimeValid = TryAdjustStartToOpeningHours(
+                    candidate.Spot,
+                    candidateStart,
+                    candidate.DurationMinutes,
+                    session.End,
+                    out var adjustedStart);
+
+                if (!isTimeValid)
+                {
+                    return null;
+                }
+
+                var distanceKm = previousSpot == null
+                    ? DistanceFromSessionAnchor(candidate, candidates)
+                    : CalculateHaversineDistance(previousSpot.Latitude, previousSpot.Longitude, candidate.Spot.Latitude, candidate.Spot.Longitude);
+                var waitMinutes = Math.Max(0, (adjustedStart - candidateStart).TotalMinutes);
+                var backtrackingPenalty = previousSpot == null
+                    ? 0
+                    : CalculateBacktrackingPenalty(previousSpot, candidate.Spot, candidates);
+
+                return new
+                {
+                    Candidate = candidate,
+                    Score = distanceKm + (travelMinutes / 60.0) + (waitMinutes / 120.0) + backtrackingPenalty
+                };
+            })
+            .Where(candidate => candidate != null)
+            .OrderBy(candidate => candidate!.Score)
+            .ThenBy(candidate => candidate!.Candidate.Item.ActivityOrder)
+            .Select(candidate => candidate!.Candidate)
+            .FirstOrDefault();
     }
 
-    private sealed record OptimizePromptItem(
-        int ItemId,
-        string Name,
-        double Lat,
-        double Lng,
-        int EstimatedTime);
+    private static void AppendOverflowItems(
+        List<OptimizeCandidate> remaining,
+        List<ScheduledOptimizeItem> scheduledItems,
+        DateTime itineraryStartDate,
+        int dayCount)
+    {
+        var fallbackDay = itineraryStartDate.Date.AddDays(Math.Max(dayCount - 1, 0));
+        var currentTime = scheduledItems.Count == 0
+            ? fallbackDay.AddHours(18)
+            : scheduledItems.Max(item => item.EndTime).AddMinutes(30);
+
+        foreach (var candidate in remaining.OrderBy(candidate => candidate.Item.ActivityOrder).ToList())
+        {
+            if (currentTime.Hour >= 22)
+            {
+                currentTime = currentTime.Date.AddDays(1).AddHours(8);
+            }
+
+            if (!TryAdjustStartToOpeningHours(candidate.Spot, currentTime, candidate.DurationMinutes, currentTime.Date.AddHours(22), out var startTime))
+            {
+                startTime = currentTime;
+            }
+
+            var endTime = startTime.AddMinutes(candidate.DurationMinutes);
+            scheduledItems.Add(new ScheduledOptimizeItem(candidate, startTime, endTime));
+            currentTime = endTime.AddMinutes(30);
+            remaining.Remove(candidate);
+        }
+    }
+
+    private static List<DaySession> BuildDaySessions(DateTime day)
+    {
+        return new List<DaySession>
+        {
+            new(DaySessionKind.Morning, day.AddHours(8), day.AddHours(12)),
+            new(DaySessionKind.Afternoon, day.AddHours(13), day.AddHours(17)),
+            new(DaySessionKind.Evening, day.AddHours(18), day.AddHours(22))
+        };
+    }
+
+    private static bool TryAdjustStartToOpeningHours(
+        TouristSpot spot,
+        DateTime proposedStart,
+        int durationMinutes,
+        DateTime sessionEnd,
+        out DateTime adjustedStart)
+    {
+        adjustedStart = proposedStart;
+        if (string.IsNullOrWhiteSpace(spot.OpeningHours)
+            || spot.OpeningHours.Contains("24/7", StringComparison.OrdinalIgnoreCase)
+            || spot.OpeningHours.Contains("all day", StringComparison.OrdinalIgnoreCase))
+        {
+            return adjustedStart.AddMinutes(durationMinutes) <= sessionEnd;
+        }
+
+        var windows = ParseOpeningWindows(spot.OpeningHours, proposedStart.Date);
+        if (windows.Count == 0)
+        {
+            return adjustedStart.AddMinutes(durationMinutes) <= sessionEnd;
+        }
+
+        foreach (var window in windows)
+        {
+            var start = MaxDateTime(proposedStart, window.Open);
+            var end = start.AddMinutes(durationMinutes);
+            if (end <= window.Close && end <= sessionEnd)
+            {
+                adjustedStart = start;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static List<OpeningWindow> ParseOpeningWindows(string openingHours, DateTime day)
+    {
+        if (openingHours.Contains("closed", StringComparison.OrdinalIgnoreCase)
+            || openingHours.Contains("dong cua", StringComparison.OrdinalIgnoreCase))
+        {
+            return new List<OpeningWindow>();
+        }
+
+        var matches = System.Text.RegularExpressions.Regex.Matches(
+            openingHours,
+            @"(?<open>\d{1,2}[:h]\d{2}|\d{1,2})\s*[-–]\s*(?<close>\d{1,2}[:h]\d{2}|\d{1,2})");
+
+        if (matches.Count == 0)
+        {
+            return new List<OpeningWindow>
+            {
+                new(day.AddHours(8), day.AddHours(22))
+            };
+        }
+
+        var windows = new List<OpeningWindow>();
+        foreach (System.Text.RegularExpressions.Match match in matches)
+        {
+            if (!TryParseOpeningTime(match.Groups["open"].Value, out var openTime)
+                || !TryParseOpeningTime(match.Groups["close"].Value, out var closeTime))
+            {
+                continue;
+            }
+
+            var open = day.Add(openTime);
+            var close = day.Add(closeTime);
+            if (close <= open)
+            {
+                close = close.AddDays(1);
+            }
+
+            windows.Add(new OpeningWindow(open, close));
+        }
+
+        return windows;
+    }
+
+    private static bool TryParseOpeningTime(string value, out TimeSpan time)
+    {
+        var normalized = value.Replace("h", ":", StringComparison.OrdinalIgnoreCase);
+        if (!normalized.Contains(':', StringComparison.Ordinal))
+        {
+            normalized += ":00";
+        }
+
+        return TimeSpan.TryParse(normalized, CultureInfo.InvariantCulture, out time);
+    }
+
+    private static int EstimateTravelMinutes(TouristSpot from, TouristSpot to)
+    {
+        var distanceKm = CalculateHaversineDistance(from.Latitude, from.Longitude, to.Latitude, to.Longitude);
+        return Math.Max(10, (int)Math.Ceiling(distanceKm / 25.0 * 60));
+    }
+
+    private static double DistanceFromSessionAnchor(OptimizeCandidate candidate, List<OptimizeCandidate> candidates)
+    {
+        var centerLat = candidates.Average(item => item.Spot.Latitude);
+        var centerLng = candidates.Average(item => item.Spot.Longitude);
+        return CalculateHaversineDistance(centerLat, centerLng, candidate.Spot.Latitude, candidate.Spot.Longitude);
+    }
+
+    private static double CalculateBacktrackingPenalty(
+        TouristSpot previousSpot,
+        TouristSpot candidateSpot,
+        List<OptimizeCandidate> remainingCandidates)
+    {
+        if (remainingCandidates.Count < 3)
+        {
+            return 0;
+        }
+
+        var centerLat = remainingCandidates.Average(item => item.Spot.Latitude);
+        var centerLng = remainingCandidates.Average(item => item.Spot.Longitude);
+        var previousDistanceToCenter = CalculateHaversineDistance(previousSpot.Latitude, previousSpot.Longitude, centerLat, centerLng);
+        var candidateDistanceToCenter = CalculateHaversineDistance(candidateSpot.Latitude, candidateSpot.Longitude, centerLat, centerLng);
+
+        return candidateDistanceToCenter > previousDistanceToCenter + 5
+            ? 2.5
+            : 0;
+    }
+
+    private static double CalculateHaversineDistance(double lat1, double lon1, double lat2, double lon2)
+    {
+        const double earthRadiusKm = 6371.0;
+        var dLat = DegreesToRadians(lat2 - lat1);
+        var dLon = DegreesToRadians(lon2 - lon1);
+        var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2)
+            + Math.Cos(DegreesToRadians(lat1))
+            * Math.Cos(DegreesToRadians(lat2))
+            * Math.Sin(dLon / 2)
+            * Math.Sin(dLon / 2);
+
+        return earthRadiusKm * 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+    }
+
+    private static double DegreesToRadians(double degrees)
+        => degrees * Math.PI / 180.0;
+
+    private static DateTime MaxDateTime(DateTime first, DateTime second)
+        => first >= second ? first : second;
+
+    private sealed record OptimizeCandidate(
+        ItineraryItem Item,
+        TouristSpot Spot,
+        int DurationMinutes);
+
+    private sealed record ScheduledOptimizeItem(
+        OptimizeCandidate Candidate,
+        DateTime StartTime,
+        DateTime EndTime);
+
+    private sealed record OpeningWindow(
+        DateTime Open,
+        DateTime Close);
+
+    private sealed record DaySession(
+        DaySessionKind Kind,
+        DateTime Start,
+        DateTime End);
+
+    private enum DaySessionKind
+    {
+        Morning,
+        Afternoon,
+        Evening
+    }
 }

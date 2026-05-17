@@ -19,12 +19,18 @@ public class BookingsController : ControllerBase
     private readonly IBookingService _bookingService;
     private readonly ApplicationDbContext _context;
     private readonly IAuditLogService _auditLogService;
+    private readonly IRealtimeNotificationService _notificationService;
 
-    public BookingsController(IBookingService bookingService, ApplicationDbContext context, IAuditLogService auditLogService)
+    public BookingsController(
+        IBookingService bookingService, 
+        ApplicationDbContext context, 
+        IAuditLogService auditLogService,
+        IRealtimeNotificationService notificationService)
     {
         _bookingService = bookingService;
         _context = context;
         _auditLogService = auditLogService;
+        _notificationService = notificationService;
     }
 
     [HttpGet("my-bookings")]
@@ -153,7 +159,10 @@ public class BookingsController : ControllerBase
     [HttpPost("{id}/confirm")]
     public async Task<IActionResult> ConfirmBooking(int id)
     {
-        var booking = await _context.Bookings.FindAsync(id);
+        var booking = await _context.Bookings
+            .Include(b => b.BookingItems)
+                .ThenInclude(item => item.Service)
+            .FirstOrDefaultAsync(b => b.BookingId == id);
         if (booking == null)
         {
             return NotFound(new { message = "Khong tim thay don hang." });
@@ -210,10 +219,36 @@ public class BookingsController : ControllerBase
 
         if (result > 0)
         {
-            // Log audit
+            // 1. Phần Log Audit của bạn
             int userId = int.Parse(userIdClaim.Value);
             await _auditLogService.LogAsync(userId, "UPDATE", "Bookings", id);
             
+            // 2. Phần Gửi thông báo của Main
+            var firstItem = items.FirstOrDefault();
+            var partnerId = booking.BookingItems
+                .Select(item => item.Service.PartnerId)
+                .FirstOrDefault();
+
+            await _notificationService.NotifyUserAsync(booking.UserId, "booking_confirmed", new
+            {
+                bookingId = booking.BookingId,
+                status = booking.Status.ToString(),
+                totalAmount = booking.TotalAmount,
+                message = "Don hang cua ban da duoc xac nhan thanh toan."
+            });
+
+            if (partnerId > 0)
+            {
+                await _notificationService.NotifyPartnerAsync(partnerId, "partner_booking_confirmed", new
+                {
+                    bookingId = booking.BookingId,
+                    serviceId = firstItem?.ServiceId,
+                    quantity = firstItem?.Quantity,
+                    checkInDate = firstItem?.CheckInDate,
+                    message = "Co don hang moi da thanh toan cho dich vu cua ban."
+                });
+            }
+
             return Ok(new
             {
                 success = true,
