@@ -65,8 +65,8 @@ const Checkout = () => {
 
   const finalAmount = useMemo(() => {
     if (!booking) return 0;
-    return booking.totalAmount;
-  }, [booking]);
+    return Math.max(0, booking.totalAmount - discountAmount);
+  }, [booking, discountAmount]);
 
   const applyPromotion = () => {
     const normalizedCode = promotionCode.trim().toUpperCase();
@@ -110,7 +110,7 @@ const Checkout = () => {
       if (paymentMethod === 'vietqr') {
         const res = await axiosClient.post('/payment/vietqr/create', {
           bookingId: Number(bookingId),
-          amount: booking.totalAmount,
+          amount: finalAmount,
         });
 
         setOfflinePayment({ type: 'vietqr', ...res.data });
@@ -120,7 +120,7 @@ const Checkout = () => {
       if (paymentMethod === 'counter') {
         const res = await axiosClient.post('/payment/counter/create', {
           bookingId: Number(bookingId),
-          amount: booking.totalAmount,
+          amount: finalAmount,
         });
 
         setOfflinePayment({ type: 'counter', ...res.data });
@@ -408,9 +408,8 @@ const Checkout = () => {
                 <span className="font-bold">-{new Intl.NumberFormat('vi-VN').format(discountAmount)} VND</span>
               </div>
               {discountAmount > 0 && (
-                <p className="mb-3 rounded-xl bg-amber-400/10 p-2 text-xs font-bold text-amber-200">
-                  Ma giam gia da duoc ghi nhan tren giao dien. So tien thanh toan thuc te se theo
-                  booking backend xac nhan.
+                <p className="mb-3 rounded-xl bg-emerald-400/10 p-2 text-xs font-bold text-emerald-300">
+                  Đã áp dụng mã giảm giá thành công.
                 </p>
               )}
               <div className="flex items-center justify-between border-t border-white/10 pt-3">
