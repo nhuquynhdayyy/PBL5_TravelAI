@@ -190,6 +190,11 @@ public class ItineraryService : IItineraryService
         parsed.StartDate = tripStartDate;
         parsed.EndDate = tripStartDate.AddDays(parsed.Days.Count);
 
+        // Lưu metadata vào log để analytics query thẳng DB, tránh parse JSON sau này.
+        aiLog.DestinationName = dest.Name;
+        aiLog.EstimatedCost = parsed.TotalEstimatedCost > 0 ? parsed.TotalEstimatedCost : null;
+        await _db.SaveChangesAsync();
+
         await _notificationService.NotifyUserAsync(userId, "itinerary_processing", new
         {
             status = "completed",
@@ -925,10 +930,200 @@ Yeu cau:
             AppendOverflowItems(remaining, scheduledItems, itineraryStartDate, dayCount);
         }
 
+        // Áp dụng 2-opt để cải thiện thứ tự trong từng ngày, giảm tổng quãng đường đi lại.
+        scheduledItems = Apply2OptPerDay(scheduledItems, itineraryStartDate, dayCount);
+
         return scheduledItems
             .OrderBy(item => item.StartTime)
             .ThenBy(item => item.Candidate.Item.ItemId)
             .ToList();
+    }
+
+    /// <summary>
+    /// Áp dụng thuật toán 2-opt cho từng ngày riêng biệt.
+    /// Với mỗi ngày, thử đảo ngược mọi đoạn con [i..j] trong chuỗi điểm tham quan.
+    /// Nếu tổng khoảng cách giảm, giữ lại hoán vị đó và lặp lại cho đến khi không còn cải thiện.
+    /// Sau khi tìm được thứ tự tốt hơn, tính lại StartTime/EndTime theo thứ tự mới.
+    /// </summary>
+    private static List<ScheduledOptimizeItem> Apply2OptPerDay(
+        List<ScheduledOptimizeItem> scheduledItems,
+        DateTime itineraryStartDate,
+        int dayCount)
+    {
+        var result = new List<ScheduledOptimizeItem>(scheduledItems);
+
+        for (var dayIndex = 0; dayIndex < dayCount; dayIndex++)
+        {
+            var day = itineraryStartDate.Date.AddDays(dayIndex);
+            var dayItems = result
+                .Where(item => item.StartTime.Date == day)
+                .OrderBy(item => item.StartTime)
+                .ToList();
+
+            if (dayItems.Count < 3)
+            {
+                continue; // 2-opt cần ít nhất 3 điểm để có ý nghĩa
+            }
+
+            var improved = true;
+            while (improved)
+            {
+                improved = false;
+                for (var i = 0; i < dayItems.Count - 1; i++)
+                {
+                    for (var j = i + 1; j < dayItems.Count; j++)
+                    {
+                        var currentDistance = TwoOptSegmentDistance(dayItems, i, j);
+                        var reversedDistance = TwoOptReversedDistance(dayItems, i, j);
+
+                        if (reversedDistance < currentDistance - 0.01) // ngưỡng 10m để tránh float noise
+                        {
+                            // Đảo ngược đoạn [i..j]
+                            dayItems.Reverse(i, j - i + 1);
+                            improved = true;
+                        }
+                    }
+                }
+            }
+
+            // Tính lại thời gian theo thứ tự mới, giữ nguyên session boundaries
+            var rescheduled = RescheduleDay(dayItems, day);
+
+            // Thay thế các item của ngày này trong result
+            foreach (var old in dayItems)
+            {
+                result.Remove(old);
+            }
+
+            result.AddRange(rescheduled);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Tổng khoảng cách của chuỗi hiện tại trong đoạn [i-1 → i → ... → j → j+1].
+    /// </summary>
+    private static double TwoOptSegmentDistance(List<ScheduledOptimizeItem> items, int i, int j)
+    {
+        var dist = 0.0;
+        if (i > 0)
+        {
+            dist += CalculateHaversineDistance(
+                items[i - 1].Candidate.Spot.Latitude, items[i - 1].Candidate.Spot.Longitude,
+                items[i].Candidate.Spot.Latitude, items[i].Candidate.Spot.Longitude);
+        }
+
+        for (var k = i; k < j; k++)
+        {
+            dist += CalculateHaversineDistance(
+                items[k].Candidate.Spot.Latitude, items[k].Candidate.Spot.Longitude,
+                items[k + 1].Candidate.Spot.Latitude, items[k + 1].Candidate.Spot.Longitude);
+        }
+
+        if (j < items.Count - 1)
+        {
+            dist += CalculateHaversineDistance(
+                items[j].Candidate.Spot.Latitude, items[j].Candidate.Spot.Longitude,
+                items[j + 1].Candidate.Spot.Latitude, items[j + 1].Candidate.Spot.Longitude);
+        }
+
+        return dist;
+    }
+
+    /// <summary>
+    /// Tổng khoảng cách nếu đảo ngược đoạn [i..j].
+    /// Chỉ cần tính lại 2 cạnh nối vào đoạn, phần bên trong không đổi tổng.
+    /// </summary>
+    private static double TwoOptReversedDistance(List<ScheduledOptimizeItem> items, int i, int j)
+    {
+        var dist = 0.0;
+        if (i > 0)
+        {
+            // Cạnh mới: [i-1] → [j] (thay vì [i-1] → [i])
+            dist += CalculateHaversineDistance(
+                items[i - 1].Candidate.Spot.Latitude, items[i - 1].Candidate.Spot.Longitude,
+                items[j].Candidate.Spot.Latitude, items[j].Candidate.Spot.Longitude);
+        }
+
+        // Phần bên trong đoạn [i..j] đi ngược lại — tổng khoảng cách không đổi
+        for (var k = i; k < j; k++)
+        {
+            dist += CalculateHaversineDistance(
+                items[k].Candidate.Spot.Latitude, items[k].Candidate.Spot.Longitude,
+                items[k + 1].Candidate.Spot.Latitude, items[k + 1].Candidate.Spot.Longitude);
+        }
+
+        if (j < items.Count - 1)
+        {
+            // Cạnh mới: [i] → [j+1] (thay vì [j] → [j+1])
+            dist += CalculateHaversineDistance(
+                items[i].Candidate.Spot.Latitude, items[i].Candidate.Spot.Longitude,
+                items[j + 1].Candidate.Spot.Latitude, items[j + 1].Candidate.Spot.Longitude);
+        }
+
+        return dist;
+    }
+
+    /// <summary>
+    /// Tính lại StartTime/EndTime cho các item trong một ngày theo thứ tự mới từ 2-opt.
+    /// Giữ nguyên session boundaries (sáng 8-12, chiều 13-17, tối 18-22).
+    /// </summary>
+    private static List<ScheduledOptimizeItem> RescheduleDay(
+        List<ScheduledOptimizeItem> dayItems,
+        DateTime day)
+    {
+        var sessions = new List<DaySession>
+        {
+            new(DaySessionKind.Morning,   day.AddHours(8),  day.AddHours(12)),
+            new(DaySessionKind.Afternoon, day.AddHours(13), day.AddHours(17)),
+            new(DaySessionKind.Evening,   day.AddHours(18), day.AddHours(22))
+        };
+
+        var rescheduled = new List<ScheduledOptimizeItem>();
+        var queue = new Queue<ScheduledOptimizeItem>(dayItems);
+        TouristSpot? previousSpot = null;
+
+        foreach (var session in sessions)
+        {
+            var currentTime = session.Kind == DaySessionKind.Afternoon
+                ? MaxDateTime(session.Start, day.AddHours(13))
+                : session.Start;
+
+            while (queue.Count > 0 && currentTime < session.End)
+            {
+                var item = queue.Peek();
+                var travelMinutes = previousSpot == null
+                    ? 0
+                    : EstimateTravelMinutes(previousSpot, item.Candidate.Spot);
+                var proposedStart = currentTime.AddMinutes(travelMinutes);
+
+                if (!TryAdjustStartToOpeningHours(
+                    item.Candidate.Spot,
+                    proposedStart,
+                    item.Candidate.DurationMinutes,
+                    session.End,
+                    out var adjustedStart))
+                {
+                    break; // Không vừa session này, để session sau xử lý
+                }
+
+                queue.Dequeue();
+                var endTime = adjustedStart.AddMinutes(item.Candidate.DurationMinutes);
+                rescheduled.Add(new ScheduledOptimizeItem(item.Candidate, adjustedStart, endTime));
+                previousSpot = item.Candidate.Spot;
+                currentTime = endTime;
+            }
+        }
+
+        // Các item không vừa session nào — giữ nguyên thời gian gốc để không mất dữ liệu
+        while (queue.Count > 0)
+        {
+            var item = queue.Dequeue();
+            rescheduled.Add(item);
+        }
+
+        return rescheduled;
     }
 
     private static OptimizeCandidate? SelectBestCandidate(

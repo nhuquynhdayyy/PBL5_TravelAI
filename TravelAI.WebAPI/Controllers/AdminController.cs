@@ -190,7 +190,7 @@ PrimaryServiceName = booking.BookingItems
     [HttpGet("dashboard-stats")]
     public async Task<IActionResult> GetDashboardStats()
     {
-        var today = DateTime.UtcNow.Date;
+        var today = DateTimeHelper.Today;
         var rangeStart = today.AddDays(-29);
         var rangeEndExclusive = today.AddDays(1);
 

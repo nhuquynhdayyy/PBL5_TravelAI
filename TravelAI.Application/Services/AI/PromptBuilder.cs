@@ -97,6 +97,7 @@ public class PromptBuilder
         var cuisinePreference = FormatCuisinePreference(pref.CuisinePref);
         var historyLines = BuildHistoryContext(historyLogs);
         var weatherLines = BuildWeatherContext(weatherData);
+        var holidayLines = BuildHolidayContext(startDate, days);
         var comboLines = BuildServiceComboLines(availableServiceEntities);
         var filterLines = BuildServiceFilterContext(serviceFilters);
 
@@ -120,6 +121,9 @@ public class PromptBuilder
         prompt.AppendLine();
         prompt.AppendLine("### THOI TIET DU KIEN:");
         prompt.AppendLine(weatherLines);
+        prompt.AppendLine();
+        prompt.AppendLine("### SU KIEN DAC BIET VA NGAY NGHI LE:");
+        prompt.AppendLine(holidayLines);
         prompt.AppendLine();
         prompt.AppendLine("### DIA DANH HE THONG:");
         prompt.AppendLine(destinationSpots.Count > 0
@@ -198,6 +202,86 @@ public class PromptBuilder
 
         return string.Join("\n", lines)
             + "\n- Hay tranh lap lai cac goi y nguoi dung co the da tu choi va bam sat phong cach da the hien trong cac phan hoi truoc.";
+    }
+
+    /// <summary>
+    /// Lịch nghỉ lễ Việt Nam cố định theo năm (ngày/tháng).
+    /// Tết Nguyên Đán dùng ngày dương lịch xấp xỉ — thay đổi mỗi năm nên hardcode ±3 ngày quanh mốc phổ biến.
+    /// </summary>
+    private static readonly IReadOnlyList<(int Month, int Day, string Name, int SpreadDays)> VietnameseHolidays =
+        new List<(int, int, string, int)>
+        {
+            // Tết Dương lịch
+            (1,  1,  "Tết Dương lịch",          1),
+            // Tết Nguyên Đán (xấp xỉ — thường rơi vào cuối Jan đến giữa Feb)
+            (1,  29, "Tết Nguyên Đán",           7),
+            // Giỗ Tổ Hùng Vương (10/3 âm lịch ≈ tháng 4 dương)
+            (4,  18, "Giỗ Tổ Hùng Vương",        1),
+            // Ngày Giải phóng miền Nam
+            (4,  30, "Ngày Giải phóng miền Nam", 1),
+            // Ngày Quốc tế Lao động
+            (5,  1,  "Ngày Quốc tế Lao động",    1),
+            // Ngày Quốc khánh
+            (9,  2,  "Ngày Quốc khánh",          2),
+            // Lễ Vu Lan (15/7 âm lịch ≈ tháng 8 dương)
+            (8,  18, "Lễ Vu Lan",                1),
+            // Tết Trung Thu (15/8 âm lịch ≈ tháng 9-10 dương)
+            (9,  29, "Tết Trung Thu",             1),
+        };
+
+    /// <summary>
+    /// Trả về danh sách lễ hội/ngày nghỉ lễ trùng hoặc gần với khoảng thời gian chuyến đi.
+    /// </summary>
+    private static List<string> GetHolidaysInRange(DateTime startDate, int days)
+    {
+        var endDate = startDate.AddDays(days - 1);
+        var result = new List<string>();
+
+        foreach (var (month, day, name, spreadDays) in VietnameseHolidays)
+        {
+            // Thử cả năm hiện tại và năm kế tiếp (chuyến đi có thể vắt qua năm mới)
+            foreach (var year in new[] { startDate.Year, startDate.Year + 1 })
+            {
+                DateTime holidayDate;
+                try
+                {
+                    holidayDate = new DateTime(year, month, day);
+                }
+                catch
+                {
+                    continue;
+                }
+
+                // Mở rộng window theo spreadDays (ví dụ Tết kéo dài 7 ngày)
+                var holidayStart = holidayDate;
+                var holidayEnd = holidayDate.AddDays(spreadDays - 1);
+
+                // Kiểm tra overlap giữa [startDate, endDate] và [holidayStart, holidayEnd]
+                if (holidayStart <= endDate && holidayEnd >= startDate)
+                {
+                    var dateLabel = spreadDays > 1
+                        ? $"{holidayStart:dd/MM} – {holidayEnd:dd/MM/yyyy}"
+                        : holidayStart.ToString("dd/MM/yyyy");
+                    result.Add($"{name} ({dateLabel})");
+                    break; // Đã match năm này, không cần thử năm kế
+                }
+            }
+        }
+
+        return result;
+    }
+
+    private static string BuildHolidayContext(DateTime startDate, int days)
+    {
+        var holidays = GetHolidaysInRange(startDate, days);
+        if (holidays.Count == 0)
+        {
+            return "- Khong co ngay le hoac le hoi lon trong khoang thoi gian nay.";
+        }
+
+        var lines = holidays.Select(h => $"- {h}");
+        return string.Join("\n", lines)
+            + "\n- Luu y: cac diem tham quan co the dong cua hoac tang gia vao ngay le. Uu tien goi y cac hoat dong phu hop voi khong khi le hoi.";
     }
 
     private static string BuildWeatherContext(dynamic? weatherData)

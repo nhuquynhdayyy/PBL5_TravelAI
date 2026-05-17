@@ -1,10 +1,15 @@
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using TravelAI.Application.Interfaces;
 using TravelAI.Infrastructure.Persistence;
 
 namespace TravelAI.Infrastructure.Services;
 
+/// <summary>
+/// Analytics service cho AI suggestions.
+/// Dữ liệu được query thẳng từ các cột DestinationName / EstimatedCost trên AISuggestionLog
+/// thay vì load toàn bộ AiResponseJson về memory để parse.
+/// Các log cũ (trước khi có 2 cột này) sẽ có giá trị null và được bỏ qua trong thống kê.
+/// </summary>
 public class AIAnalyticsService : IAIAnalyticsService
 {
     private readonly ApplicationDbContext _db;
@@ -14,153 +19,75 @@ public class AIAnalyticsService : IAIAnalyticsService
         _db = db;
     }
 
+    /// <summary>
+    /// Tỷ lệ chuyển đổi: tính theo số user duy nhất đã generate AI ít nhất 1 lần
+    /// so với số user duy nhất đã lưu ít nhất 1 itinerary.
+    /// Đây là funnel thực sự: user có dùng AI → user có lưu lịch trình.
+    /// </summary>
     public async Task<UserFeedbackStatsDto> GetUserFeedbackStatsAsync()
     {
         var totalSuggestions = await _db.AISuggestionLogs.CountAsync();
-        var savedItineraries = await _db.Itineraries.CountAsync();
-        var savedRate = totalSuggestions == 0
+
+        // Số user duy nhất đã từng generate AI
+        var usersWhoGenerated = await _db.AISuggestionLogs
+            .Select(log => log.UserId)
+            .Distinct()
+            .CountAsync();
+
+        // Số user duy nhất đã từng lưu itinerary
+        var usersWhoSaved = await _db.Itineraries
+            .Select(i => i.UserId)
+            .Distinct()
+            .CountAsync();
+
+        // Tỷ lệ chuyển đổi theo user: bao nhiêu % user đã generate thì có lưu lại
+        var conversionRate = usersWhoGenerated == 0
             ? 0
-            : Math.Min(100, savedItineraries * 100.0 / totalSuggestions);
+            : Math.Min(100, usersWhoSaved * 100.0 / usersWhoGenerated);
+
+        var savedItineraries = await _db.Itineraries.CountAsync();
 
         return new UserFeedbackStatsDto(
             totalSuggestions,
             savedItineraries,
-            Math.Round(savedRate, 2));
+            Math.Round(conversionRate, 2));
     }
 
+    /// <summary>
+    /// Điểm đến được AI gợi ý nhiều nhất — query thẳng cột DestinationName trên DB,
+    /// không load AiResponseJson về memory.
+    /// </summary>
     public async Task<List<PopularDestinationDto>> GetPopularDestinationsAsync()
     {
-        var logs = await _db.AISuggestionLogs
+        return await _db.AISuggestionLogs
             .AsNoTracking()
-            .Select(log => log.AiResponseJson)
-            .ToListAsync();
-
-        return logs
-            .Select(TryReadAnalyticsPayload)
-            .Where(payload => payload != null && !string.IsNullOrWhiteSpace(payload.Destination))
-            .Select(payload => payload!)
-            .GroupBy(payload => NormalizeDestination(payload.Destination))
+            .Where(log => log.DestinationName != null && log.DestinationName != "")
+            .GroupBy(log => log.DestinationName!)
             .Select(group => new PopularDestinationDto(group.Key, group.Count()))
             .OrderByDescending(item => item.SuggestedCount)
             .ThenBy(item => item.Destination)
-            .ToList();
+            .ToListAsync();
     }
 
+    /// <summary>
+    /// Ngân sách trung bình AI gợi ý theo điểm đến — query thẳng cột EstimatedCost trên DB.
+    /// Chỉ tính các log có EstimatedCost > 0 (log cũ không có giá trị này sẽ bị bỏ qua).
+    /// </summary>
     public async Task<List<AverageBudgetDto>> GetAverageBudgetByDestinationAsync()
     {
-        var logs = await _db.AISuggestionLogs
+        return await _db.AISuggestionLogs
             .AsNoTracking()
-            .Select(log => log.AiResponseJson)
-            .ToListAsync();
-
-        return logs
-            .Select(TryReadAnalyticsPayload)
-            .Where(payload => payload != null
-                && !string.IsNullOrWhiteSpace(payload.Destination)
-                && payload.TotalEstimatedCost > 0)
-            .Select(payload => payload!)
-            .GroupBy(payload => NormalizeDestination(payload.Destination))
+            .Where(log => log.DestinationName != null
+                && log.DestinationName != ""
+                && log.EstimatedCost != null
+                && log.EstimatedCost > 0)
+            .GroupBy(log => log.DestinationName!)
             .Select(group => new AverageBudgetDto(
                 group.Key,
-                Math.Round(group.Average(payload => payload.TotalEstimatedCost), 0),
+                Math.Round(group.Average(log => log.EstimatedCost!.Value), 0),
                 group.Count()))
             .OrderByDescending(item => item.SampleCount)
             .ThenBy(item => item.Destination)
-            .ToList();
+            .ToListAsync();
     }
-
-    private static AiAnalyticsPayload? TryReadAnalyticsPayload(string? rawJson)
-    {
-        if (string.IsNullOrWhiteSpace(rawJson))
-        {
-            return null;
-        }
-
-        var json = ExtractJsonObject(rawJson);
-        if (string.IsNullOrWhiteSpace(json))
-        {
-            return null;
-        }
-
-        try
-        {
-            using var document = JsonDocument.Parse(json);
-            var root = document.RootElement;
-            if (root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object)
-            {
-                root = data;
-            }
-
-            var destination = ReadString(root, "destination", "Destination");
-            var totalEstimatedCost = ReadDecimal(
-                root,
-                "totalEstimatedCost",
-                "total_estimated_cost",
-                "estimatedCost",
-                "estimated_cost",
-                "total");
-
-            return string.IsNullOrWhiteSpace(destination)
-                ? null
-                : new AiAnalyticsPayload(destination, totalEstimatedCost);
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
-
-    private static string? ExtractJsonObject(string value)
-    {
-        var start = value.IndexOf('{', StringComparison.Ordinal);
-        var end = value.LastIndexOf('}');
-        return start >= 0 && end > start
-            ? value[start..(end + 1)]
-            : null;
-    }
-
-    private static string ReadString(JsonElement element, params string[] propertyNames)
-    {
-        foreach (var propertyName in propertyNames)
-        {
-            if (element.TryGetProperty(propertyName, out var value)
-                && value.ValueKind == JsonValueKind.String)
-            {
-                return value.GetString()?.Trim() ?? string.Empty;
-            }
-        }
-
-        return string.Empty;
-    }
-
-    private static decimal ReadDecimal(JsonElement element, params string[] propertyNames)
-    {
-        foreach (var propertyName in propertyNames)
-        {
-            if (!element.TryGetProperty(propertyName, out var value))
-            {
-                continue;
-            }
-
-            if (value.ValueKind == JsonValueKind.Number && value.TryGetDecimal(out var numericValue))
-            {
-                return numericValue;
-            }
-
-            if (value.ValueKind == JsonValueKind.String
-                && decimal.TryParse(value.GetString(), out var parsedValue))
-            {
-                return parsedValue;
-            }
-        }
-
-        return 0;
-    }
-
-    private static string NormalizeDestination(string destination)
-        => destination.Trim();
-
-    private sealed record AiAnalyticsPayload(
-        string Destination,
-        decimal TotalEstimatedCost);
 }
