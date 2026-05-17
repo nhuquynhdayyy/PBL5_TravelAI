@@ -61,25 +61,30 @@ public sealed class PaymentController : ControllerBase
             return BadRequest(new { message = "Chi co the thanh toan don hang dang cho xu ly." });
         }
 
-        if (request.Amount.HasValue && request.Amount.Value != booking.TotalAmount)
+        // Dùng amount từ request nếu có (đã áp dụng giảm giá), ngược lại dùng totalAmount của booking
+        var paymentAmount = (request.Amount.HasValue && request.Amount.Value > 0)
+            ? request.Amount.Value
+            : booking.TotalAmount;
+
+        if (paymentAmount > booking.TotalAmount)
         {
-            return BadRequest(new { message = "So tien thanh toan khong khop voi don hang." });
+            return BadRequest(new { message = "So tien thanh toan khong hop le." });
         }
 
         if (UseMockGatewayWhenConfigured("VnPay"))
         {
             var mockTransactionRef = CreateTransactionRef(booking.BookingId, "MOCKVNPAY");
-            await CreatePendingPaymentAsync(booking.BookingId, "VNPay", mockTransactionRef, booking.TotalAmount);
+            await CreatePendingPaymentAsync(booking.BookingId, "VNPay", mockTransactionRef, paymentAmount);
             return Ok(new
             {
                 success = true,
                 transactionRef = mockTransactionRef,
-                paymentUrl = BuildMockPaymentUrl("vnpay", booking.BookingId, booking.TotalAmount)
+                paymentUrl = BuildMockPaymentUrl("vnpay", booking.BookingId, paymentAmount)
             });
         }
 
         var transactionRef = CreateTransactionRef(booking.BookingId, "VNPAY");
-        await CreatePendingPaymentAsync(booking.BookingId, "VNPay", transactionRef, booking.TotalAmount);
+        await CreatePendingPaymentAsync(booking.BookingId, "VNPay", transactionRef, paymentAmount);
 
         var returnUrl = request.ReturnUrl
             ?? _configuration["VnPay:ReturnUrl"]
@@ -88,7 +93,7 @@ public sealed class PaymentController : ControllerBase
 
         var paymentUrl = _paymentService.CreatePaymentUrl(
             booking.BookingId,
-            booking.TotalAmount,
+            paymentAmount,
             returnUrl,
             HttpContext.Connection.RemoteIpAddress?.ToString(),
             transactionRef);
@@ -213,16 +218,22 @@ public sealed class PaymentController : ControllerBase
             return BadRequest(new { message = "Chi co the thanh toan don hang dang cho xu ly." });
         }
 
-        if (request.Amount.HasValue && request.Amount.Value != booking.TotalAmount)
+        // Dùng amount từ request nếu có (đã áp dụng giảm giá), ngược lại dùng totalAmount của booking
+        var paymentAmount = (request.Amount.HasValue && request.Amount.Value > 0)
+            ? request.Amount.Value
+            : booking.TotalAmount;
+
+        // Đảm bảo số tiền không vượt quá giá gốc (tránh gian lận)
+        if (paymentAmount > booking.TotalAmount)
         {
-            return BadRequest(new { message = "So tien thanh toan khong khop voi don hang." });
+            return BadRequest(new { message = "So tien thanh toan khong hop le." });
         }
 
         if (UseMockGatewayWhenConfigured("Momo"))
         {
             var mockOrderId = CreateTransactionRef(booking.BookingId, "MOCKMOMO");
-            await CreatePendingPaymentAsync(booking.BookingId, "MoMo", mockOrderId, booking.TotalAmount);
-            var mockPaymentUrl = BuildMockPaymentUrl("momo", booking.BookingId, booking.TotalAmount);
+            await CreatePendingPaymentAsync(booking.BookingId, "MoMo", mockOrderId, paymentAmount);
+            var mockPaymentUrl = BuildMockPaymentUrl("momo", booking.BookingId, paymentAmount);
             return Ok(new
             {
                 isSuccess = true,
@@ -234,8 +245,8 @@ public sealed class PaymentController : ControllerBase
         }
 
         var orderId = CreateTransactionRef(booking.BookingId, "MOMO");
-        await CreatePendingPaymentAsync(booking.BookingId, "MoMo", orderId, booking.TotalAmount);
-        var result = await _momoService.CreatePaymentRequestAsync(booking.BookingId, booking.TotalAmount, orderId);
+        await CreatePendingPaymentAsync(booking.BookingId, "MoMo", orderId, paymentAmount);
+        var result = await _momoService.CreatePaymentRequestAsync(booking.BookingId, paymentAmount, orderId);
         return Ok(result);
     }
 
@@ -264,19 +275,24 @@ public sealed class PaymentController : ControllerBase
             return BadRequest(new { message = "Chi co the thanh toan don hang dang cho xu ly." });
         }
 
-        if (request.Amount.HasValue && request.Amount.Value != booking.TotalAmount)
+        // Dùng amount từ request nếu có (đã áp dụng giảm giá), ngược lại dùng totalAmount của booking
+        var paymentAmountVietQr = (request.Amount.HasValue && request.Amount.Value > 0)
+            ? request.Amount.Value
+            : booking.TotalAmount;
+
+        if (paymentAmountVietQr > booking.TotalAmount)
         {
-            return BadRequest(new { message = "So tien thanh toan khong khop voi don hang." });
+            return BadRequest(new { message = "So tien thanh toan khong hop le." });
         }
 
         var accountNumber = _configuration["VietQr:AccountNumber"] ?? "0888233738";
         var bankCode = _configuration["VietQr:BankCode"] ?? "ICB";
         var bankName = _configuration["VietQr:BankName"] ?? "VietinBank";
         var accountName = _configuration["VietQr:AccountName"] ?? "TRAVELAI";
-        var amount = decimal.ToInt64(decimal.Round(booking.TotalAmount, 0, MidpointRounding.AwayFromZero));
+        var amount = decimal.ToInt64(decimal.Round(paymentAmountVietQr, 0, MidpointRounding.AwayFromZero));
         var transferContent = $"TRAVELAI BK{booking.BookingId}";
         var transactionRef = CreateTransactionRef(booking.BookingId, "VIETQR");
-        await CreatePendingPaymentAsync(booking.BookingId, "VietQR", transactionRef, booking.TotalAmount);
+        await CreatePendingPaymentAsync(booking.BookingId, "VietQR", transactionRef, paymentAmountVietQr);
         var qrImageUrl = string.Concat(
             "https://img.vietqr.io/image/",
             Uri.EscapeDataString(bankCode),
@@ -293,7 +309,7 @@ public sealed class PaymentController : ControllerBase
         {
             IsSuccess = true,
             BookingId = booking.BookingId,
-            Amount = booking.TotalAmount,
+            Amount = paymentAmountVietQr,
             BankCode = bankCode,
             BankName = bankName,
             AccountNumber = accountNumber,
@@ -411,19 +427,24 @@ public sealed class PaymentController : ControllerBase
             return BadRequest(new { message = "Chi co the thanh toan don hang dang cho xu ly." });
         }
 
-        if (request.Amount.HasValue && request.Amount.Value != booking.TotalAmount)
+        // Dùng amount từ request nếu có (đã áp dụng giảm giá), ngược lại dùng totalAmount của booking
+        var paymentAmountCounter = (request.Amount.HasValue && request.Amount.Value > 0)
+            ? request.Amount.Value
+            : booking.TotalAmount;
+
+        if (paymentAmountCounter > booking.TotalAmount)
         {
-            return BadRequest(new { message = "So tien thanh toan khong khop voi don hang." });
+            return BadRequest(new { message = "So tien thanh toan khong hop le." });
         }
 
         var transactionRef = CreateTransactionRef(booking.BookingId, "COUNTER");
-        await CreatePendingPaymentAsync(booking.BookingId, "Counter", transactionRef, booking.TotalAmount);
+        await CreatePendingPaymentAsync(booking.BookingId, "Counter", transactionRef, paymentAmountCounter);
 
         return Ok(new CounterPaymentResponse
         {
             IsSuccess = true,
             BookingId = booking.BookingId,
-            Amount = booking.TotalAmount,
+            Amount = paymentAmountCounter,
             TransactionRef = transactionRef,
             PaymentCode = $"BK{booking.BookingId:000000}",
             PaymentLocation = _configuration["CounterPayment:Location"] ?? "TravelAI - Quay thanh toan",
