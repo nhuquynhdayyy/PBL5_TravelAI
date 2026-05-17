@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using TravelAI.Application.DTOs.AI;
+using TravelAI.Application.Helpers;
 using TravelAI.Application.DTOs.Service;
 using TravelAI.Application.Interfaces;
 using TravelAI.Application.Services.AI;
@@ -143,7 +144,7 @@ public class ItineraryService : IItineraryService
             UserId = userId,
             UserPrompt = prompt,
             AiResponseJson = rawAiResponse,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTimeHelper.Now
         };
 
         _db.AISuggestionLogs.Add(aiLog);

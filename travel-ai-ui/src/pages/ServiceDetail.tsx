@@ -11,6 +11,8 @@ import {
 } from 'lucide-react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import axiosClient from '../api/axiosClient';
+import { formatVietnameseDate, formatVietnameseDateTime } from '../utils/dateTimeUtils';
+import { getTodayVietnam } from '../utils/dateUtils';
 
 type ServiceDetailDto = {
   serviceId: number;
@@ -31,6 +33,7 @@ type ReviewItem = {
   rating: number;
   comment?: string | null;
   replyText?: string | null;
+  replyTime?: string | null;
   createdAt: string;
 };
 
@@ -78,13 +81,6 @@ const getInitials = (name: string) =>
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? '')
     .join('');
-
-const formatDate = (value: string) =>
-  new Date(value).toLocaleDateString('vi-VN', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric'
-  });
 
 const getApiErrorMessage = (err: any, fallback: string) => {
   const data = err?.response?.data;
@@ -401,7 +397,7 @@ const ServiceDetail = () => {
                   className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 p-4 font-bold text-slate-700 outline-none transition-all focus:border-blue-500"
                   value={selectedDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
-                  min={new Date().toISOString().split('T')[0]}
+                  min={getTodayVietnam()}
                 />
               </div>
 
@@ -547,7 +543,7 @@ const ServiceDetail = () => {
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
                         <h4 className="text-lg font-black text-slate-900">{review.customerName}</h4>
-                        <p className="text-sm text-slate-400">{formatDate(review.createdAt)}</p>
+                        <p className="text-sm text-slate-400">{formatVietnameseDate(review.createdAt)}</p>
                       </div>
                       {renderStars(review.rating)}
                     </div>
@@ -562,6 +558,11 @@ const ServiceDetail = () => {
                           <MessageSquareReply size={16} /> Phản hồi
                         </div>
                         <p className="mt-2 text-slate-700">{review.replyText}</p>
+                        {review.replyTime && (
+                          <p className="mt-2 text-xs text-slate-500">
+                            Phản hồi lúc {formatVietnameseDateTime(review.replyTime)}
+                          </p>
+                        )}
                       </div>
                     )}
 

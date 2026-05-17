@@ -222,7 +222,7 @@ const SpotList: React.FC = () => {
 
                   {isFilterOpen && (
                     <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl border border-slate-200 shadow-2xl z-50 overflow-hidden">
-                      <div className="p-2 max-h-72 overflow-y-auto">
+                      <div className="p-2 max-h-72 overflow-y-auto custom-scrollbar">
                         {/* Option: Tất cả */}
                         <button
                           onClick={() => {
@@ -380,7 +380,7 @@ const SpotList: React.FC = () => {
                 <MapPin size={16} className="text-red-400" /> Khám phá
                 tỉnh/thành khác
               </h4>
-              <div className="flex flex-col gap-2 max-h-64 overflow-y-auto pr-1">
+              <div className="flex flex-col gap-2 max-h-64 overflow-y-auto custom-scrollbar pr-1">
                 {allDestinations
                   .filter((d) => String(d.id || d.destinationId) !== String(id))
                   .slice(0, 8)

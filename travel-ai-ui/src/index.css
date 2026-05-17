@@ -1,1 +1,61 @@
 @import "tailwindcss";
+
+/* Custom Scrollbar Styles - Modern & Beautiful */
+/* For Webkit browsers (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3); /* slate-400 with opacity */
+  border-radius: 100px; /* Fully rounded */
+  transition: all 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5); /* slate-400 darker on hover */
+}
+
+/* For Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+}
+
+/* Custom scrollbar for modal/specific elements - Even more subtle */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(203, 213, 225, 0.4); /* slate-300 with opacity */
+  border-radius: 100px;
+  transition: all 0.2s ease;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.6); /* slate-400 on hover */
+}
+
+/* Hide scrollbar when not scrolling (optional - for cleaner look) */
+.custom-scrollbar-hide::-webkit-scrollbar {
+  width: 0px;
+  height: 0px;
+}
+
+.custom-scrollbar-hide:hover::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}

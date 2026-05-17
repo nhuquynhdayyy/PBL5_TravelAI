@@ -14,4 +14,5 @@ public class BookingDetailResponse
     public decimal EstimatedRefundAmount { get; set; }
     public bool CanCancel { get; set; }
     public string CancelPolicy { get; set; } = string.Empty;
+    public string? CancellationReason { get; set; } // Lý do hủy đơn (từ Refund.Reason hoặc mặc định)
 }

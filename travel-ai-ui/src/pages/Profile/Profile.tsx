@@ -4,6 +4,7 @@ import { User, Mail, Phone, ShieldCheck, LogOut, Edit3, Loader2, Settings2, Save
 import axiosClient from '../../api/axiosClient';
 import MainLayout from '../../layouts/MainLayout';
 import { DollarSign, ChevronRight, Calendar, MapPin } from 'lucide-react';
+import { formatVietnameseDate } from '../../utils/dateTimeUtils';
 
 const Profile: React.FC = () => {
   const [profile, setProfile] = useState<any>(null);
@@ -192,7 +193,7 @@ const Profile: React.FC = () => {
                         <ShieldCheck size={12} /> {profile?.roleName || "Customer"}
                     </span>
                     <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
-                        Thành viên từ: {profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString() : '...'}
+                        Thành viên từ: {profile?.createdAt ? formatVietnameseDate(profile.createdAt) : '...'}
                     </span>
                 </div>
               </div>

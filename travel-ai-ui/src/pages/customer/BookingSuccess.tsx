@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
 import { CheckCircle, Printer, Home, Calendar, Users, Loader2 } from 'lucide-react';
+import { formatVietnameseDate } from '../../utils/dateTimeUtils';
+import { getTodayVietnam } from '../../utils/dateUtils';
 
 const BookingSuccess = () => {
   const { bookingId } = useParams();
@@ -78,7 +80,7 @@ const BookingSuccess = () => {
               <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-slate-400">
                 Ngay giao dich
               </p>
-              <p className="font-bold text-slate-700">{new Date().toLocaleDateString('vi-VN')}</p>
+              <p className="font-bold text-slate-700">{getTodayVietnam()}</p>
             </div>
           </div>
 
@@ -97,7 +99,7 @@ const BookingSuccess = () => {
                   <span className="text-[10px] font-black uppercase tracking-widest">Ngay nhan</span>
                 </div>
                 <p className="font-bold text-slate-700">
-                  {new Date(booking?.checkInDate).toLocaleDateString('vi-VN')}
+                  {formatVietnameseDate(booking?.checkInDate)}
                 </p>
               </div>
               <div>
