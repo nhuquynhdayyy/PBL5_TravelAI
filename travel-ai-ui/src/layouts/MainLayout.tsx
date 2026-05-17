@@ -4,9 +4,10 @@ import Footer from '../components/layout/Footer';
 
 interface MainLayoutProps {
   children: React.ReactNode;
+  hideFooter?: boolean;
 }
 
-const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
+const MainLayout: React.FC<MainLayoutProps> = ({ children, hideFooter = false }) => {
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
       <Header />
@@ -19,7 +20,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         </div>
       </main>
 
-      <Footer />
+      {!hideFooter && <Footer />}
     </div>
   );
 };

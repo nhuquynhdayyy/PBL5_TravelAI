@@ -467,6 +467,7 @@ Yeu cau:
         return new ChatServiceItem
         {
             Id = service.ServiceId,
+            ServiceId = service.ServiceId,
             Name = service.Name,
             Price = ResolveDisplayPrice(service),
             Location = ResolvePrimarySpot(service)?.Name,

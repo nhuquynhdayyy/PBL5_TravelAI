@@ -1,20 +1,20 @@
 // src/components/layout/Header.tsx
 
 import React, { useState, useEffect } from 'react';
-import { Menu, X, Plane, LogOut, LayoutDashboard, Store, User, ChevronDown, Hotel, Compass, ClipboardList, MessageSquare, BarChart3, Building2, ShoppingCart, Landmark } from 'lucide-react';
+import { Menu, X, Plane, LogOut, LayoutDashboard, Store, User, ChevronDown, Hotel, Compass, ClipboardList, MessageSquare, BarChart3, Building2, ShoppingCart, Landmark, Package } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useCart } from '../../contexts/CartContext';
+import { getUser } from '../../utils/userUtils';
 
 const Header: React.FC = () => {
   const [isServicesOpen, setIsServicesOpen] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [userState, setUserState] = useState(getUser());
   const navigate = useNavigate();
   const { items } = useCart();
 
-  const userStr = localStorage.getItem('user');
-  const user = userStr ? JSON.parse(userStr) : null;
-  const role = user?.roleName?.toLowerCase(); 
+  const role = userState?.roleName?.toLowerCase(); 
 
   const handleLogout = () => {
     localStorage.clear();
@@ -26,6 +26,16 @@ const Header: React.FC = () => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    // Lắng nghe event userUpdated để cập nhật state
+    const handleUserUpdated = () => {
+      setUserState(getUser());
+    };
+    
+    window.addEventListener('userUpdated', handleUserUpdated);
+    return () => window.removeEventListener('userUpdated', handleUserUpdated);
   }, []);
 
   return (
@@ -122,6 +132,9 @@ const Header: React.FC = () => {
                 <Link to="/partner/services" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
                   <Store size={14} /> MY SERVICES
                 </Link>
+                <Link to="/partner/inventory-pricing" className="flex items-center gap-2 px-6 py-2 bg-purple-600 text-white rounded-full font-black text-xs hover:bg-purple-700 transition-all shadow-lg shadow-purple-100 uppercase tracking-widest">
+                  <Package size={14} /> INVENTORY
+                </Link>
 <Link to="/partner/orders" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
                   <ClipboardList size={14} /> MY ORDERS
                 </Link>
@@ -135,13 +148,13 @@ const Header: React.FC = () => {
             {role === 'admin' && (
               <>
                 <Link to="/admin/stats" className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl font-black text-xs hover:bg-emerald-700 transition-all uppercase">
-                  <BarChart3 size={14} /> THONG KE
+                  <BarChart3 size={14} /> THỐNG KÊ
                 </Link>
                 <Link to="/admin/partners" className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl font-black text-xs hover:bg-red-700 transition-all uppercase">
-                  <LayoutDashboard size={14} /> DUYỆT PARTNER
+                  <LayoutDashboard size={14} /> QUẢN LÝ PARTNER
                 </Link>
                 <Link to="/admin/services" className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl font-black text-xs hover:bg-slate-700 transition-all uppercase">
-                  <Store size={14} /> DUYỆT DỊCH VỤ
+                  <Store size={14} /> QUẢN LÝ DỊCH VỤ
                 </Link>
                 <Link to="/admin/vietqr-payments" className="flex items-center gap-2 px-4 py-2 bg-emerald-700 text-white rounded-xl font-black text-xs hover:bg-emerald-800 transition-all uppercase">
                   <Landmark size={14} /> VIETQR
@@ -155,11 +168,11 @@ const Header: React.FC = () => {
 
           {/* USER ACTIONS */}
           <div className="hidden md:flex items-center gap-3">
-            {user ? (
+            {userState ? (
                 <div className="flex items-center gap-4">
                     <div className="flex flex-col items-end">
                       <Link to="/profile" className="text-sm font-black text-slate-900 hover:text-blue-600 transition-all flex items-center gap-1">
-                        {user.fullName} <User size={14} className="text-blue-500" />
+                        {userState.fullName} <User size={14} className="text-blue-500" />
                       </Link>
                     </div>
                     <button onClick={handleLogout} className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors">

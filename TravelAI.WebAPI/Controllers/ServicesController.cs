@@ -12,11 +12,13 @@ public class ServicesController : ControllerBase
 {
     private readonly IServiceService _service;
     private readonly IWebHostEnvironment _env;
+    private readonly IAuditLogService _auditLogService;
 
-    public ServicesController(IServiceService service, IWebHostEnvironment env)
+    public ServicesController(IServiceService service, IWebHostEnvironment env, IAuditLogService auditLogService)
     {
         _service = service;
         _env = env;
+        _auditLogService = auditLogService;
     }
 
     [HttpGet("public")]
@@ -25,6 +27,14 @@ public class ServicesController : ControllerBase
     {
         var data = await _service.GetAllAsync(type);
         return Ok(data);
+    }
+
+    [HttpGet("search")]
+    [AllowAnonymous]
+    public async Task<IActionResult> SearchServices([FromQuery] ServiceFilterRequest request)
+    {
+        var result = await _service.FilterServicesAsync(request);
+        return Ok(result);
     }
 
     [HttpGet("my-services")]
@@ -95,6 +105,13 @@ public class ServicesController : ControllerBase
         try
         {
             var result = await _service.CreateAsync(userId, request, _env.WebRootPath);
+            
+            // Log audit
+            if (result.ServiceId > 0)
+            {
+                await _auditLogService.LogAsync(userId, "CREATE", "Services", result.ServiceId);
+            }
+            
             return Ok(result);
         }
         catch (InvalidOperationException ex)
@@ -107,6 +124,7 @@ public class ServicesController : ControllerBase
     [Authorize(Roles = "Partner,Admin")]
     public async Task<IActionResult> UpdateService(int id, [FromForm] CreateServiceRequest request)
     {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
         try
         {
             var success = await _service.UpdateAsync(id, request, _env.WebRootPath);
@@ -114,6 +132,9 @@ public class ServicesController : ControllerBase
             {
                 return BadRequest(new { message = "Cap nhat that bai." });
             }
+
+            // Log audit
+            await _auditLogService.LogAsync(userId, "UPDATE", "Services", id);
 
             return Ok(new
             {
@@ -146,5 +167,47 @@ public class ServicesController : ControllerBase
         }
 
         return Ok(new { summary });
+    }
+
+    // ==================== NEW FILTERING ENDPOINTS ====================
+
+    /// <summary>
+    /// Filter services with advanced criteria
+    /// </summary>
+    /// <param name="request">Filter parameters</param>
+    /// <returns>Filtered services with pagination</returns>
+    [HttpPost("filter")]
+    [AllowAnonymous]
+    public async Task<IActionResult> FilterServices([FromBody] ServiceFilterRequest request)
+    {
+        try
+        {
+            var result = await _service.FilterServicesAsync(request);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Get filter metadata (available options for filtering)
+    /// </summary>
+    /// <param name="serviceType">Optional service type to get specific metadata</param>
+    /// <returns>Filter metadata</returns>
+    [HttpGet("filter-metadata")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetFilterMetadata([FromQuery] string? serviceType = null)
+    {
+        try
+        {
+            var metadata = await _service.GetFilterMetadataAsync(serviceType);
+            return Ok(metadata);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 }

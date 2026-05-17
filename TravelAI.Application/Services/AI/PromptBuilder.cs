@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using TravelAI.Application.DTOs.AI;
+using TravelAI.Application.DTOs.Service;
 using TravelAI.Application.Interfaces;
 using TravelAI.Domain.Entities;
 using TravelAI.Domain.Enums;
@@ -54,7 +55,8 @@ public class PromptBuilder
         List<Review>? reviews = null,
         List<AISuggestionLog>? historyLogs = null,
         dynamic? weatherData = null,
-        List<Service>? availableServiceEntities = null)
+        List<Service>? availableServiceEntities = null,
+        ServiceFilterRequest? serviceFilters = null)
     {
         var openSpots = spots
             .Where(spot => IsSpotOpenForTrip(spot, startDate, days))
@@ -96,6 +98,7 @@ public class PromptBuilder
         var historyLines = BuildHistoryContext(historyLogs);
         var weatherLines = BuildWeatherContext(weatherData);
         var comboLines = BuildServiceComboLines(availableServiceEntities);
+        var filterLines = BuildServiceFilterContext(serviceFilters);
 
         var prompt = new StringBuilder();
         prompt.AppendLine($"Ban la chuyen gia lap ke hoach du lich. Hay lap lich trinh {days} ngay tai {dest.Name}.");
@@ -110,6 +113,7 @@ public class PromptBuilder
         prompt.AppendLine("5. Tuyet doi khong tu suy doan service_id. Neu activity khong phai mot dich vu co trong danh sach he thong, service_id phai la null.");
         prompt.AppendLine("6. Chi duoc gan service_id cho mot activity vao dung ngay co availability duoc liet ke ben duoi.");
         prompt.AppendLine("7. Chi su dung cac dia danh co gio mo cua phu hop voi lich trinh du kien.");
+        prompt.AppendLine("8. Neu tra ve bat ky danh sach dich vu goi y nao trong JSON, moi object dich vu BAT BUOC co field \"service_id\" bang ID that tu danh sach DICH VU HE THONG; neu khong tim thay ID hop le thi de \"service_id\": null va khong bia ID.");
         prompt.AppendLine();
         prompt.AppendLine("### NGU CANH LICH SU:");
         prompt.AppendLine(historyLines);
@@ -123,6 +127,9 @@ public class PromptBuilder
             : "Khong co dia danh nao trong he thong cho diem den nay hoac khong co dia danh phu hop gio mo cua.");
         prompt.AppendLine();
         prompt.AppendLine("### CAC DICH VU CO SAN TRONG HE THONG:");
+        prompt.AppendLine("Bo loc dich vu dang ap dung:");
+        prompt.AppendLine(filterLines);
+        prompt.AppendLine();
         prompt.AppendLine("Khach san:");
         prompt.AppendLine(hotelLines);
         prompt.AppendLine();
@@ -145,7 +152,7 @@ public class PromptBuilder
         prompt.AppendLine("- Nhip do moi ngay phai phu hop voi so thich ve toc do chuyen di.");
         prompt.AppendLine("- Goi y an uong va diem dung chan phai phu hop voi so thich am thuc neu co.");
         prompt.AppendLine();
-        prompt.Append("YEU CAU DAU RA: Tra ve JSON theo dung schema, tinh toan 'estimatedCost' la 0 cho cac diem tu do va dung gia he thong cho cac diem chinh thuc. Moi activity phai co field service_id. Lich trinh phai khop voi ngay bat dau da cung cap.");
+        prompt.Append("YEU CAU DAU RA: Tra ve JSON theo dung schema, tinh toan 'estimatedCost' la 0 cho cac diem tu do va dung gia he thong cho cac diem chinh thuc. Moi activity phai co field service_id. Moi dich vu goi y trong JSON phai co field service_id lay tu Database neu co. Lich trinh phai khop voi ngay bat dau da cung cap.");
 
         return prompt.ToString();
     }
@@ -234,6 +241,44 @@ public class PromptBuilder
         return combos.Count == 0
             ? "- Khong co combo dich vu - dia danh phu hop."
             : string.Join("\n", combos);
+    }
+
+    private static string BuildServiceFilterContext(ServiceFilterRequest? filters)
+    {
+        if (filters == null)
+        {
+            return "- Khong co bo loc dich vu bo sung.";
+        }
+
+        var lines = new List<string>();
+        AddLine(lines, "Loai dich vu", filters.ServiceType);
+        AddLine(lines, "Gia tu", filters.MinPrice?.ToString("0.##", CultureInfo.InvariantCulture));
+        AddLine(lines, "Gia den", filters.MaxPrice?.ToString("0.##", CultureInfo.InvariantCulture));
+        AddLine(lines, "Danh gia toi thieu", (filters.MinRating ?? filters.Rating)?.ToString("0.#", CultureInfo.InvariantCulture));
+        AddLine(lines, "DestinationId", filters.DestinationId?.ToString(CultureInfo.InvariantCulture));
+        AddLine(lines, "Hang sao khach san", filters.HotelStars?.ToString(CultureInfo.InvariantCulture));
+        AddLine(lines, "Tien ich khach san", filters.HotelAmenities == null ? null : string.Join(", ", filters.HotelAmenities));
+        AddLine(lines, "Chu de tour", filters.TourThemes == null ? null : string.Join(", ", filters.TourThemes));
+        AddLine(lines, "Thoi luong tour", filters.TourDuration);
+        AddLine(lines, "Loai xe", filters.TransportType);
+        AddLine(lines, "Buoi khoi hanh", filters.DepartureTime);
+
+        if (filters.Attributes?.Count > 0)
+        {
+            lines.Add("- Thuoc tinh dong: " + string.Join("; ", filters.Attributes.Select(item => $"{item.Key}={item.Value}")));
+        }
+
+        return lines.Count == 0
+            ? "- Khong co bo loc dich vu bo sung."
+            : string.Join("\n", lines);
+    }
+
+    private static void AddLine(List<string> lines, string label, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            lines.Add($"- {label}: {value}");
+        }
     }
 
     private static IEnumerable<TouristSpot> ResolveLinkedSpots(Service service)

@@ -1,404 +1,458 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-    ArrowLeft,
-    Calendar,
-    Clock,
-    Coffee,
-    DollarSign,
-    Download,
-    Map,
-    MapPin,
-    Moon,
-    Share2,
-    Sparkles,
-    Sun,
-    Zap
+  ArrowLeft,
+  CalendarDays,
+  ChevronRight,
+  Download,
+  DollarSign,
+  Loader2,
+  MapPin,
+  Route,
+  Save,
+  Sparkles,
 } from 'lucide-react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import 'leaflet/dist/leaflet.css';
 import axiosClient from '../../api/axiosClient';
+import ItineraryMap from './ItineraryMap';
+import ItinerarySkeleton from './ItinerarySkeleton';
+import ItineraryTimeline from './ItineraryTimeline';
+import { exportItineraryPdf } from './itineraryPdf';
+import type { ItineraryActivity, ItineraryViewModel } from './itineraryTypes';
+import {
+  flattenActivities,
+  formatCurrency,
+  formatDateLabel,
+  normalizeItinerary,
+  parseLocalDate,
+  toInputDateValue,
+} from './itineraryUtils';
 
-const parseLocalDate = (value?: string) => {
-    if (!value) {
-        return null;
-    }
-
-    const datePart = value.split('T')[0];
-    const [year, month, day] = datePart.split('-').map(Number);
-
-    if (!year || !month || !day)
-    {
-        return null;
-    }
-
-    return new Date(year, month - 1, day);
+const getErrorMessage = (error: unknown, fallback: string) => {
+  const response = (error as { response?: { data?: { message?: string } | string } })?.response;
+  if (typeof response?.data === 'string') return response.data;
+  return response?.data?.message || fallback;
 };
 
-const formatDateLabel = (date: Date) =>
-    new Intl.DateTimeFormat('vi-VN', {
-        weekday: 'long',
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-    }).format(date);
+const getTripDateRange = (itinerary: ItineraryViewModel) => {
+  const start = parseLocalDate(itinerary.startDate);
+  const end = parseLocalDate(itinerary.endDate);
 
-const toInputDateValue = (date: Date) => {
-    const year = date.getFullYear();
-    const month = `${date.getMonth() + 1}`.padStart(2, '0');
-    const day = `${date.getDate()}`.padStart(2, '0');
-    return `${year}-${month}-${day}`;
+  if (start && end) return `${formatDateLabel(start)} - ${formatDateLabel(end)}`;
+  if (start && itinerary.days.length > 0) {
+    const last = new Date(start);
+    last.setDate(last.getDate() + itinerary.days.length - 1);
+    return `${formatDateLabel(start)} - ${formatDateLabel(last)}`;
+  }
+  if (start) return formatDateLabel(start);
+
+  return `${itinerary.days.length} ngày`;
 };
 
-type TimelineActivity = {
-    title?: string;
-    location?: string;
-    description?: string;
-    duration?: string;
-    estimatedCost?: number;
-    serviceId?: number | null;
-    service_id?: number | null;
-};
+const EmptyItinerary = ({ onExplore }: { onExplore: () => void }) => (
+  <div className="flex min-h-[60vh] flex-col items-center justify-center gap-5 text-center">
+    <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-blue-50 text-4xl">🗺️</div>
+    <div>
+      <h2 className="text-3xl font-black text-slate-900">Chưa có lịch trình nào</h2>
+      <p className="mt-2 max-w-md text-sm font-medium leading-6 text-slate-500">
+        Hãy chọn một điểm đến hoặc mở lại lịch trình đã lưu để TravelAI hiển thị timeline và bản đồ lộ trình.
+      </p>
+    </div>
+    <button
+      type="button"
+      onClick={onExplore}
+      className="rounded-2xl bg-[#0061ff] px-7 py-4 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700"
+    >
+      Khám phá điểm đến
+    </button>
+  </div>
+);
 
-type TimelineDay = {
-    day: number;
-    activities?: TimelineActivity[];
-};
+const getSavedTripId = (trip: any) => trip?.itineraryId ?? trip?.itinerary_id ?? trip?.id;
 
-type TimelineData = {
-    itineraryId?: number;
-    itinerary_id?: number;
-    tripTitle?: string;
-    destination?: string;
-    startDate?: string;
-    start_date?: string;
-    endDate?: string;
-    end_date?: string;
-    totalEstimatedCost?: number;
-    days?: TimelineDay[];
+const SavedTripsPanel = ({
+  trips,
+  loading,
+  onOpenTrip,
+  onExplore,
+}: {
+  trips: any[];
+  loading: boolean;
+  onOpenTrip: (tripId: number | string) => void;
+  onExplore: () => void;
+}) => {
+  if (loading) return <ItinerarySkeleton />;
+
+  if (!trips.length) {
+    return <EmptyItinerary onExplore={onExplore} />;
+  }
+
+  return (
+    <div className="mx-auto max-w-5xl px-4 py-8">
+      <div className="mb-8 rounded-[32px] bg-slate-950 p-8 text-white shadow-2xl shadow-slate-200">
+        <p className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-blue-100">
+          <Sparkles size={15} />
+          Itinerary Library
+        </p>
+        <h1 className="text-4xl font-black tracking-tight md:text-5xl">Lịch trình đã lưu</h1>
+        <p className="mt-3 max-w-2xl text-sm font-medium leading-6 text-slate-300">
+          Chọn một lịch trình bên dưới để mở timeline chi tiết, bản đồ lộ trình và các công cụ tối ưu bằng AI.
+        </p>
+      </div>
+
+      <div className="mb-5 flex items-center justify-between gap-4">
+        <h2 className="flex items-center gap-2 text-2xl font-black text-slate-900">
+          <MapPin className="text-[#0061ff]" />
+          {trips.length} lịch trình
+        </h2>
+        <button
+          type="button"
+          onClick={onExplore}
+          className="rounded-2xl bg-[#0061ff] px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700"
+        >
+          Tạo lịch trình mới
+        </button>
+      </div>
+
+      <div className="grid gap-4">
+        {trips.map((trip, index) => {
+          const tripId = getSavedTripId(trip);
+
+          return (
+            <button
+              key={tripId ?? index}
+              type="button"
+              onClick={() => tripId && onOpenTrip(tripId)}
+              className="group rounded-3xl border border-slate-100 bg-white p-6 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-2xl"
+            >
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <h3 className="truncate text-xl font-black text-slate-900 transition group-hover:text-[#0061ff]">
+                    {trip.tripTitle || trip.title || trip.name || 'Lịch trình TravelAI'}
+                  </h3>
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs font-black uppercase tracking-widest text-slate-400">
+                    {(trip.destination || trip.destinationName) && (
+                      <span className="inline-flex items-center gap-1 rounded-xl bg-blue-50 px-3 py-2 text-[#0061ff]">
+                        <MapPin size={13} />
+                        {trip.destination || trip.destinationName}
+                      </span>
+                    )}
+                    <span className="inline-flex items-center gap-1 rounded-xl bg-slate-50 px-3 py-2">
+                      <CalendarDays size={13} />
+                      {trip.createdAt ? new Date(trip.createdAt).toLocaleDateString('vi-VN') : 'Vừa tạo'}
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded-xl bg-emerald-50 px-3 py-2 text-emerald-700">
+                      <DollarSign size={13} />
+                      {formatCurrency(trip.totalEstimatedCost || trip.totalCost || 0)}
+                    </span>
+                  </div>
+                </div>
+                <ChevronRight className="shrink-0 text-slate-300 transition group-hover:translate-x-1 group-hover:text-[#0061ff]" />
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 };
 
 const Timeline: React.FC = () => {
-    const navigate = useNavigate();
-    const location = useLocation();
-    const [data, setData] = useState<TimelineData | null>(location.state?.data || null);
-    const [loading] = useState(false);
-    const [optimizing, setOptimizing] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const params = useParams();
+  const routeItineraryId = params.id;
+  const stateData = (location.state as { data?: unknown } | null)?.data;
 
-    const tripStartDate = parseLocalDate(data?.startDate ?? data?.start_date);
-    const tripEndDate = parseLocalDate(data?.endDate ?? data?.end_date);
+  const [itinerary, setItinerary] = useState<ItineraryViewModel | null>(
+    stateData ? normalizeItinerary(stateData) : null,
+  );
+  const [loading, setLoading] = useState(Boolean(routeItineraryId && !stateData));
+  const [optimizing, setOptimizing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savedTrips, setSavedTrips] = useState<any[]>([]);
+  const [loadingTrips, setLoadingTrips] = useState(false);
+  const [activeDay, setActiveDay] = useState(1);
+  const [error, setError] = useState<string | null>(null);
 
-    const getActivityIcon = (index: number) => {
-        if (index === 0) {
-            return <Coffee className="size-5" />;
-        }
+  const itineraryId = itinerary?.itineraryId || (routeItineraryId ? Number(routeItineraryId) : null);
 
-        if (index === 1) {
-            return <Sun className="size-5" />;
-        }
+  const fetchItineraryById = useCallback(async (id: string | number) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await axiosClient.get(`/itinerary/${id}`);
+      const normalized = normalizeItinerary(response.data?.data || response.data);
+      setItinerary(normalized);
+      setActiveDay(normalized.days[0]?.day || 1);
+    } catch (fetchError) {
+      console.error(fetchError);
+      setError(getErrorMessage(fetchError, 'Không thể tải lịch trình từ hệ thống.'));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-        return <Moon className="size-5" />;
-    };
-
-    const getDayDate = useCallback((dayNumber: number) => {
-        if (!tripStartDate) {
-            return null;
-        }
-
-        const date = new Date(tripStartDate);
-        date.setDate(date.getDate() + Math.max(dayNumber - 1, 0));
-        return date;
-    }, [tripStartDate]);
-
-    const getServiceId = (activity: TimelineActivity) => activity?.serviceId ?? activity?.service_id ?? null;
-    const getItineraryId = () => data?.itineraryId ?? data?.itinerary_id ?? null;
-
-    const openServiceDetail = (activity: TimelineActivity, dayDate: Date | null) => {
-        const serviceId = getServiceId(activity);
-        if (!serviceId) {
-            return;
-        }
-
-        const query = dayDate ? `?date=${toInputDateValue(dayDate)}` : '';
-        navigate(`/services/${serviceId}${query}`);
-    };
-
-    const firstBookableActivity = useMemo(() => {
-        if (!data?.days?.length) {
-            return null;
-        }
-
-        for (const day of data.days) {
-            const dayDate = getDayDate(day.day);
-
-            for (const activity of day.activities ?? []) {
-                if (getServiceId(activity)) {
-                    return { activity, dayDate };
-                }
-            }
-        }
-
-        return null;
-    }, [data, getDayDate]);
-
-    const tripLastDayDate = tripStartDate
-        ? getDayDate(Math.max(data?.days?.length ?? 1, 1))
-        : (tripEndDate
-            ? new Date(tripEndDate.getFullYear(), tripEndDate.getMonth(), tripEndDate.getDate() - 1)
-            : null);
-
-    const handleSave = async () => {
-        const token = localStorage.getItem('token');
-        if (!token) {
-            navigate('/login', { state: { from: '/itinerary/latest' }, replace: false });
-            return;
-        }
-
-        try {
-            const response = await axiosClient.post('/itinerary/save', data);
-            if (response.data.success) {
-                alert("🎉 Tuyệt vời! Lịch trình đã được lưu vào mục 'Chuyến đi của tôi'.");
-                navigate('/profile');
-            }
-        } catch (error) {
-            console.error(error);
-            alert('Không thể lưu lịch trình lúc này.');
-        }
-    };
-
-    const handleOptimize = async () => {
-        const token = localStorage.getItem('token');
-        if (!token) {
-            navigate('/login', { state: { from: '/itinerary/latest' }, replace: false });
-            return;
-        }
-
-        const itineraryId = getItineraryId();
-        if (!itineraryId) {
-            alert('Hay luu lich trinh truoc khi toi uu lo trinh.');
-            return;
-        }
-
-        try {
-            setOptimizing(true);
-            const response = await axiosClient.post(`/itinerary/${itineraryId}/optimize`);
-            if (response.data.success && response.data.data) {
-                setData(response.data.data);
-            }
-        } catch (error: unknown) {
-            console.error(error);
-            const apiError = error as { response?: { data?: { message?: string } } };
-            alert(apiError.response?.data?.message ?? 'Khong the toi uu lo trinh luc nay.');
-        } finally {
-            setOptimizing(false);
-        }
-    };
-
-    if (loading) {
-        return (
-            <div className="flex h-[70vh] flex-col items-center justify-center gap-4">
-                <div className="size-16 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
-                <p className="animate-pulse text-xs font-bold uppercase tracking-widest text-slate-500">
-                    AI đang vẽ lịch trình cho bạn...
-                </p>
-            </div>
-        );
+  const fetchSavedTrips = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setSavedTrips([]);
+      return;
     }
 
-    if (!data) {
-        return (
-            <div className="flex min-h-[60vh] flex-col items-center justify-center gap-6 text-center">
-                <div className="text-6xl">🗺️</div>
-                <h2 className="text-2xl font-black text-slate-800">Chưa có lịch trình nào</h2>
-                <p className="max-w-sm text-slate-400">
-                    Hãy chọn một điểm đến và để AI lên kế hoạch cho chuyến đi của bạn!
-                </p>
-                <button
-                    onClick={() => navigate('/destinations')}
-                    className="rounded-2xl bg-blue-600 px-8 py-4 font-black text-white hover:bg-blue-700"
-                >
-                    Khám phá điểm đến →
-                </button>
-            </div>
-        );
+    try {
+      setLoadingTrips(true);
+      setError(null);
+      const response = await axiosClient.get('/itinerary/my-trips');
+      setSavedTrips(response.data?.data || response.data || []);
+    } catch (tripsError) {
+      console.error(tripsError);
+      setError(getErrorMessage(tripsError, 'Không thể tải danh sách lịch trình đã lưu.'));
+    } finally {
+      setLoadingTrips(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (stateData) {
+      const normalized = normalizeItinerary(stateData);
+      setItinerary(normalized);
+      setActiveDay(normalized.days[0]?.day || 1);
+      setLoading(false);
+      return;
     }
 
+    if (routeItineraryId) {
+      fetchItineraryById(routeItineraryId);
+      return;
+    }
+
+    fetchSavedTrips();
+  }, [fetchItineraryById, fetchSavedTrips, routeItineraryId, stateData]);
+
+  const handleOpenSavedTrip = async (tripId: number | string) => {
+    await fetchItineraryById(tripId);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const bookableActivity = useMemo(() => {
+    if (!itinerary) return null;
+    return flattenActivities(itinerary.days).find((activity) => activity.serviceId) || null;
+  }, [itinerary]);
+
+  const handleBook = (activity: ItineraryActivity) => {
+    if (!activity.serviceId) return;
+
+    const day = itinerary?.days.find((item) => item.day === activity.day);
+    const date = day?.dateLabel && itinerary?.startDate
+      ? (() => {
+          const start = parseLocalDate(itinerary.startDate);
+          if (!start) return '';
+          start.setDate(start.getDate() + activity.day - 1);
+          return `?date=${toInputDateValue(start)}`;
+        })()
+      : '';
+
+    navigate(`/services/${activity.serviceId}${date}`);
+  };
+
+  const handleOptimize = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/login', { state: { from: location.pathname }, replace: false });
+      return;
+    }
+
+    if (!itineraryId) {
+      alert('Hãy lưu lịch trình trước khi tối ưu lại bằng AI.');
+      return;
+    }
+
+    try {
+      setOptimizing(true);
+      const response = await axiosClient.post(`/itinerary/${itineraryId}/optimize`);
+      const normalized = normalizeItinerary(response.data?.data || response.data);
+      setItinerary(normalized);
+      setActiveDay(normalized.days[0]?.day || 1);
+    } catch (optimizeError) {
+      console.error(optimizeError);
+      alert(getErrorMessage(optimizeError, 'Không thể tối ưu lịch trình lúc này.'));
+    } finally {
+      setOptimizing(false);
+    }
+  };
+
+  const handleSave = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/login', { state: { from: location.pathname }, replace: false });
+      return;
+    }
+
+    if (!itinerary) return;
+
+    try {
+      setSaving(true);
+      const response = await axiosClient.post('/itinerary/save', itinerary.raw);
+      if (response.data?.success || response.data?.data) {
+        alert("Lịch trình đã được lưu vào mục 'Chuyến đi của tôi'.");
+        navigate('/profile');
+      }
+    } catch (saveError) {
+      console.error(saveError);
+      alert(getErrorMessage(saveError, 'Không thể lưu lịch trình lúc này.'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <ItinerarySkeleton />;
+
+  if (error) {
     return (
-        <div className="mx-auto mb-20 max-w-5xl animate-in fade-in px-4 py-8 duration-1000">
-            <div className="mb-12 flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
-                <div>
-                    <button
-                        onClick={() => navigate(-1)}
-                        className="mb-4 flex items-center gap-2 text-sm font-bold text-slate-400 transition-colors hover:text-blue-500"
-                    >
-                        <ArrowLeft size={18} /> QUAY LẠI
-                    </button>
-                    <h1 className="mb-2 text-5xl font-black italic tracking-tighter text-slate-900">
-                        {data.tripTitle}
-                    </h1>
-                    <div className="flex flex-wrap items-center gap-4 text-slate-500">
-                        <span className="flex items-center gap-1 rounded-lg bg-slate-100 px-3 py-1 text-xs font-bold uppercase tracking-widest text-slate-600">
-                            <MapPin size={14} className="text-blue-500" /> {data.destination}
-                        </span>
-                        <span className="flex items-center gap-1 rounded-lg border border-green-100 bg-green-50 px-3 py-1 text-xs font-bold uppercase tracking-widest text-green-600">
-                            <DollarSign size={14} /> Tổng chi phí: {new Intl.NumberFormat('vi-VN').format(data.totalEstimatedCost ?? 0)}₫
-                        </span>
-                        {tripStartDate && (
-                            <span className="flex items-center gap-1 rounded-lg border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-bold uppercase tracking-widest text-blue-600">
-                                <Calendar size={14} />
-                                {formatDateLabel(tripStartDate)}
-                                {tripLastDayDate ? ` - ${formatDateLabel(tripLastDayDate)}` : ''}
-                            </span>
-                        )}
-                    </div>
-                </div>
-
-                <div className="flex flex-wrap gap-3">
-                    <button
-                        onClick={handleOptimize}
-                        disabled={optimizing}
-                        className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-5 py-4 text-sm font-black text-white shadow-sm transition-all hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                        <Sparkles size={18} />
-                        {optimizing ? 'Dang toi uu...' : 'Toi uu lo trinh'}
-                    </button>
-                    <button className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:bg-slate-50">
-                        <Download size={20} />
-                    </button>
-                    <button className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:bg-slate-50">
-                        <Share2 size={20} />
-                    </button>
-                </div>
-            </div>
-
-            <div className="space-y-16">
-                {(data.days ?? []).map((day) => {
-                    const dayDate = getDayDate(day.day);
-
-                    return (
-                        <div key={day.day} className="relative">
-                            <div className="sticky top-24 z-10 mb-10">
-                                <div className="inline-flex -rotate-2 flex-col items-start gap-1 rounded-2xl bg-slate-900 px-6 py-3 text-white shadow-xl">
-                                    <div className="inline-flex items-center gap-3">
-                                        <Calendar size={20} className="text-blue-400" />
-                                        <span className="text-xl font-black uppercase tracking-tighter">Ngày {day.day}</span>
-                                    </div>
-                                    {dayDate && (
-                                        <span className="text-xs font-bold uppercase tracking-[0.2em] text-blue-200">
-                                            {formatDateLabel(dayDate)}
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="relative ml-6 space-y-10 border-l-4 border-dashed border-slate-200 pl-10">
-                                {(day.activities ?? []).map((activity, idx) => {
-                                    const serviceId = getServiceId(activity);
-
-                                    return (
-                                        <div key={idx} className="group relative">
-                                            <div className={`absolute -left-[58px] top-6 z-20 flex size-10 items-center justify-center rounded-full border-4 border-white text-white shadow-lg transition-all duration-500 group-hover:scale-125 ${
-                                                idx === 0 ? 'bg-orange-400' : idx === 1 ? 'bg-blue-500' : 'bg-indigo-600'
-                                            }`}>
-                                                {getActivityIcon(idx)}
-                                            </div>
-
-                                            <div className="group/card relative overflow-hidden rounded-[2.5rem] border border-slate-100 bg-white p-8 shadow-sm transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl">
-                                                <div className="absolute right-0 top-0 p-4 opacity-0 transition-opacity group-hover/card:opacity-100">
-                                                    <Sparkles className="size-20 rotate-12 text-blue-500/20" />
-                                                </div>
-
-                                                <div className="relative z-10 flex flex-col justify-between gap-6 md:flex-row">
-                                                    <div className="flex-1">
-                                                        <div className="mb-3 flex items-center gap-2">
-                                                            <span className="rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-blue-500">
-                                                                {idx === 0 ? 'Buổi sáng' : idx === 1 ? 'Buổi chiều' : 'Buổi tối'}
-                                                            </span>
-                                                            {serviceId && (
-                                                                <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-emerald-600">
-                                                                    Dịch vụ thật
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <h3 className="mb-3 text-2xl font-black leading-tight text-slate-800 transition-colors group-hover/card:text-blue-600">
-                                                            {activity.title}
-                                                        </h3>
-                                                        <p className="mb-6 font-medium leading-relaxed text-slate-500">
-                                                            {activity.description}
-                                                        </p>
-
-                                                        <div className="flex flex-wrap gap-4">
-                                                            <div className="flex items-center gap-1.5 rounded-xl border border-slate-100 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-400">
-                                                                <MapPin size={14} className="text-red-400" /> {activity.location}
-                                                            </div>
-                                                            <div className="flex items-center gap-1.5 rounded-xl border border-slate-100 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-400">
-                                                                <Clock size={14} className="text-blue-400" /> {activity.duration}
-                                                            </div>
-                                                            {dayDate && (
-                                                                <div className="flex items-center gap-1.5 rounded-xl border border-blue-100 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-600">
-                                                                    <Calendar size={14} /> {formatDateLabel(dayDate)}
-                                                                </div>
-                                                            )}
-                                                            {serviceId && (
-                                                                <div className="flex items-center gap-1.5 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-600">
-                                                                    service_id: {serviceId}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="flex shrink-0 items-end justify-end gap-3 md:flex-col">
-                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">
-                                                            Chi phí dự kiến
-                                                        </p>
-                                                        <div className="rounded-2xl bg-slate-900 px-5 py-2.5 text-lg font-black text-white shadow-lg">
-                                                            ~{new Intl.NumberFormat('vi-VN').format(activity.estimatedCost ?? 0)}₫
-                                                        </div>
-                                                        {serviceId && (
-                                                            <button
-                                                                onClick={() => openServiceDetail(activity, dayDate)}
-                                                                className="inline-flex items-center gap-2 rounded-2xl bg-emerald-500 px-5 py-3 text-sm font-black text-white shadow-lg transition-all hover:bg-emerald-400"
-                                                            >
-                                                                <Zap size={16} />
-                                                                ĐẶT NGAY
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-
-            <div className="relative mt-20 overflow-hidden rounded-[4rem] bg-gradient-to-br from-blue-600 to-indigo-700 p-12 text-center shadow-2xl">
-                <Map className="absolute -bottom-10 -left-10 size-64 -rotate-12 text-white/5" />
-                <h3 className="relative z-10 mb-4 text-3xl font-black uppercase tracking-tighter text-white">
-                    Sẵn sàng lên đường?
-                </h3>
-                <p className="relative z-10 mx-auto mb-10 max-w-lg leading-relaxed text-blue-100">
-                    Mọi thứ đã được AI chuẩn bị sẵn sàng. Hãy lưu lại lịch trình này để làm hành trang cho chuyến đi sắp tới nhé!
-                </p>
-                <div className="relative z-10 flex flex-wrap justify-center gap-4">
-                    <button
-                        onClick={handleSave}
-                        className="rounded-2xl bg-white px-10 py-4 font-black text-blue-600 shadow-lg transition-all hover:scale-105"
-                    >
-                        LƯU VÀO TÀI KHOẢN
-                    </button>
-                    <button
-                        onClick={() => firstBookableActivity && openServiceDetail(firstBookableActivity.activity, firstBookableActivity.dayDate)}
-                        disabled={!firstBookableActivity}
-                        className="rounded-2xl border-2 border-white/20 bg-blue-500 px-10 py-4 font-black text-white transition-all hover:bg-blue-400 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                        ĐẶT NGAY
-                    </button>
-                </div>
-            </div>
-        </div>
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
+        <h2 className="text-2xl font-black text-slate-900">Không tải được lịch trình</h2>
+        <p className="max-w-md text-sm font-medium text-slate-500">{error}</p>
+        {routeItineraryId && (
+          <button
+            type="button"
+            onClick={() => fetchItineraryById(routeItineraryId)}
+            className="rounded-2xl bg-[#0061ff] px-6 py-3 text-sm font-black text-white"
+          >
+            Thử lại
+          </button>
+        )}
+      </div>
     );
+  }
+
+  if (!itinerary || itinerary.days.length === 0) {
+    return (
+      <SavedTripsPanel
+        trips={savedTrips}
+        loading={loadingTrips}
+        onOpenTrip={handleOpenSavedTrip}
+        onExplore={() => navigate('/destinations')}
+      />
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-7xl px-4 py-8">
+      <div className="mb-8 overflow-hidden rounded-[32px] bg-slate-950 p-6 text-white shadow-2xl shadow-slate-200 md:p-8">
+        <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
+          <div>
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="mb-5 inline-flex items-center gap-2 text-sm font-bold text-blue-100 transition hover:text-white"
+            >
+              <ArrowLeft size={18} />
+              Quay lại
+            </button>
+            <p className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-blue-100">
+              <Sparkles size={15} />
+              AI itinerary manager
+            </p>
+            <h1 className="max-w-4xl text-4xl font-black tracking-tight md:text-6xl">
+              {itinerary.tripTitle}
+            </h1>
+            <div className="mt-5 flex flex-wrap gap-3 text-sm font-bold text-slate-200">
+              <span className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2">
+                <MapPin size={16} className="text-blue-300" />
+                {itinerary.destination}
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2">
+                <CalendarDays size={16} className="text-blue-300" />
+                {getTripDateRange(itinerary)}
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2">
+                <Route size={16} className="text-blue-300" />
+                {flattenActivities(itinerary.days).length} hoạt động
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-xl bg-emerald-500/15 px-3 py-2 text-emerald-100">
+                {formatCurrency(itinerary.totalEstimatedCost)}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row lg:justify-end">
+            <button
+              type="button"
+              onClick={handleOptimize}
+              disabled={optimizing}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#0061ff] px-5 py-4 text-sm font-black text-white shadow-lg shadow-blue-950/30 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {optimizing ? <Loader2 className="animate-spin" size={18} /> : <Sparkles size={18} />}
+              {optimizing ? 'AI đang tối ưu...' : 'Tối ưu lại bằng AI'}
+            </button>
+            <button
+              type="button"
+              onClick={() => exportItineraryPdf(itinerary)}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-4 text-sm font-black text-slate-950 transition hover:bg-blue-50"
+            >
+              <Download size={18} />
+              Xuất PDF
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-5 py-4 text-sm font-black text-white ring-1 ring-white/15 transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+              Lưu
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {optimizing && (
+        <div className="mb-8 rounded-2xl border border-blue-100 bg-blue-50 p-5">
+          <div className="mb-3 flex items-center gap-3 text-sm font-black text-[#0061ff]">
+            <Loader2 className="animate-spin" size={18} />
+            AI đang sắp xếp lại thứ tự điểm đến theo lộ trình ngắn hơn
+          </div>
+          <ItinerarySkeleton />
+        </div>
+      )}
+
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
+        <ItineraryTimeline
+          days={itinerary.days}
+          activeDay={activeDay}
+          onActiveDayChange={setActiveDay}
+          onBook={handleBook}
+        />
+        <ItineraryMap days={itinerary.days} activeDay={activeDay} />
+      </div>
+
+      <div className="mt-10 rounded-3xl bg-gradient-to-r from-[#0061ff] to-cyan-500 p-8 text-center text-white">
+        <h2 className="text-2xl font-black">Sẵn sàng hoàn tất chuyến đi?</h2>
+        <p className="mx-auto mt-2 max-w-2xl text-sm font-medium leading-6 text-blue-50">
+          Bạn có thể lưu lịch trình, xuất PDF hoặc đặt ngay dịch vụ đầu tiên được TravelAI đề xuất.
+        </p>
+        <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="rounded-2xl bg-white px-7 py-4 text-sm font-black text-[#0061ff] transition hover:bg-blue-50 disabled:opacity-70"
+          >
+            Lưu vào tài khoản
+          </button>
+          <button
+            type="button"
+            onClick={() => bookableActivity && handleBook(bookableActivity)}
+            disabled={!bookableActivity}
+            className="rounded-2xl border border-white/30 bg-white/10 px-7 py-4 text-sm font-black text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Đặt dịch vụ gợi ý
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export default Timeline;

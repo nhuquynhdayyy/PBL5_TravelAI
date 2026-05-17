@@ -17,6 +17,7 @@ import {
   Users,
   Wallet,
 } from 'lucide-react';
+import { formatVietnameseDate } from '../../utils/dateTimeUtils';
 
 const promotions: Record<string, { percent: number; maxAmount: number }> = {
   TRAVELAI10: { percent: 10, maxAmount: 100000 },
@@ -384,7 +385,7 @@ const Checkout = () => {
                   <p className="text-[10px] font-bold uppercase text-slate-400">Ngay di</p>
                   <div className="mt-1 flex items-center gap-1.5 font-bold">
                     <Calendar size={14} className="text-blue-400" />
-                    {new Date(booking.checkInDate).toLocaleDateString('vi-VN')}
+                    {formatVietnameseDate(booking.checkInDate)}
                   </div>
                 </div>
                 <div>

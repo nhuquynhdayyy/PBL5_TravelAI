@@ -14,6 +14,8 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import axiosClient from '../../api/axiosClient';
+import { formatVietnameseDateTime } from '../../utils/dateTimeUtils';
+import { refreshPartnerStatus } from '../../utils/userUtils';
 
 type PartnerProfileForm = {
   businessName: string;
@@ -50,10 +52,15 @@ const PartnerProfile = () => {
   const [licenseFile, setLicenseFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const fetchProfile = async () => {
     try {
       setLoading(true);
+      
+      // Refresh partner status và cập nhật localStorage
+      await refreshPartnerStatus();
+      
       const response = await axiosClient.get('/partner/profile');
       const data = response.data ?? {};
       setFormData({
@@ -76,6 +83,39 @@ const PartnerProfile = () => {
   useEffect(() => {
     void fetchProfile();
   }, []);
+
+  useEffect(() => {
+    // Auto-refresh profile status every 10 seconds if not approved yet
+    if (profileMeta && !profileMeta.canCreateServices) {
+      const intervalId = setInterval(async () => {
+        // Refresh partner status và cập nhật localStorage
+        const updatedUser = await refreshPartnerStatus();
+        
+        const response = await axiosClient.get('/partner/profile');
+        const data = response.data ?? {};
+        setProfileMeta(data);
+        
+        // Update form data if needed
+        if (data.businessName) {
+          setFormData({
+            businessName: data.businessName ?? '',
+            taxCode: data.taxCode ?? '',
+            bankAccount: data.bankAccount ?? '',
+            address: data.address ?? '',
+            description: data.description ?? '',
+            contactPhone: data.contactPhone ?? ''
+          });
+        }
+        
+        // Nếu đã được duyệt, trigger re-render toàn bộ app
+        if (updatedUser?.canCreateServices) {
+          window.dispatchEvent(new Event('userUpdated'));
+        }
+      }, 10000); // 10 seconds
+
+      return () => clearInterval(intervalId);
+    }
+  }, [profileMeta?.canCreateServices]);
 
   const handleChange = (field: keyof PartnerProfileForm, value: string) => {
     setFormData((previous) => ({
@@ -139,6 +179,40 @@ const PartnerProfile = () => {
     }
   };
 
+  const handleRefreshProfile = async () => {
+    try {
+      setRefreshing(true);
+      
+      // Refresh partner status và cập nhật localStorage
+      const updatedUser = await refreshPartnerStatus();
+      
+      const response = await axiosClient.get('/partner/profile');
+      const data = response.data ?? {};
+      setProfileMeta(data);
+      setFormData({
+        businessName: data.businessName ?? '',
+        taxCode: data.taxCode ?? '',
+        bankAccount: data.bankAccount ?? '',
+        address: data.address ?? '',
+        description: data.description ?? '',
+        contactPhone: data.contactPhone ?? ''
+      });
+      
+      if (data.canCreateServices) {
+        alert('Ho so cua ban da duoc duyet! Ban co the dang dich vu ngay bay gio.');
+        // Trigger re-render toàn bộ app
+        window.dispatchEvent(new Event('userUpdated'));
+      } else {
+        alert('Trang thai da duoc cap nhat.');
+      }
+    } catch (error) {
+      console.error('Failed to refresh profile:', error);
+      alert('Khong the cap nhat trang thai. Vui long thu lai.');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const statusConfig = useMemo(() => {
     switch ((profileMeta?.verificationStatus ?? 'Pending').toLowerCase()) {
       case 'approved':
@@ -190,10 +264,12 @@ const PartnerProfile = () => {
         </div>
 
         <button
-          onClick={() => void fetchProfile()}
-          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900 px-6 py-3 text-sm font-black text-white shadow-lg transition-all hover:bg-blue-600 active:scale-95"
+          onClick={handleRefreshProfile}
+          disabled={refreshing}
+          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900 px-6 py-3 text-sm font-black text-white shadow-lg transition-all hover:bg-blue-600 active:scale-95 disabled:opacity-50"
         >
-          <RefreshCw size={18} /> Tai lai
+          <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
+          {refreshing ? 'Dang cap nhat...' : 'Tai lai'}
         </button>
       </div>
 
@@ -209,7 +285,7 @@ const PartnerProfile = () => {
 
           <div className="rounded-[1.5rem] bg-slate-50 px-5 py-4 text-sm font-medium text-slate-600">
             <p>Co the dang dich vu: <span className="font-black text-slate-900">{profileMeta?.canCreateServices ? 'Co' : 'Chua'}</span></p>
-            <p className="mt-1">Lan gui gan nhat: <span className="font-black text-slate-900">{profileMeta?.submittedAt ? new Date(profileMeta.submittedAt).toLocaleString('vi-VN') : 'Chua gui'}</span></p>
+            <p className="mt-1">Lan gui gan nhat: <span className="font-black text-slate-900">{profileMeta?.submittedAt ? formatVietnameseDateTime(profileMeta.submittedAt) : 'Chua gui'}</span></p>
           </div>
         </div>
 

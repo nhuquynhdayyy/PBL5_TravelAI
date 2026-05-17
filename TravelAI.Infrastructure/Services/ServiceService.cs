@@ -235,7 +235,11 @@ var fileName = Guid.NewGuid() + Path.GetExtension(file.FileName);
             .Include(s => s.Partner)
                 .ThenInclude(p => p.PartnerProfile)
             .Include(s => s.TouristSpot)
+                .ThenInclude(t => t!.Destination)
             .Include(s => s.Images)
+            .Include(s => s.Attributes)
+            .Include(s => s.Availabilities)
+            .Include(s => s.Reviews)
             .AsNoTracking();
     }
 
@@ -252,20 +256,26 @@ var fileName = Guid.NewGuid() + Path.GetExtension(file.FileName);
             ? service.Partner.PartnerProfile.BusinessName
             : service.Partner?.FullName ?? "N/A";
 
-        return new ServiceDto(
-            service.ServiceId,
-            service.PartnerId,
-            partnerName,
-            service.Name,
-            service.Description ?? string.Empty,
-            service.BasePrice,
-            service.ServiceType.ToString(),
-            service.RatingAvg,
-            service.SpotId,
-            service.TouristSpot?.Name,
-            service.Images.Select(img => img.ImageUrl).ToList(),
-            service.IsActive
-        );
+        return new ServiceDto
+        {
+            ServiceId = service.ServiceId,
+            PartnerId = service.PartnerId,
+            PartnerName = partnerName,
+            Name = service.Name,
+            Description = service.Description ?? string.Empty,
+            BasePrice = service.BasePrice,
+            ServiceType = service.ServiceType.ToString(),
+            RatingAvg = service.RatingAvg,
+            ReviewCount = service.Reviews?.Count ?? 0,
+            IsActive = service.IsActive,
+            SpotId = service.SpotId,
+            SpotName = service.TouristSpot?.Name,
+            Latitude = service.Latitude,
+            Longitude = service.Longitude,
+            ImageUrls = service.Images.Select(img => img.ImageUrl).ToList(),
+            Attributes = ToAttributeDictionary(service.Attributes),
+            HasAvailability = service.Availabilities?.Any() ?? false
+        };
     }
 
     private async Task EnsurePartnerApprovedAsync(int partnerId)
@@ -356,5 +366,332 @@ Chỉ trả về đoạn tóm tắt, không thêm tiêu đề hay giải thích.
         {
             return "Không thể tạo tóm tắt đánh giá lúc này.";
         }
+    }
+
+    // ==================== NEW FILTERING METHODS ====================
+    
+    public async Task<ServiceFilterResponse> FilterServicesAsync(ServiceFilterRequest request)
+    {
+        // Start with base query
+        var query = BuildServiceQuery()
+            .Where(s => s.IsActive)
+            .AsQueryable();
+
+        // Apply filters
+        query = ApplyFilters(query, request);
+
+        // Get total count before pagination
+        var totalCount = await query.CountAsync();
+
+        // Apply sorting
+        query = ApplySorting(query, request.SortBy, request.SortDescending);
+
+        // Apply pagination
+        var services = await query
+            .Skip((request.PageNumber - 1) * request.PageSize)
+            .Take(request.PageSize)
+            .ToListAsync();
+
+        // Map to DTOs
+        var serviceDtos = services.Select(MapToDtoWithAttributes).ToList();
+
+        return new ServiceFilterResponse
+        {
+            Services = serviceDtos,
+            TotalCount = totalCount,
+            PageNumber = request.PageNumber,
+            PageSize = request.PageSize
+        };
+    }
+
+    public async Task<ServiceFilterMetadata> GetFilterMetadataAsync(string? serviceType = null)
+    {
+        var query = _context.Services
+            .Where(s => s.IsActive)
+            .AsQueryable();
+
+        if (TryParseServiceType(serviceType, out var parsedServiceType))
+        {
+            query = query.Where(s => s.ServiceType == parsedServiceType);
+        }
+
+        var metadata = new ServiceFilterMetadata
+        {
+            MinPrice = await query.MinAsync(s => (decimal?)s.BasePrice) ?? 0,
+            MaxPrice = await query.MaxAsync(s => (decimal?)s.BasePrice) ?? 0,
+            AvailableServiceTypes = await _context.Services
+                .Where(s => s.IsActive)
+                .Select(s => s.ServiceType.ToString())
+                .Distinct()
+                .ToListAsync(),
+            AvailableDestinations = await _context.Services
+                .Where(s => s.IsActive && s.TouristSpot != null && s.TouristSpot.Destination != null)
+                .Select(s => s.TouristSpot!.Destination!.Name)
+                .Distinct()
+                .ToListAsync()
+        };
+
+        // Get available attributes for the service type
+        if (parsedServiceType.HasValue)
+        {
+            var attributes = await _context.ServiceAttributes
+                .Where(a => a.Service.IsActive && a.Service.ServiceType == parsedServiceType.Value)
+                .GroupBy(a => a.AttrKey)
+                .Select(g => new
+                {
+                    Key = g.Key,
+                    Values = g.Select(a => a.AttrValue).Distinct().ToList()
+                })
+                .ToListAsync();
+
+            metadata.AvailableAttributes = attributes.ToDictionary(
+                a => a.Key,
+                a => a.Values
+            );
+        }
+
+        return metadata;
+    }
+
+    // ==================== PRIVATE HELPER METHODS ====================
+
+    private IQueryable<Service> ApplyFilters(IQueryable<Service> query, ServiceFilterRequest request)
+    {
+        // Service Type filter
+        if (TryParseServiceType(request.ServiceType, out var serviceType))
+        {
+            query = query.Where(s => s.ServiceType == serviceType);
+        }
+
+        // Price range filter
+        if (request.MinPrice.HasValue)
+        {
+            query = query.Where(s => s.BasePrice >= request.MinPrice.Value);
+        }
+        if (request.MaxPrice.HasValue)
+        {
+            query = query.Where(s => s.BasePrice <= request.MaxPrice.Value);
+        }
+
+        // Rating filter
+        var rating = request.MinRating ?? request.Rating;
+        if (rating.HasValue)
+        {
+            query = query.Where(s => s.RatingAvg >= rating.Value);
+        }
+
+        // Destination filter
+        if (request.DestinationId.HasValue)
+        {
+            query = query.Where(s => s.TouristSpot != null && 
+                                    s.TouristSpot.DestinationId == request.DestinationId.Value);
+        }
+
+        // Spot filter
+        if (request.SpotId.HasValue)
+        {
+            query = query.Where(s => s.SpotId == request.SpotId.Value);
+        }
+
+        // Search keyword
+        if (!string.IsNullOrWhiteSpace(request.SearchKeyword))
+        {
+            var keyword = request.SearchKeyword.Trim().ToLower();
+            query = query.Where(s => 
+                s.Name.ToLower().Contains(keyword) || 
+                s.Description.ToLower().Contains(keyword));
+        }
+
+        // Dynamic attribute filters
+        if (request.Attributes != null && request.Attributes.Any())
+        {
+            foreach (var attr in request.Attributes)
+            {
+                var key = attr.Key;
+                var value = attr.Value;
+                query = query.Where(s => s.Attributes.Any(a =>
+                    a.AttrKey.ToLower() == key.ToLower()
+                    && (a.AttrValue.ToLower().Contains(value.ToLower()) || value.ToLower() == "true")));
+            }
+        }
+
+        // Hotel-specific filters
+        if (request.HotelStars.HasValue)
+        {
+            var stars = request.HotelStars.Value.ToString();
+            query = query.Where(s => s.Attributes.Any(a =>
+                (a.AttrKey == "Star" || a.AttrKey == "Số sao" || a.AttrKey == "So sao")
+                && a.AttrValue.Contains(stars)));
+        }
+        if (request.HotelAmenities != null && request.HotelAmenities.Any())
+        {
+            foreach (var amenity in request.HotelAmenities)
+            {
+                var normalizedAmenity = amenity.Trim().ToLower();
+                query = query.Where(s => s.Attributes.Any(a =>
+                    a.AttrKey.ToLower().Contains(normalizedAmenity)
+                    || a.AttrValue.ToLower().Contains(normalizedAmenity)
+                    || (normalizedAmenity == "pool" && (a.AttrKey.Contains("Hồ bơi") || a.AttrValue.Contains("hồ bơi")))
+                    || (normalizedAmenity == "breakfast" && (a.AttrKey.Contains("Bữa sáng") || a.AttrValue.Contains("bữa sáng")))
+                    || (normalizedAmenity == "wifi" && (a.AttrKey.ToLower().Contains("wifi") || a.AttrValue.ToLower().Contains("wifi")))));
+            }
+        }
+
+        // Tour-specific filters
+        if (request.TourThemes != null && request.TourThemes.Any())
+        {
+            var themes = request.TourThemes.Select(t => t.ToLower()).ToList();
+            query = query.Where(s => s.Attributes.Any(a =>
+                (a.AttrKey == "Theme" || a.AttrKey == "Chủ đề" || a.AttrKey == "Chu de")
+                && themes.Any(theme => a.AttrValue.ToLower().Contains(theme))));
+        }
+        if (!string.IsNullOrWhiteSpace(request.TourDuration))
+        {
+            var duration = NormalizeDurationFilter(request.TourDuration);
+            query = query.Where(s => s.Attributes.Any(a =>
+                (a.AttrKey == "Duration" || a.AttrKey == "Thời gian" || a.AttrKey == "Thời lượng")
+                && a.AttrValue.ToLower().Contains(duration)));
+        }
+
+        // Transport-specific filters
+        if (!string.IsNullOrWhiteSpace(request.TransportType))
+        {
+            var transportType = request.TransportType.Trim().ToLower();
+            query = query.Where(s => s.Attributes.Any(a =>
+                (a.AttrKey == "TransportType" || a.AttrKey == "Loại xe" || a.AttrKey == "Phương tiện")
+                && a.AttrValue.ToLower().Contains(transportType)));
+        }
+        if (!string.IsNullOrWhiteSpace(request.DepartureTime))
+        {
+            var departureTime = NormalizeDepartureFilter(request.DepartureTime);
+            query = query.Where(s => s.Attributes.Any(a =>
+                (a.AttrKey == "DepartureTime" || a.AttrKey == "Giờ khởi hành" || a.AttrKey == "Khởi hành" || a.AttrKey == "Thời gian")
+                && a.AttrValue.ToLower().Contains(departureTime)));
+        }
+        if (!string.IsNullOrWhiteSpace(request.DepartureLocation))
+        {
+            query = query.Where(s => s.Attributes.Any(a => 
+                a.AttrKey == "DepartureLocation" && a.AttrValue.Contains(request.DepartureLocation)));
+        }
+        if (!string.IsNullOrWhiteSpace(request.ArrivalLocation))
+        {
+            query = query.Where(s => s.Attributes.Any(a => 
+                a.AttrKey == "ArrivalLocation" && a.AttrValue.Contains(request.ArrivalLocation)));
+        }
+
+        // Restaurant-specific filters
+        if (request.CuisineTypes != null && request.CuisineTypes.Any())
+        {
+            query = query.Where(s => s.Attributes.Any(a => 
+                a.AttrKey == "Cuisine" && request.CuisineTypes.Contains(a.AttrValue)));
+        }
+        if (!string.IsNullOrWhiteSpace(request.MealType))
+        {
+            query = query.Where(s => s.Attributes.Any(a => 
+                a.AttrKey == "MealType" && a.AttrValue == request.MealType));
+        }
+
+        return query;
+    }
+
+    private IQueryable<Service> ApplySorting(IQueryable<Service> query, string? sortBy, bool descending)
+    {
+        return sortBy?.ToLower() switch
+        {
+            "price" => descending 
+                ? query.OrderByDescending(s => s.BasePrice) 
+                : query.OrderBy(s => s.BasePrice),
+            "rating" => descending 
+                ? query.OrderByDescending(s => s.RatingAvg) 
+                : query.OrderBy(s => s.RatingAvg),
+            "name" => descending 
+                ? query.OrderByDescending(s => s.Name) 
+                : query.OrderBy(s => s.Name),
+            _ => query.OrderByDescending(s => s.ServiceId) // Default: newest first
+        };
+    }
+
+    private static ServiceDto MapToDtoWithAttributes(Service service)
+    {
+        var partnerName = !string.IsNullOrWhiteSpace(service.Partner?.PartnerProfile?.BusinessName)
+            ? service.Partner.PartnerProfile.BusinessName
+            : service.Partner?.FullName ?? "N/A";
+
+        return new ServiceDto
+        {
+            ServiceId = service.ServiceId,
+            PartnerId = service.PartnerId,
+            PartnerName = partnerName,
+            Name = service.Name,
+            Description = service.Description ?? string.Empty,
+            BasePrice = service.BasePrice,
+            ServiceType = service.ServiceType.ToString(),
+            RatingAvg = service.RatingAvg,
+            ReviewCount = service.Reviews?.Count ?? 0,
+            IsActive = service.IsActive,
+            SpotId = service.SpotId,
+            SpotName = service.TouristSpot?.Name,
+            Latitude = service.Latitude,
+            Longitude = service.Longitude,
+            ImageUrls = service.Images.Select(img => img.ImageUrl).ToList(),
+            Attributes = ToAttributeDictionary(service.Attributes),
+            HasAvailability = service.Availabilities?.Any() ?? false
+        };
+    }
+
+    private static Dictionary<string, string> ToAttributeDictionary(IEnumerable<ServiceAttribute> attributes)
+    {
+        return attributes
+            .GroupBy(attribute => attribute.AttrKey)
+            .ToDictionary(
+                group => group.Key,
+                group => string.Join(", ", group.Select(attribute => attribute.AttrValue).Distinct()));
+    }
+
+    private static bool TryParseServiceType(string? serviceType, out ServiceType? parsedType)
+    {
+        parsedType = null;
+
+        if (string.IsNullOrWhiteSpace(serviceType))
+        {
+            return false;
+        }
+
+        if (Enum.TryParse<ServiceType>(serviceType, true, out var enumType))
+        {
+            parsedType = enumType;
+            return true;
+        }
+
+        if (int.TryParse(serviceType, out var numericType) && Enum.IsDefined(typeof(ServiceType), numericType))
+        {
+            parsedType = (ServiceType)numericType;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static string NormalizeDurationFilter(string duration)
+    {
+        return duration.ToLowerInvariant() switch
+        {
+            "1day" => "1 ngày",
+            "2days1night" => "2 ngày",
+            "3days2nights" => "3 ngày",
+            "4days3nights" => "4 ngày",
+            _ => duration.Trim().ToLowerInvariant()
+        };
+    }
+
+    private static string NormalizeDepartureFilter(string departureTime)
+    {
+        return departureTime.ToLowerInvariant() switch
+        {
+            "morning" => "sáng",
+            "afternoon" => "chiều",
+            "evening" => "tối",
+            _ => departureTime.Trim().ToLowerInvariant()
+        };
     }
 }

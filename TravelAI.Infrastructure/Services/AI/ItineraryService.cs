@@ -1,6 +1,8 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using TravelAI.Application.DTOs.AI;
+using TravelAI.Application.Helpers;
+using TravelAI.Application.DTOs.Service;
 using TravelAI.Application.Interfaces;
 using TravelAI.Application.Services.AI;
 using TravelAI.Domain.Entities;
@@ -18,6 +20,7 @@ public class ItineraryService : IItineraryService
     private readonly ISpotScoringService _spotScoringService;
     private readonly PromptBuilder _promptBuilder;
     private readonly WeatherService _weatherService;
+    private readonly IRealtimeNotificationService _notificationService;
 
     public ItineraryService(
         ApplicationDbContext db, 
@@ -25,7 +28,8 @@ public class ItineraryService : IItineraryService
         AIParserService parserService,
         ISpotScoringService spotScoringService,
         PromptBuilder promptBuilder,
-        WeatherService weatherService)
+        WeatherService weatherService,
+        IRealtimeNotificationService notificationService)
     {
         _db = db;
         _gemini = gemini;
@@ -33,6 +37,7 @@ public class ItineraryService : IItineraryService
         _spotScoringService = spotScoringService;
         _promptBuilder = promptBuilder;
         _weatherService = weatherService;
+        _notificationService = notificationService;
     }
 
     public async Task<ItineraryResponseDto?> GenerateAndLogItineraryAsync(int userId, GenerateItineraryRequest request)
@@ -46,6 +51,14 @@ public class ItineraryService : IItineraryService
         {
             throw new InvalidOperationException("So ngay phai lon hon 0.");
         }
+
+        await _notificationService.NotifyUserAsync(userId, "itinerary_processing", new
+        {
+            status = "started",
+            destinationId = request.DestinationId,
+            days = request.NumberOfDays,
+            message = "AI dang phan tich so thich, thoi tiet va dich vu phu hop."
+        });
 
         var dest = await _db.Destinations.FindAsync(request.DestinationId);
         if (dest == null)
@@ -90,8 +103,8 @@ public class ItineraryService : IItineraryService
             centerLat, 
             centerLng);
         
-        var promptServices = await GetAvailableServicesForPromptAsync(dest, tripStartDate, request.NumberOfDays);
-        var availableServiceEntities = await GetAvailableServiceEntitiesForPromptAsync(dest, tripStartDate, request.NumberOfDays);
+        var promptServices = await GetAvailableServicesForPromptAsync(dest, tripStartDate, request.NumberOfDays, request.ServiceFilters);
+        var availableServiceEntities = await GetAvailableServiceEntitiesForPromptAsync(dest, tripStartDate, request.NumberOfDays, request.ServiceFilters);
         var historyLogs = await _db.AISuggestionLogs
             .AsNoTracking()
             .Where(log => log.UserId == userId)
@@ -119,7 +132,8 @@ public class ItineraryService : IItineraryService
             spotReviews,
             historyLogs,
             weatherData,
-            availableServiceEntities);
+            availableServiceEntities,
+            request.ServiceFilters);
         var rawAiResponse = await _gemini.CallApiAsync(
             prompt,
             systemPrompt: AIPrompts.ItinerarySystemPrompt,
@@ -130,7 +144,7 @@ public class ItineraryService : IItineraryService
             UserId = userId,
             UserPrompt = prompt,
             AiResponseJson = rawAiResponse,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTimeHelper.Now
         };
 
         _db.AISuggestionLogs.Add(aiLog);
@@ -163,11 +177,26 @@ public class ItineraryService : IItineraryService
 
         if (parsed == null)
         {
+            await _notificationService.NotifyUserAsync(userId, "itinerary_processing", new
+            {
+                status = "failed",
+                destinationId = request.DestinationId,
+                message = "AI chua tra ve lich trinh hop le."
+            });
+
             throw new InvalidOperationException(BuildInvalidJsonMessage(rawAiResponse));
         }
 
         parsed.StartDate = tripStartDate;
         parsed.EndDate = tripStartDate.AddDays(parsed.Days.Count);
+
+        await _notificationService.NotifyUserAsync(userId, "itinerary_processing", new
+        {
+            status = "completed",
+            destination = dest.Name,
+            days = parsed.Days.Count,
+            message = "AI da tao xong lich trinh."
+        });
 
         return parsed;
     }
@@ -382,7 +411,11 @@ public class ItineraryService : IItineraryService
         return await GetByIdAsync(id, userId);
     }
 
-    private async Task<List<PromptServiceOption>> GetAvailableServicesForPromptAsync(Destination destination, DateTime tripStartDate, int totalDays)
+    private async Task<List<PromptServiceOption>> GetAvailableServicesForPromptAsync(
+        Destination destination,
+        DateTime tripStartDate,
+        int totalDays,
+        ServiceFilterRequest? filters)
     {
         var tripDates = Enumerable.Range(0, Math.Max(totalDays, 1))
             .Select(offset => tripStartDate.Date.AddDays(offset))
@@ -394,11 +427,16 @@ public class ItineraryService : IItineraryService
             .Include(service => service.ServiceSpots)
                 .ThenInclude(serviceSpot => serviceSpot.TouristSpot)
             .Include(service => service.Availabilities)
+            .Include(service => service.Attributes)
             .Where(service => service.IsActive
                 && (service.ServiceType == ServiceType.Hotel || service.ServiceType == ServiceType.Tour)
                 && ((service.TouristSpot != null && service.TouristSpot.DestinationId == destination.DestinationId)
                     || service.ServiceSpots.Any(serviceSpot => serviceSpot.TouristSpot.DestinationId == destination.DestinationId)))
             .ToListAsync();
+
+        candidateServices = candidateServices
+            .Where(service => MatchesPromptServiceFilters(service, filters))
+            .ToList();
 
         var promptServices = candidateServices
             .Select(service =>
@@ -444,7 +482,11 @@ public class ItineraryService : IItineraryService
         return promptServices;
     }
 
-    private async Task<List<Service>> GetAvailableServiceEntitiesForPromptAsync(Destination destination, DateTime tripStartDate, int totalDays)
+    private async Task<List<Service>> GetAvailableServiceEntitiesForPromptAsync(
+        Destination destination,
+        DateTime tripStartDate,
+        int totalDays,
+        ServiceFilterRequest? filters)
     {
         var tripDates = Enumerable.Range(0, Math.Max(totalDays, 1))
             .Select(offset => tripStartDate.Date.AddDays(offset))
@@ -456,6 +498,7 @@ public class ItineraryService : IItineraryService
             .Include(service => service.ServiceSpots)
                 .ThenInclude(serviceSpot => serviceSpot.TouristSpot)
             .Include(service => service.Availabilities)
+            .Include(service => service.Attributes)
             .Where(service => service.IsActive
                 && ((service.TouristSpot != null && service.TouristSpot.DestinationId == destination.DestinationId)
                     || service.ServiceSpots.Any(serviceSpot => serviceSpot.TouristSpot.DestinationId == destination.DestinationId)))
@@ -463,9 +506,127 @@ public class ItineraryService : IItineraryService
 
         // Chi dua cac service co availability dung lich trinh vao context combo.
         return services
+            .Where(service => MatchesPromptServiceFilters(service, filters))
             .Where(service => service.Availabilities.Any(availability =>
                 IsAvailabilityUsable(service.ServiceType, availability, tripStartDate.Date, tripDates)))
             .ToList();
+    }
+
+    private static bool MatchesPromptServiceFilters(Service service, ServiceFilterRequest? filters)
+    {
+        if (filters == null)
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(filters.ServiceType)
+            && Enum.TryParse<ServiceType>(filters.ServiceType, true, out var serviceType)
+            && service.ServiceType != serviceType)
+        {
+            return false;
+        }
+
+        if (filters.MinPrice.HasValue && service.BasePrice < filters.MinPrice.Value)
+        {
+            return false;
+        }
+
+        if (filters.MaxPrice.HasValue && service.BasePrice > filters.MaxPrice.Value)
+        {
+            return false;
+        }
+
+        var rating = filters.MinRating ?? filters.Rating;
+        if (rating.HasValue && service.RatingAvg < rating.Value)
+        {
+            return false;
+        }
+
+        if (filters.HotelStars.HasValue
+            && !HasAttribute(service, "star", filters.HotelStars.Value.ToString(CultureInfo.InvariantCulture)))
+        {
+            return false;
+        }
+
+        if (filters.HotelAmenities?.Any() == true
+            && filters.HotelAmenities.Any(amenity => !HasAttribute(service, amenity, amenity)))
+        {
+            return false;
+        }
+
+        if (filters.TourThemes?.Any() == true
+            && !filters.TourThemes.Any(theme => HasAttribute(service, "theme", theme) || HasAttribute(service, "chu de", theme)))
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(filters.TourDuration)
+            && !HasAttribute(service, "thoi", NormalizePromptDuration(filters.TourDuration)))
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(filters.TransportType)
+            && !HasAttribute(service, "loai xe", filters.TransportType)
+            && !HasAttribute(service, "transporttype", filters.TransportType))
+        {
+            return false;
+        }
+
+        return filters.Attributes == null
+            || filters.Attributes.All(attribute => HasAttribute(service, attribute.Key, attribute.Value));
+    }
+
+    private static bool HasAttribute(Service service, string key, string value)
+    {
+        var normalizedKey = NormalizeFilterText(key);
+        var normalizedValue = NormalizeFilterText(value);
+
+        return service.Attributes.Any(attribute =>
+            NormalizeFilterText(attribute.AttrKey).Contains(normalizedKey, StringComparison.Ordinal)
+            && (string.IsNullOrWhiteSpace(normalizedValue)
+                || NormalizeFilterText(attribute.AttrValue).Contains(normalizedValue, StringComparison.Ordinal)))
+            || service.Attributes.Any(attribute =>
+                NormalizeFilterText(attribute.AttrValue).Contains(normalizedValue, StringComparison.Ordinal));
+    }
+
+    private static string NormalizePromptDuration(string duration)
+    {
+        return duration.ToLowerInvariant() switch
+        {
+            "1day" => "1 ngay",
+            "2days1night" => "2 ngay",
+            "3days2nights" => "3 ngay",
+            _ => duration
+        };
+    }
+
+    private static string NormalizeFilterText(string value)
+    {
+        return value
+            .Trim()
+            .ToLowerInvariant()
+            .Replace("ờ", "o", StringComparison.Ordinal)
+            .Replace("ở", "o", StringComparison.Ordinal)
+            .Replace("ồ", "o", StringComparison.Ordinal)
+            .Replace("ố", "o", StringComparison.Ordinal)
+            .Replace("ơ", "o", StringComparison.Ordinal)
+            .Replace("á", "a", StringComparison.Ordinal)
+            .Replace("à", "a", StringComparison.Ordinal)
+            .Replace("ạ", "a", StringComparison.Ordinal)
+            .Replace("ả", "a", StringComparison.Ordinal)
+            .Replace("ã", "a", StringComparison.Ordinal)
+            .Replace("â", "a", StringComparison.Ordinal)
+            .Replace("ă", "a", StringComparison.Ordinal)
+            .Replace("ê", "e", StringComparison.Ordinal)
+            .Replace("é", "e", StringComparison.Ordinal)
+            .Replace("è", "e", StringComparison.Ordinal)
+            .Replace("í", "i", StringComparison.Ordinal)
+            .Replace("ì", "i", StringComparison.Ordinal)
+            .Replace("ú", "u", StringComparison.Ordinal)
+            .Replace("ù", "u", StringComparison.Ordinal)
+            .Replace("ư", "u", StringComparison.Ordinal)
+            .Replace("đ", "d", StringComparison.Ordinal);
     }
 
     private static List<DayPlanDto> BuildDayPlans(Itinerary itinerary, List<ItineraryItem> orderedItems)
