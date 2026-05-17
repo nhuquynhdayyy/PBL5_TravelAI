@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using TravelAI.Infrastructure.Persistence;
+using TravelAI.Infrastructure.Persistence.Interceptors;
 using TravelAI.Infrastructure.Services; 
 using TravelAI.Application.Interfaces;
 using TravelAI.Application.Services;
@@ -12,6 +13,8 @@ using TravelAI.Infrastructure.Repositories;
 using TravelAI.Infrastructure.Services.AI;
 using TravelAI.Infrastructure.ExternalServices;
 using TravelAI.Application.Services.AI;
+using TravelAI.Infrastructure.BackgroundJobs;
+using TravelAI.Infrastructure.Application.Services;
 using TravelAI.Application.Services.Scoring;
 using TravelAI.WebAPI.Hubs;
 using TravelAI.WebAPI.Services;
@@ -20,7 +23,14 @@ var builder = WebApplication.CreateBuilder(args);
 
 // --- 1. Cấu hình SQL SERVER & DB CONTEXT ---
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+{
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
+    // Suppress pending model changes warning (we handle schema via SQL scripts)
+    options.ConfigureWarnings(warnings => 
+        warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+    // Add interceptor to automatically set CreatedAt with Vietnam timezone
+    options.AddInterceptors(new VietnamTimezoneInterceptor());
+});
 
 // --- 2. Cấu hình JWT AUTHENTICATION ---
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -78,7 +88,11 @@ builder.Services.AddScoped<TravelAI.Infrastructure.Services.UserService>();
 builder.Services.AddScoped<ISpotService, SpotService>();
 builder.Services.AddScoped<IServiceService, ServiceService>();
 builder.Services.AddScoped<IAvailabilityService, AvailabilityService>();
+builder.Services.AddScoped<IPricingService, PricingService>();
 builder.Services.AddScoped<IBookingService, BookingService>();
+builder.Services.AddScoped<IPartnerOrderService, PartnerOrderService>();
+builder.Services.AddScoped<IEmailService, TravelAI.Infrastructure.ExternalServices.Mail.SendGridEmailService>();
+builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IAIAnalyticsService, AIAnalyticsService>();
 
 builder.Services.AddHttpClient<GeminiService>();
@@ -93,6 +107,10 @@ builder.Services.AddScoped<ISpotScoringService, TravelAI.Application.Services.Sp
 builder.Services.AddScoped<IItineraryService, ItineraryService>();
 builder.Services.AddScoped<PromptBuilder>();
 builder.Services.AddScoped<IRealtimeNotificationService, SignalRNotificationService>();
+
+// --- 5. ĐĂNG KÝ BACKGROUND JOBS ---
+builder.Services.AddHostedService<OrderApprovalTimeoutJob>();
+builder.Services.AddHostedService<OrderApprovalReminderJob>();
 
 var app = builder.Build();
 
@@ -143,6 +161,55 @@ using (var scope = app.Services.CreateScope())
         END
         """);
 
+    // Patch: Add PricingRules table
+    dbContext.Database.ExecuteSqlRaw(
+        """
+        IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[PricingRules]') AND type in (N'U'))
+        BEGIN
+            CREATE TABLE [dbo].[PricingRules] (
+                [RuleId] INT IDENTITY(1,1) NOT NULL,
+                [ServiceId] INT NOT NULL,
+                [StartDate] DATETIME2 NOT NULL,
+                [EndDate] DATETIME2 NOT NULL,
+                [PriceMultiplier] DECIMAL(18,2) NOT NULL,
+                [Description] NVARCHAR(500) NULL,
+                [CreatedAt] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+                CONSTRAINT [PK_PricingRules] PRIMARY KEY CLUSTERED ([RuleId] ASC),
+                CONSTRAINT [FK_PricingRules_Services_ServiceId] FOREIGN KEY([ServiceId])
+                    REFERENCES [dbo].[Services] ([ServiceId])
+                    ON DELETE CASCADE
+            );
+
+            CREATE NONCLUSTERED INDEX [IX_PricingRules_ServiceId] 
+            ON [dbo].[PricingRules]([ServiceId] ASC);
+
+            CREATE NONCLUSTERED INDEX [IX_PricingRules_DateRange] 
+            ON [dbo].[PricingRules]([StartDate] ASC, [EndDate] ASC);
+        END
+        """);
+
+    // Patch: Add IsApprovedByPartner and ApprovedAt to Bookings table
+    dbContext.Database.ExecuteSqlRaw(
+        """
+        IF COL_LENGTH('Bookings', 'IsApprovedByPartner') IS NULL
+        BEGIN
+            ALTER TABLE [Bookings]
+            ADD [IsApprovedByPartner] BIT NOT NULL DEFAULT 0;
+        END
+
+        IF COL_LENGTH('Bookings', 'ApprovedAt') IS NULL
+        BEGIN
+            ALTER TABLE [Bookings]
+            ADD [ApprovedAt] DATETIME2 NULL;
+        END
+
+        IF COL_LENGTH('Bookings', 'ApprovalDeadline') IS NULL
+        BEGIN
+            ALTER TABLE [Bookings]
+            ADD [ApprovalDeadline] DATETIME2 NULL;
+        END
+        """);
+
     // Seed dữ liệu mẫu (chỉ chạy khi DB còn trống)
     try
     {
@@ -167,8 +234,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseStaticFiles();
-app.UseCors("AllowReactApp");
 
+// CORS phải đặt trước Authentication
+app.UseCors("AllowReactApp");
 app.UseHttpsRedirection();
 
 app.UseAuthentication();

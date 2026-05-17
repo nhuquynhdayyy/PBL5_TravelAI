@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TravelAI.Application.DTOs.Partner;
+using TravelAI.Application.Helpers;
+using TravelAI.Application.Interfaces;
 using TravelAI.Domain.Entities;
 using TravelAI.Domain.Enums;
 using TravelAI.Infrastructure.Persistence;
@@ -16,11 +18,30 @@ public class PartnerController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly IWebHostEnvironment _environment;
+    private readonly IPartnerOrderService _partnerOrderService;
+    private readonly IAuditLogService _auditLogService;
 
-    public PartnerController(ApplicationDbContext context, IWebHostEnvironment environment)
+    public PartnerController(
+        ApplicationDbContext context, 
+        IWebHostEnvironment environment,
+        IPartnerOrderService partnerOrderService,
+        IAuditLogService auditLogService)
     {
         _context = context;
         _environment = environment;
+        _partnerOrderService = partnerOrderService;
+        _auditLogService = auditLogService;
+    }
+
+    // Helper method to convert UTC to Vietnam time (UTC+7)
+    private static DateTime ToVietnamTime(DateTime utcTime)
+    {
+        return utcTime.AddHours(7);
+    }
+
+    private static DateTime? ToVietnamTime(DateTime? utcTime)
+    {
+        return utcTime?.AddHours(7);
     }
 
     [HttpGet("profile")]
@@ -99,7 +120,7 @@ public class PartnerController : ControllerBase
 
         profile.VerificationStatus = PartnerVerificationStatus.Pending;
         profile.ReviewNote = null;
-        profile.SubmittedAt = DateTime.UtcNow;
+        profile.SubmittedAt = DateTimeHelper.Now;
         profile.ReviewedAt = null;
 
         await _context.SaveChangesAsync();
@@ -120,7 +141,7 @@ public class PartnerController : ControllerBase
         }
 
         var partnerId = int.Parse(partnerIdClaim.Value);
-        var utcToday = DateTime.UtcNow.Date;
+        var vietnamToday = DateTimeHelper.Today;
         var normalizedPeriod = (period ?? "month").Trim().ToLowerInvariant();
 
         if (normalizedPeriod is not ("day" or "week" or "month" or "custom"))
@@ -134,12 +155,12 @@ public class PartnerController : ControllerBase
         switch (normalizedPeriod)
         {
             case "day":
-                rangeStart = utcToday;
-                rangeEnd = utcToday;
+                rangeStart = vietnamToday;
+                rangeEnd = vietnamToday;
                 break;
             case "week":
-                var diff = ((int)utcToday.DayOfWeek + 6) % 7;
-                rangeStart = utcToday.AddDays(-diff);
+                var diff = ((int)vietnamToday.DayOfWeek + 6) % 7;
+                rangeStart = vietnamToday.AddDays(-diff);
                 rangeEnd = rangeStart.AddDays(6);
                 break;
             case "custom":
@@ -152,7 +173,7 @@ public class PartnerController : ControllerBase
                 rangeEnd = endDate.Value.Date;
                 break;
             default:
-                rangeStart = new DateTime(utcToday.Year, utcToday.Month, 1);
+                rangeStart = new DateTime(vietnamToday.Year, vietnamToday.Month, 1);
                 rangeEnd = rangeStart.AddMonths(1).AddDays(-1);
                 break;
         }
@@ -275,4 +296,306 @@ public class PartnerController : ControllerBase
 
         return value.Trim();
     }
+
+    // ──────────────────────────────────────────────
+    //  ORDER MANAGEMENT
+    // ──────────────────────────────────────────────
+
+    [HttpGet("orders")]
+    public async Task<IActionResult> GetOrders(
+        [FromQuery] int? status,
+        [FromQuery] DateTime? startDate,
+        [FromQuery] DateTime? endDate,
+        [FromQuery] int? serviceId)
+    {
+        var partnerIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (partnerIdClaim == null)
+        {
+            return Unauthorized(new { message = "Vui long dang nhap!" });
+        }
+
+        var partnerId = int.Parse(partnerIdClaim.Value);
+
+        // TỰ ĐỘNG HỦY CÁC ĐƠN QUÁ HẠN TRƯỚC KHI LOAD
+        var now = DateTimeHelper.Now;
+        var expiredOrders = await _context.Bookings
+            .Include(b => b.BookingItems)
+            .Include(b => b.Payments)
+            .Where(b => b.Status == BookingStatus.Paid
+                && !b.IsApprovedByPartner
+                && b.ApprovalDeadline.HasValue
+                && b.ApprovalDeadline.Value <= now
+                && b.BookingItems.Any(bi => bi.Service.PartnerId == partnerId))
+            .ToListAsync();
+
+        if (expiredOrders.Any())
+        {
+            foreach (var booking in expiredOrders)
+            {
+                // Hủy đơn
+                booking.Status = BookingStatus.Cancelled;
+
+                // Tạo refund
+                var latestPayment = booking.Payments.OrderByDescending(p => p.PaymentTime).FirstOrDefault();
+                if (latestPayment != null)
+                {
+                    _context.Refunds.Add(new Domain.Entities.Refund
+                    {
+                        PaymentId = latestPayment.PaymentId,
+                        RefundAmount = latestPayment.Amount,
+                        RefundRef = Guid.NewGuid().ToString("N")[..12].ToUpper(),
+                        Reason = "Quá hạn duyệt",
+                        RefundTime = DateTimeHelper.Now
+                    });
+                }
+
+                // Giải phóng inventory
+                foreach (var item in booking.BookingItems)
+                {
+                    var availability = await _context.ServiceAvailabilities
+                        .FirstOrDefaultAsync(a => a.ServiceId == item.ServiceId && a.Date == item.CheckInDate.Date);
+                    if (availability != null)
+                    {
+                        availability.BookedCount = Math.Max(0, availability.BookedCount - item.Quantity);
+                    }
+                }
+            }
+
+            await _context.SaveChangesAsync();
+        }
+
+        var query = _context.BookingItems
+            .AsNoTracking()
+            .Include(bi => bi.Service)
+            .Include(bi => bi.Booking)
+                .ThenInclude(b => b.User)
+            .Where(bi => bi.Service.PartnerId == partnerId);
+
+        // Filter by status
+        if (status.HasValue)
+        {
+            var bookingStatus = (BookingStatus)status.Value;
+            query = query.Where(bi => bi.Booking.Status == bookingStatus);
+        }
+
+        // Filter by date range
+        if (startDate.HasValue)
+        {
+            query = query.Where(bi => bi.CheckInDate >= startDate.Value.Date);
+        }
+
+        if (endDate.HasValue)
+        {
+            query = query.Where(bi => bi.CheckInDate <= endDate.Value.Date);
+        }
+
+        // Filter by serviceId
+        if (serviceId.HasValue)
+        {
+            query = query.Where(bi => bi.ServiceId == serviceId.Value);
+        }
+
+        var orders = await query
+            .Select(bi => new
+            {
+                bookingId = bi.BookingId,
+                serviceName = bi.Service.Name,
+                serviceId = bi.ServiceId,
+                customerName = bi.Booking.User.FullName,
+                customerEmail = bi.Booking.User.Email,
+                checkInDate = bi.CheckInDate,
+                quantity = bi.Quantity,
+                totalAmount = bi.PriceAtBooking * bi.Quantity,
+                status = bi.Booking.Status,
+                createdAt = bi.Booking.CreatedAt,
+                isApprovedByPartner = bi.Booking.IsApprovedByPartner,
+                approvedAt = bi.Booking.ApprovedAt,
+                approvalDeadline = bi.Booking.ApprovalDeadline,
+                // Tính thời gian còn lại để duyệt (giờ)
+                hoursUntilDeadline = bi.Booking.ApprovalDeadline.HasValue 
+                    ? (bi.Booking.ApprovalDeadline.Value - now).TotalHours 
+                    : (double?)null,
+                // Lý do hủy (từ Refund.Reason)
+                cancellationReason = bi.Booking.Payments
+                    .SelectMany(p => p.Refunds)
+                    .OrderByDescending(r => r.RefundTime)
+                    .Select(r => r.Reason)
+                    .FirstOrDefault()
+            })
+            .OrderByDescending(x => x.checkInDate)
+            .ToListAsync();
+
+        // Convert UTC to Vietnam time
+        var ordersWithVnTime = orders.Select(o => new
+        {
+            o.bookingId,
+            o.serviceName,
+            o.serviceId,
+            o.customerName,
+            o.customerEmail,
+            o.checkInDate,
+            o.quantity,
+            o.totalAmount,
+            o.status,
+            createdAt = ToVietnamTime(o.createdAt),
+            o.isApprovedByPartner,
+            approvedAt = ToVietnamTime(o.approvedAt),
+            approvalDeadline = ToVietnamTime(o.approvalDeadline),
+            o.hoursUntilDeadline,
+            o.cancellationReason
+        }).ToList();
+
+        return Ok(ordersWithVnTime);
+    }
+
+    [HttpGet("orders/{bookingId:int}")]
+    public async Task<IActionResult> GetOrderDetail(int bookingId)
+    {
+        var partnerIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (partnerIdClaim == null)
+        {
+            return Unauthorized(new { message = "Vui long dang nhap!" });
+        }
+
+        var partnerId = int.Parse(partnerIdClaim.Value);
+
+        var booking = await _context.Bookings
+            .AsNoTracking()
+            .Include(b => b.User)
+            .Include(b => b.BookingItems)
+                .ThenInclude(bi => bi.Service)
+            .Include(b => b.Payments)
+                .ThenInclude(p => p.Refunds)
+            .FirstOrDefaultAsync(b => b.BookingId == bookingId);
+
+        if (booking == null)
+        {
+            return NotFound(new { message = "Khong tim thay don hang." });
+        }
+
+        // Kiểm tra quyền - booking phải có service của partner
+        var hasPartnerService = booking.BookingItems
+            .Any(item => item.Service.PartnerId == partnerId);
+
+        if (!hasPartnerService)
+        {
+            return Forbid();
+        }
+
+        var latestPayment = booking.Payments
+            .OrderByDescending(p => p.PaymentTime)
+            .FirstOrDefault();
+
+        var totalRefunded = booking.Payments
+            .SelectMany(p => p.Refunds)
+            .Sum(r => r.RefundAmount);
+
+        var latestRefund = booking.Payments
+            .SelectMany(p => p.Refunds)
+            .OrderByDescending(r => r.RefundTime)
+            .FirstOrDefault();
+
+        var result = new
+        {
+            bookingId = booking.BookingId,
+            customerName = booking.User.FullName,
+            customerEmail = booking.User.Email,
+            status = booking.Status,
+            totalAmount = booking.TotalAmount,
+            createdAt = ToVietnamTime(booking.CreatedAt),
+            paymentMethod = latestPayment?.Method,
+            paymentTime = ToVietnamTime(latestPayment?.PaymentTime),
+            refundedAmount = totalRefunded,
+            cancellationReason = latestRefund?.Reason, // Lý do hủy
+            isApprovedByPartner = booking.IsApprovedByPartner,
+            approvedAt = ToVietnamTime(booking.ApprovedAt),
+            approvalDeadline = ToVietnamTime(booking.ApprovalDeadline),
+            hoursUntilDeadline = booking.ApprovalDeadline.HasValue 
+                ? (booking.ApprovalDeadline.Value - DateTimeHelper.Now).TotalHours 
+                : (double?)null,
+            items = booking.BookingItems.Select(item => new
+            {
+                serviceId = item.ServiceId,
+                serviceName = item.Service.Name,
+                quantity = item.Quantity,
+                priceAtBooking = item.PriceAtBooking,
+                checkInDate = item.CheckInDate,
+                notes = item.Notes
+            }).ToList()
+        };
+
+        return Ok(result);
+    }
+
+    [HttpPost("orders/{bookingId:int}/approve")]
+    public async Task<IActionResult> ApproveOrder(int bookingId)
+    {
+        var partnerIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (partnerIdClaim == null)
+        {
+            return Unauthorized(new { message = "Vui long dang nhap!" });
+        }
+
+        var partnerId = int.Parse(partnerIdClaim.Value);
+
+        var success = await _partnerOrderService.ApproveOrderAsync(bookingId, partnerId);
+
+        if (!success)
+        {
+            return BadRequest(new { message = "Khong the duyet don hang nay. Vui long kiem tra lai." });
+        }
+
+        return Ok(new { message = "Da duyet don hang thanh cong!" });
+    }
+
+    [HttpPost("orders/{bookingId:int}/reject")]
+    public async Task<IActionResult> RejectOrder(int bookingId, [FromBody] RejectOrderRequest request)
+    {
+        var partnerIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (partnerIdClaim == null)
+        {
+            return Unauthorized(new { message = "Vui long dang nhap!" });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Reason))
+        {
+            return BadRequest(new { message = "Vui long nhap ly do tu choi." });
+        }
+
+        var partnerId = int.Parse(partnerIdClaim.Value);
+
+        var success = await _partnerOrderService.RejectOrderAsync(bookingId, partnerId, request.Reason);
+
+        if (!success)
+        {
+            return BadRequest(new { message = "Khong the tu choi don hang nay. Vui long kiem tra lai." });
+        }
+
+        return Ok(new { message = "Da tu choi don hang va hoan tien cho khach hang." });
+    }
+
+    [HttpGet("orders/pending-count")]
+    public async Task<IActionResult> GetPendingOrdersCount()
+    {
+        var partnerIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (partnerIdClaim == null)
+        {
+            return Unauthorized(new { message = "Vui long dang nhap!" });
+        }
+
+        var partnerId = int.Parse(partnerIdClaim.Value);
+
+        var pendingCount = await _context.BookingItems
+            .AsNoTracking()
+            .Where(bi => bi.Service.PartnerId == partnerId
+                && bi.Booking.Status == BookingStatus.Paid
+                && !bi.Booking.IsApprovedByPartner)
+            .Select(bi => bi.BookingId)
+            .Distinct()
+            .CountAsync();
+
+        return Ok(new { pendingCount });
+    }
 }
+
+public record RejectOrderRequest(string Reason);

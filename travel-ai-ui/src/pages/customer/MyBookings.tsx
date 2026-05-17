@@ -11,6 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import axiosClient from '../../api/axiosClient';
+import { formatVietnameseDate } from '../../utils/dateTimeUtils';
 
 type BookingStatus = number | string;
 
@@ -27,6 +28,7 @@ type CustomerBooking = {
   estimatedRefundAmount: number;
   canCancel: boolean;
   cancelPolicy: string;
+  cancellationReason?: string; // Lý do hủy đơn
 };
 
 const statusMap: Record<number, { label: string; className: string }> = {
@@ -89,7 +91,11 @@ function canCancelBooking(booking: CustomerBooking) {
     return false;
   }
 
-  return new Date(booking.checkInDate).getTime() > Date.now() + 24 * 60 * 60 * 1000;
+  // Chuyển sang giờ Việt Nam để so sánh
+  const checkInVN = toVietnamTime(booking.checkInDate);
+  const nowVN = new Date(Date.now() + 7 * 60 * 60 * 1000);
+  
+  return checkInVN ? checkInVN.getTime() > nowVN.getTime() + 24 * 60 * 60 * 1000 : false;
 }
 
 function getCancelPolicy(booking: CustomerBooking) {
@@ -145,6 +151,20 @@ const MyBookings = () => {
   useEffect(() => {
     fetchBookings();
   }, []);
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (selectedBooking) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+
+    // Cleanup on unmount
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [selectedBooking]);
 
   const pendingBookings = bookings.filter((booking) => resolveStatusKey(booking.status) === 1).length;
   const paidBookings = bookings.filter((booking) => resolveStatusKey(booking.status) === 2).length;
@@ -298,7 +318,7 @@ const MyBookings = () => {
                     </p>
                     <p className="flex items-center gap-2 font-bold text-slate-800">
                       <CalendarDays size={16} className="text-blue-500" />
-                      {new Date(booking.checkInDate).toLocaleDateString('vi-VN')}
+                      {formatVietnameseDate(booking.checkInDate)}
                     </p>
                   </div>
 
@@ -316,7 +336,7 @@ const MyBookings = () => {
                       Ngay dat
                     </p>
                     <p className="font-bold text-slate-800">
-                      {new Date(booking.createdAt).toLocaleDateString('vi-VN')}
+                      {formatVietnameseDate(booking.createdAt)}
                     </p>
                   </div>
 
@@ -377,8 +397,14 @@ const MyBookings = () => {
       )}
 
       {selectedBooking && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 px-4 py-8">
-          <div className="w-full max-w-2xl rounded-[2rem] bg-white p-8 shadow-2xl">
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 px-4 py-8 overflow-y-auto custom-scrollbar"
+          onClick={() => setSelectedBooking(null)}
+        >
+          <div 
+            className="w-full max-w-2xl rounded-[2rem] bg-white p-8 shadow-2xl my-8 max-h-[90vh] overflow-y-auto custom-scrollbar"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="mb-6 flex items-start justify-between gap-4">
               <div>
                 <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-400">
@@ -418,7 +444,7 @@ const MyBookings = () => {
                   Ngay su dung
                 </p>
                 <p className="font-bold text-slate-800">
-                  {new Date(selectedBooking.checkInDate).toLocaleDateString('vi-VN')}
+                  {formatVietnameseDate(selectedBooking.checkInDate)}
                 </p>
               </div>
 
@@ -434,7 +460,7 @@ const MyBookings = () => {
                   Ngay dat
                 </p>
                 <p className="font-bold text-slate-800">
-                  {new Date(selectedBooking.createdAt).toLocaleDateString('vi-VN')}
+                  {formatVietnameseDate(selectedBooking.createdAt)}
                 </p>
               </div>
 
@@ -460,6 +486,17 @@ const MyBookings = () => {
                 <p className="text-[10px] font-black uppercase tracking-[0.18em]">Tien da hoan</p>
                 <p className="mt-2 text-2xl font-black">
                   {currencyFormatter.format(selectedBooking.refundedAmount)}d
+                </p>
+              </div>
+            )}
+
+            {/* Hiển thị lý do hủy trong modal chi tiết - CHỈ nếu có lý do từ customer */}
+            {resolveStatusKey(selectedBooking.status) === 4 && selectedBooking.cancellationReason && 
+             selectedBooking.cancellationReason !== "Quá hạn duyệt" && (
+              <div className="mb-6 rounded-2xl bg-rose-50 border border-rose-200 p-5">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-rose-600">Ly do huy</p>
+                <p className="mt-2 text-sm font-semibold text-rose-700">
+                  {selectedBooking.cancellationReason.replace(/^Partner rejected:\s*/i, '')}
                 </p>
               </div>
             )}

@@ -8,5 +8,6 @@ public class ReviewItemDto
     public int Rating { get; set; }
     public string? Comment { get; set; }
     public string? ReplyText { get; set; }
+    public DateTime? ReplyTime { get; set; }
     public DateTime CreatedAt { get; set; }
 }

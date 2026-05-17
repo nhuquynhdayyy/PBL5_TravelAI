@@ -14,7 +14,12 @@ import {
   Store,
   User,
   Users,
+  History,
+  X,
+  Clock,
+  Database,
 } from 'lucide-react';
+import { formatVietnameseDate, formatVietnameseDateTime } from '../../utils/dateTimeUtils';
 
 type UserItem = {
   userId: number;
@@ -29,6 +34,23 @@ type UserItem = {
 
 type UsersResponse = {
   items: UserItem[];
+  totalCount: number;
+  totalPages: number;
+  currentPage: number;
+};
+
+type ActivityLogItem = {
+  logId: number;
+  action: string;
+  tableName: string;
+  recordId: number;
+  timestamp: string;
+};
+
+type ActivityLogResponse = {
+  userId: number;
+  userName: string;
+  items: ActivityLogItem[];
   totalCount: number;
   totalPages: number;
   currentPage: number;
@@ -61,6 +83,13 @@ const AdminUsers = () => {
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<RoleTab>('customer');
+  
+  // Activity Log Modal State
+  const [showActivityLog, setShowActivityLog] = useState(false);
+  const [activityLogData, setActivityLogData] = useState<ActivityLogResponse | null>(null);
+  const [activityLogLoading, setActivityLogLoading] = useState(false);
+  const [activityLogPage, setActivityLogPage] = useState(1);
+  const [selectedUser, setSelectedUser] = useState<UserItem | null>(null);
 
   const fetchUsers = useCallback(async (currentPage: number, keyword: string, role: string) => {
     try {
@@ -80,6 +109,19 @@ const AdminUsers = () => {
   useEffect(() => {
     void fetchUsers(page, searchQuery, activeTab);
   }, [page, searchQuery, activeTab, fetchUsers]);
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (showActivityLog) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showActivityLog]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,6 +150,35 @@ const AdminUsers = () => {
     }
   };
 
+  const handleViewActivityLog = async (user: UserItem) => {
+    setSelectedUser(user);
+    setShowActivityLog(true);
+    setActivityLogPage(1);
+    await fetchActivityLog(user.userId, 1);
+  };
+
+  const fetchActivityLog = async (userId: number, currentPage: number) => {
+    try {
+      setActivityLogLoading(true);
+      const response = await axiosClient.get(`/admin/users/${userId}/activity-log`, {
+        params: { page: currentPage, pageSize: 20 },
+      });
+      setActivityLogData(response.data);
+    } catch (error) {
+      console.error(error);
+      alert('Khong the tai lich su hoat dong.');
+    } finally {
+      setActivityLogLoading(false);
+    }
+  };
+
+  const handleCloseActivityLog = () => {
+    setShowActivityLog(false);
+    setActivityLogData(null);
+    setSelectedUser(null);
+    setActivityLogPage(1);
+  };
+
   const users = data?.items ?? [];
   const totalPages = data?.totalPages ?? 1;
 
@@ -119,10 +190,27 @@ const AdminUsers = () => {
     return range;
   }, [page, totalPages]);
 
-  const formatDate = (iso: string) => {
-    const d = new Date(iso);
-    return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const getActionColor = (action: string) => {
+    switch (action.toUpperCase()) {
+      case 'CREATE':
+        return 'bg-green-100 text-green-700';
+      case 'UPDATE':
+        return 'bg-blue-100 text-blue-700';
+      case 'DELETE':
+        return 'bg-red-100 text-red-700';
+      default:
+        return 'bg-gray-100 text-gray-700';
+    }
   };
+
+  const activityLogPaginationRange = useMemo(() => {
+    if (!activityLogData) return [];
+    const range: number[] = [];
+    const start = Math.max(1, activityLogPage - 2);
+    const end = Math.min(activityLogData.totalPages, activityLogPage + 2);
+    for (let i = start; i <= end; i++) range.push(i);
+    return range;
+  }, [activityLogPage, activityLogData]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -279,7 +367,7 @@ const AdminUsers = () => {
 
                       {/* Created */}
                       <td className="px-6 py-4 text-sm font-semibold text-slate-600">
-                        {formatDate(user.createdAt)}
+                        {formatVietnameseDate(user.createdAt)}
                       </td>
 
                       {/* Status */}
@@ -305,25 +393,35 @@ const AdminUsers = () => {
 
                       {/* Action */}
                       <td className="px-6 py-4 text-right">
-                        <button
-                          type="button"
-                          onClick={() => void handleToggleActive(user)}
-                          disabled={actionLoading === user.userId}
-                          className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-black shadow-sm transition active:scale-95 disabled:opacity-60 ${
-                            user.isActive
-                              ? 'bg-red-600 text-white hover:bg-red-700'
-                              : 'bg-emerald-600 text-white hover:bg-emerald-700'
-                          }`}
-                        >
-                          {actionLoading === user.userId ? (
-                            <Loader2 size={14} className="animate-spin" />
-                          ) : user.isActive ? (
-                            <ShieldOff size={14} />
-                          ) : (
-                            <ShieldCheck size={14} />
-                          )}
-                          {user.isActive ? 'Khoa' : 'Mo khoa'}
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleViewActivityLog(user)}
+                            className="inline-flex items-center gap-2 rounded-2xl bg-slate-600 px-4 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-slate-700 active:scale-95"
+                          >
+                            <History size={14} />
+                            Lich su
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleToggleActive(user)}
+                            disabled={actionLoading === user.userId}
+                            className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-black shadow-sm transition active:scale-95 disabled:opacity-60 ${
+                              user.isActive
+                                ? 'bg-red-600 text-white hover:bg-red-700'
+                                : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                            }`}
+                          >
+                            {actionLoading === user.userId ? (
+                              <Loader2 size={14} className="animate-spin" />
+                            ) : user.isActive ? (
+                              <ShieldOff size={14} />
+                            ) : (
+                              <ShieldCheck size={14} />
+                            )}
+                            {user.isActive ? 'Khoa' : 'Mo khoa'}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -372,6 +470,154 @@ const AdminUsers = () => {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Activity Log Modal */}
+      {showActivityLog && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto"
+          onClick={() => setShowActivityLog(false)}
+        >
+          <div 
+            className="relative w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-3xl bg-white shadow-2xl my-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="sticky top-0 z-10 border-b border-slate-100 bg-white px-8 py-6">
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-indigo-50 px-3 py-1 text-xs font-black uppercase tracking-wider text-indigo-700">
+                    <History size={12} /> Lich su hoat dong
+                  </div>
+                  <h2 className="text-2xl font-black text-slate-900">
+                    {selectedUser?.fullName}
+                  </h2>
+                  <p className="mt-1 text-sm font-medium text-slate-500">
+                    {selectedUser?.email} • ID: {selectedUser?.userId}
+                  </p>
+                </div>
+                <button
+                  onClick={handleCloseActivityLog}
+                  className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-900"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="overflow-y-auto custom-scrollbar p-8" style={{ maxHeight: 'calc(90vh - 180px)' }}>
+              {activityLogLoading ? (
+                <div className="flex justify-center py-20">
+                  <Loader2 className="animate-spin text-indigo-600" size={40} />
+                </div>
+              ) : activityLogData && activityLogData.items.length > 0 ? (
+                <div className="space-y-3">
+                  {activityLogData.items.map((log) => (
+                    <div
+                      key={log.logId}
+                      className="flex items-start gap-4 rounded-2xl border border-slate-100 bg-slate-50/50 p-5 transition hover:border-slate-200 hover:bg-white"
+                    >
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 text-white shadow-sm">
+                        <Database size={18} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${getActionColor(
+                                  log.action
+                                )}`}
+                              >
+                                {log.action}
+                              </span>
+                              <span className="text-sm font-bold text-slate-900">
+                                {log.tableName}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-sm text-slate-600">
+                              Record ID: <span className="font-semibold">{log.recordId}</span>
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+                            <Clock size={12} />
+                            {formatVietnameseDateTime(log.timestamp)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-20 text-center">
+                  <History size={48} className="mx-auto mb-4 text-slate-300" />
+                  <p className="text-lg font-black text-slate-400">
+                    Chua co lich su hoat dong
+                  </p>
+                  <p className="mt-2 text-sm font-medium text-slate-400">
+                    Nguoi dung nay chua co hoat dong nao duoc ghi nhan.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer with Pagination */}
+            {activityLogData && activityLogData.totalPages > 1 && (
+              <div className="sticky bottom-0 border-t border-slate-100 bg-white px-8 py-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-slate-500">
+                    Trang {activityLogPage} / {activityLogData.totalPages} • Tong:{' '}
+                    {activityLogData.totalCount} hoat dong
+                  </p>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newPage = Math.max(1, activityLogPage - 1);
+                        setActivityLogPage(newPage);
+                        if (selectedUser) void fetchActivityLog(selectedUser.userId, newPage);
+                      }}
+                      disabled={activityLogPage <= 1}
+                      className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30"
+                    >
+                      <ChevronLeft size={18} />
+                    </button>
+                    {activityLogPaginationRange.map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => {
+                          setActivityLogPage(p);
+                          if (selectedUser) void fetchActivityLog(selectedUser.userId, p);
+                        }}
+                        className={`min-w-[2.25rem] rounded-xl px-3 py-2 text-sm font-bold transition ${
+                          p === activityLogPage
+                            ? 'bg-indigo-600 text-white shadow-sm'
+                            : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newPage = Math.min(activityLogData.totalPages, activityLogPage + 1);
+                        setActivityLogPage(newPage);
+                        if (selectedUser) void fetchActivityLog(selectedUser.userId, newPage);
+                      }}
+                      disabled={activityLogPage >= activityLogData.totalPages}
+                      className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30"
+                    >
+                      <ChevronRight size={18} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

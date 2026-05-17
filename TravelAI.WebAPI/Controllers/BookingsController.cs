@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using TravelAI.Application.DTOs.Booking;
+using TravelAI.Application.Helpers;
 using TravelAI.Application.Interfaces;
 using TravelAI.Domain.Entities;
 using TravelAI.Domain.Enums;
@@ -17,15 +18,18 @@ public class BookingsController : ControllerBase
 {
     private readonly IBookingService _bookingService;
     private readonly ApplicationDbContext _context;
+    private readonly IAuditLogService _auditLogService;
     private readonly IRealtimeNotificationService _notificationService;
 
     public BookingsController(
-        IBookingService bookingService,
-        ApplicationDbContext context,
+        IBookingService bookingService, 
+        ApplicationDbContext context, 
+        IAuditLogService auditLogService,
         IRealtimeNotificationService notificationService)
     {
         _bookingService = bookingService;
         _context = context;
+        _auditLogService = auditLogService;
         _notificationService = notificationService;
     }
 
@@ -77,6 +81,9 @@ public class BookingsController : ControllerBase
                 message = "Xin loi, ngay nay da het cho hoac khong du so luong ban yeu cau!"
             });
         }
+
+        // Log audit
+        await _auditLogService.LogAsync(userId, "CREATE", "Bookings", bookingId.Value);
 
         return Ok(new
         {
@@ -178,6 +185,7 @@ public class BookingsController : ControllerBase
         }
 
         booking.Status = BookingStatus.Paid;
+        booking.ApprovalDeadline = DateTimeHelper.Now.AddHours(24); // Partner có 24h để duyệt kể từ khi thanh toán
 
         var items = await _context.BookingItems
             .Where(bi => bi.BookingId == id)
@@ -204,13 +212,18 @@ public class BookingsController : ControllerBase
             Method = "Mock",
             TransactionRef = Guid.NewGuid().ToString("N")[..12].ToUpper(),
             Amount = booking.TotalAmount,
-            PaymentTime = DateTime.UtcNow
+            PaymentTime = DateTimeHelper.Now
         });
 
         var result = await _context.SaveChangesAsync();
 
         if (result > 0)
         {
+            // 1. Phần Log Audit của bạn
+            int userId = int.Parse(userIdClaim.Value);
+            await _auditLogService.LogAsync(userId, "UPDATE", "Bookings", id);
+            
+            // 2. Phần Gửi thông báo của Main
             var firstItem = items.FirstOrDefault();
             var partnerId = booking.BookingItems
                 .Select(item => item.Service.PartnerId)
@@ -269,7 +282,7 @@ public class BookingsController : ControllerBase
             return NotFound(new { message = "Khong tim thay don hang." });
         }
 
-        var evaluation = EvaluateCancellationPolicy(booking, DateTime.UtcNow);
+        var evaluation = EvaluateCancellationPolicy(booking, DateTimeHelper.Now);
         if (!evaluation.CanCancel)
         {
             return BadRequest(new { message = evaluation.PolicyMessage });
@@ -328,13 +341,16 @@ public class BookingsController : ControllerBase
                 RefundAmount = refundAmount,
                 RefundRef = Guid.NewGuid().ToString("N")[..12].ToUpper(),
                 Reason = evaluation.PolicyMessage,
-                RefundTime = DateTime.UtcNow
+                RefundTime = DateTimeHelper.Now
             });
         }
 
         booking.Status = BookingStatus.Cancelled;
 
         await _context.SaveChangesAsync();
+        
+        // Log audit
+        await _auditLogService.LogAsync(userId, "DELETE", "Bookings", id);
 
         return Ok(new
         {
@@ -348,7 +364,7 @@ public class BookingsController : ControllerBase
 
     private static BookingDetailResponse MapToBookingDetail(Booking booking)
     {
-        var evaluation = EvaluateCancellationPolicy(booking, DateTime.UtcNow);
+        var evaluation = EvaluateCancellationPolicy(booking, DateTimeHelper.Now);
         var item = booking.BookingItems
             .OrderBy(bi => bi.ItemId)
             .FirstOrDefault();
@@ -360,6 +376,21 @@ public class BookingsController : ControllerBase
             .SelectMany(payment => payment.Refunds)
             .OrderByDescending(refund => refund.RefundTime)
             .FirstOrDefault();
+
+        // Xác định lý do hủy
+        string? cancellationReason = null;
+        if (booking.Status == BookingStatus.Cancelled || booking.Status == BookingStatus.Refunded)
+        {
+            // Nếu có refund reason thì dùng
+            cancellationReason = latestRefund?.Reason;
+            
+            // Đối với customer: Ẩn lý do "Quá hạn duyệt", chỉ hiện lý do từ customer hoặc partner
+            // "Quá hạn duyệt" là lý do hệ thống tự động, không cần hiện cho customer
+            if (cancellationReason == "Quá hạn duyệt")
+            {
+                cancellationReason = null; // Không hiển thị lý do này cho customer
+            }
+        }
 
         return new BookingDetailResponse
         {
@@ -374,7 +405,8 @@ public class BookingsController : ControllerBase
             RefundedAmount = latestRefund?.RefundAmount ?? 0,
             EstimatedRefundAmount = evaluation.EstimatedRefundAmount,
             CanCancel = evaluation.CanCancel,
-            CancelPolicy = evaluation.PolicyMessage
+            CancelPolicy = evaluation.PolicyMessage,
+            CancellationReason = cancellationReason
         };
     }
 
@@ -395,7 +427,8 @@ public class BookingsController : ControllerBase
             RefundedAmount = detail.RefundedAmount,
             EstimatedRefundAmount = detail.EstimatedRefundAmount,
             CanCancel = detail.CanCancel,
-            CancelPolicy = detail.CancelPolicy
+            CancelPolicy = detail.CancelPolicy,
+            CancellationReason = detail.CancellationReason
         };
     }
 

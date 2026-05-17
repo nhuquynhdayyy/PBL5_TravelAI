@@ -5,7 +5,7 @@ public class AISuggestionLog {
     public int UserId { get; set; }
     public string UserPrompt { get; set; } = string.Empty;
     public string AiResponseJson { get; set; } = string.Empty;
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; }
 
     public User User { get; set; } = null!;
 }

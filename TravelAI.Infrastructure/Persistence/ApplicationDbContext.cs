@@ -17,6 +17,7 @@ public class ApplicationDbContext : DbContext {
     public DbSet<Service_Spot> Service_Spots => Set<Service_Spot>();
     public DbSet<ServiceImage> ServiceImages => Set<ServiceImage>();
     public DbSet<ServiceAvailability> ServiceAvailabilities => Set<ServiceAvailability>();
+    public DbSet<PricingRule> PricingRules => Set<PricingRule>();
     public DbSet<Itinerary> Itineraries => Set<Itinerary>();
     public DbSet<ItineraryItem> ItineraryItems => Set<ItineraryItem>();
     public DbSet<AISuggestionLog> AISuggestionLogs => Set<AISuggestionLog>();
