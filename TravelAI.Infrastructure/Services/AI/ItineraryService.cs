@@ -255,6 +255,9 @@ public class ItineraryService : IItineraryService
             foreach (var day in dto.Days.OrderBy(d => d.Day))
             {
                 var activities = day.Activities.ToList();
+                var dayStartDate = tripStartDate.AddDays(Math.Max(day.Day - 1, 0)).Date;
+                var currentTime = dayStartDate.AddHours(8); // Bắt đầu ngày lúc 8h sáng
+                TouristSpot? previousSpot = null;
 
                 for (var index = 0; index < activities.Count; index++)
                 {
@@ -264,11 +267,22 @@ public class ItineraryService : IItineraryService
                     var spot = ResolvePrimarySpot(service)
                         ?? spotCandidates.FirstOrDefault(candidate => IsPotentialSpotMatch(candidate, activity));
 
-                    var durationMinutes = ResolveDurationMinutes(service, spot);
-                    var startTime = tripStartDate
-                        .AddDays(Math.Max(day.Day - 1, 0))
-                        .Date
-                        .AddHours(8 + index * 3);
+                    // Nếu có activity trước đó, tính travel time
+                    if (previousSpot != null && spot != null)
+                    {
+                        var travelMinutes = EstimateTravelMinutes(previousSpot, spot);
+                        currentTime = currentTime.AddMinutes(travelMinutes);
+                    }
+
+                    var startTime = currentTime;
+
+                    // Parse duration từ AI response trước, fallback về service/spot duration
+                    var durationMinutes = ParseDurationFromActivity(activity.Duration);
+                    if (durationMinutes <= 0)
+                    {
+                        durationMinutes = ResolveDurationMinutes(service, spot);
+                    }
+
                     var endTime = startTime.AddMinutes(durationMinutes);
 
                     _db.ItineraryItems.Add(new ItineraryItem
@@ -280,6 +294,10 @@ public class ItineraryService : IItineraryService
                         EndTime = endTime,
                         ActivityOrder = order++
                     });
+
+                    // Cập nhật thời gian hiện tại và địa điểm trước đó
+                    currentTime = endTime;
+                    previousSpot = spot;
                 }
             }
 
@@ -801,6 +819,106 @@ public class ItineraryService : IItineraryService
         }
 
         return source.Contains(target, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Parse duration string từ AI response (ví dụ: "2 giờ", "90 phút", "1.5 hours", "2h30m")
+    /// Trả về số phút. Nếu không parse được, trả về 0.
+    /// </summary>
+    private static int ParseDurationFromActivity(string? duration)
+    {
+        if (string.IsNullOrWhiteSpace(duration))
+        {
+            return 0;
+        }
+
+        var normalized = duration.Trim().ToLowerInvariant();
+        var totalMinutes = 0;
+
+        // Pattern 1: "X giờ" hoặc "X gio"
+        var hoursVietnameseMatch = System.Text.RegularExpressions.Regex.Match(
+            normalized, 
+            @"(\d+(?:[.,]\d+)?)\s*(?:giờ|gio|tiếng|tieng)"
+        );
+        if (hoursVietnameseMatch.Success)
+        {
+            if (double.TryParse(
+                hoursVietnameseMatch.Groups[1].Value.Replace(',', '.'), 
+                System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var hours))
+            {
+                totalMinutes += (int)(hours * 60);
+            }
+        }
+
+        // Pattern 2: "X phút" hoặc "X phut"
+        var minutesVietnameseMatch = System.Text.RegularExpressions.Regex.Match(
+            normalized, 
+            @"(\d+)\s*(?:phút|phut)"
+        );
+        if (minutesVietnameseMatch.Success)
+        {
+            if (int.TryParse(minutesVietnameseMatch.Groups[1].Value, out var minutes))
+            {
+                totalMinutes += minutes;
+            }
+        }
+
+        // Pattern 3: "X hours" hoặc "X hour" hoặc "X hrs" hoặc "X hr"
+        var hoursEnglishMatch = System.Text.RegularExpressions.Regex.Match(
+            normalized, 
+            @"(\d+(?:[.,]\d+)?)\s*(?:hours?|hrs?)"
+        );
+        if (hoursEnglishMatch.Success)
+        {
+            if (double.TryParse(
+                hoursEnglishMatch.Groups[1].Value.Replace(',', '.'), 
+                System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var hours))
+            {
+                totalMinutes += (int)(hours * 60);
+            }
+        }
+
+        // Pattern 4: "X minutes" hoặc "X minute" hoặc "X mins" hoặc "X min"
+        var minutesEnglishMatch = System.Text.RegularExpressions.Regex.Match(
+            normalized, 
+            @"(\d+)\s*(?:minutes?|mins?)"
+        );
+        if (minutesEnglishMatch.Success)
+        {
+            if (int.TryParse(minutesEnglishMatch.Groups[1].Value, out var minutes))
+            {
+                totalMinutes += minutes;
+            }
+        }
+
+        // Pattern 5: "Xh Ym" hoặc "XhYm" (ví dụ: "2h30m", "1h 45m")
+        var compactMatch = System.Text.RegularExpressions.Regex.Match(
+            normalized, 
+            @"(\d+)\s*h(?:ours?)?\s*(\d+)?\s*m(?:in(?:ute)?s?)?"
+        );
+        if (compactMatch.Success)
+        {
+            if (int.TryParse(compactMatch.Groups[1].Value, out var hours))
+            {
+                totalMinutes += hours * 60;
+            }
+            if (compactMatch.Groups[2].Success && int.TryParse(compactMatch.Groups[2].Value, out var minutes))
+            {
+                totalMinutes += minutes;
+            }
+        }
+
+        // Pattern 6: Chỉ có số (giả định là phút nếu < 24, giờ nếu >= 24)
+        if (totalMinutes == 0 && int.TryParse(normalized, out var numericValue))
+        {
+            totalMinutes = numericValue < 24 ? numericValue * 60 : numericValue;
+        }
+
+        return totalMinutes;
     }
 
     private static string FormatDuration(int totalMinutes, ServiceType? serviceType = null)

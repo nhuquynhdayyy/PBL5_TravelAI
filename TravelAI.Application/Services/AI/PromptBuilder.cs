@@ -156,7 +156,29 @@ public class PromptBuilder
         prompt.AppendLine("- Nhip do moi ngay phai phu hop voi so thich ve toc do chuyen di.");
         prompt.AppendLine("- Goi y an uong va diem dung chan phai phu hop voi so thich am thuc neu co.");
         prompt.AppendLine();
-        prompt.Append("YEU CAU DAU RA: Tra ve JSON theo dung schema, tinh toan 'estimatedCost' la 0 cho cac diem tu do va dung gia he thong cho cac diem chinh thuc. Moi activity phai co field service_id. Moi dich vu goi y trong JSON phai co field service_id lay tu Database neu co. Lich trinh phai khop voi ngay bat dau da cung cap.");
+        prompt.Append("YEU CAU DAU RA: Tra ve JSON theo dung schema sau, KHONG them bat ky text nao ngoai JSON:\n");
+        prompt.AppendLine("{");
+        prompt.AppendLine("  \"tripTitle\": \"string\",");
+        prompt.AppendLine("  \"destination\": \"string\",");
+        prompt.AppendLine("  \"totalEstimatedCost\": number,");
+        prompt.AppendLine("  \"days\": [");
+        prompt.AppendLine("    {");
+        prompt.AppendLine("      \"day\": number,");
+        prompt.AppendLine("      \"date\": \"dd/MM/yyyy\",");
+        prompt.AppendLine("      \"activities\": [");
+        prompt.AppendLine("        {");
+        prompt.AppendLine("          \"title\": \"string\",");
+        prompt.AppendLine("          \"location\": \"string\",");
+        prompt.AppendLine("          \"description\": \"string\",");
+        prompt.AppendLine("          \"duration\": \"X gio Y phut (vi du: 2 gio, 90 phut, 1 gio 30 phut)\",");
+        prompt.AppendLine("          \"estimatedCost\": number,");
+        prompt.AppendLine("          \"service_id\": number_or_null");
+        prompt.AppendLine("        }");
+        prompt.AppendLine("      ]");
+        prompt.AppendLine("    }");
+        prompt.AppendLine("  ]");
+        prompt.AppendLine("}");
+        prompt.AppendLine("Luu y quan trong: field 'duration' BAT BUOC phai co va phai la thoi gian thuc te cua hoat dong do (vi du: tham quan bao tang 2 gio, an trua 1 gio, check-in khach san 30 phut). Tinh toan 'estimatedCost' la 0 cho cac diem tu do va dung gia he thong cho cac diem chinh thuc. Moi activity phai co field service_id. Lich trinh phai khop voi ngay bat dau da cung cap.");
 
         return prompt.ToString();
     }
