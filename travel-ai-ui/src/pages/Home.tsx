@@ -223,6 +223,159 @@ const WhyTravelAISection = () => {
   );
 };
 
+const TrendingDestinationsSection = () => {
+  const navigate = useNavigate();
+  const [destinations, setDestinations] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fallbackDestinations = [
+    {
+      id: 1,
+      name: 'Đà Nẵng',
+      description: 'Thành phố đáng sống bên bờ biển',
+      imageUrl: 'https://images.unsplash.com/photo-1559592413-7cec4d0cae2b?q=80&w=1200',
+      rating: 4.9,
+      estimatedPrice: 850000,
+    },
+    {
+      id: 2,
+      name: 'Hà Nội',
+      description: 'Thủ đô ngàn năm văn hiến',
+      imageUrl: 'https://images.unsplash.com/photo-1509030450996-dd1a26dda07a?q=80&w=1200',
+      rating: 4.8,
+      estimatedPrice: 720000,
+    },
+    {
+      id: 3,
+      name: 'Hội An',
+      description: 'Phố cổ đèn lồng lung linh',
+      imageUrl: 'https://images.unsplash.com/photo-1558522104-66c276d6c7a1?q=80&w=1200',
+      rating: 4.9,
+      estimatedPrice: 650000,
+    },
+    {
+      id: 4,
+      name: 'Nha Trang',
+      description: 'Thiên đường biển đảo',
+      imageUrl: 'https://images.unsplash.com/photo-1583417319070-4a69db38a482?q=80&w=1200',
+      rating: 4.7,
+      estimatedPrice: 900000,
+    },
+  ];
+
+  useEffect(() => {
+    const fetchDestinations = async () => {
+      try {
+        setLoading(true);
+        const response = await axiosClient.get('/destinations');
+        const data = response.data?.data || response.data || [];
+        
+        if (Array.isArray(data) && data.length > 0) {
+          // Lấy top 4 destinations
+          const topDestinations = data.slice(0, 4).map((dest: any) => ({
+            id: dest.id || dest.destinationId,
+            name: dest.name,
+            description: dest.description || 'Khám phá điểm đến tuyệt vời',
+            imageUrl: getImageUrl(dest.imageUrl),
+            rating: dest.rating || 4.5,
+            estimatedPrice: dest.estimatedPrice || 500000,
+          }));
+          setDestinations(topDestinations);
+        } else {
+          setDestinations(fallbackDestinations);
+        }
+      } catch (error) {
+        console.error('❌ Lỗi tải trending destinations:', error);
+        setDestinations(fallbackDestinations);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDestinations();
+  }, []);
+
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('vi-VN', {
+      style: 'currency',
+      currency: 'VND',
+    }).format(price);
+  };
+
+  return (
+    <section className="rounded-[28px] bg-gradient-to-br from-slate-50 to-blue-50/30 px-4 py-16 sm:px-6 lg:px-8">
+      <div className="mb-10 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+        <div>
+          <p className="mb-2 text-xs font-black uppercase tracking-[0.24em] text-[#0061ff]">Điểm đến nổi bật</p>
+          <h2 className="text-3xl font-black tracking-tight text-slate-950 md:text-4xl">
+            Khám phá những nơi đáng đến nhất
+          </h2>
+        </div>
+        <Link
+          to="/destinations"
+          className="inline-flex items-center gap-2 text-sm font-black text-[#0061ff] transition hover:gap-3"
+        >
+          Xem tất cả <ArrowRight size={16} />
+        </Link>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-16">
+          <Loader2 className="animate-spin text-[#0061ff]" size={42} />
+        </div>
+      ) : (
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {destinations.map((dest) => (
+            <article
+              key={dest.id}
+              onClick={() => navigate(`/destinations/${dest.id}`)}
+              className="group cursor-pointer overflow-hidden rounded-2xl bg-white shadow-md transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl"
+            >
+              <div className="relative h-56 overflow-hidden">
+                <img
+                  src={dest.imageUrl}
+                  alt={dest.name}
+                  className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent" />
+                
+                {/* Rating badge */}
+                <div className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-white/95 px-3 py-1.5 text-xs font-black text-slate-900 shadow-lg backdrop-blur-sm">
+                  <span className="text-yellow-500">★</span>
+                  {dest.rating}
+                </div>
+
+                {/* Destination name overlay */}
+                <div className="absolute bottom-0 left-0 right-0 p-4">
+                  <h3 className="text-2xl font-black text-white drop-shadow-lg">
+                    {dest.name}
+                  </h3>
+                </div>
+              </div>
+
+              <div className="p-5">
+                <p className="mb-3 text-sm font-medium text-slate-600 line-clamp-2">
+                  {dest.description}
+                </p>
+                <div className="flex items-center justify-between">
+                  <div className="text-sm">
+                    <span className="font-medium text-slate-500">Từ </span>
+                    <span className="font-black text-[#0061ff]">{formatPrice(dest.estimatedPrice)}</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-[#0061ff] transition-transform group-hover:translate-x-1">
+                    <span className="text-xs font-black">Khám phá</span>
+                    <ArrowRight size={14} />
+                  </div>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+};
+
 const FeaturedServicesSection = () => {
   const [services, setServices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -409,6 +562,7 @@ const Home: React.FC = () => (
     <HeroSection />
     <ServicesStripSection />
     <WhyTravelAISection />
+    <TrendingDestinationsSection />
     <FeaturedServicesSection />
     <CommunitySection />
     <HomeFooter />
