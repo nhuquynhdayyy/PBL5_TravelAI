@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TravelAI.Application.Helpers;
 using TravelAI.Application.Interfaces;
 using TravelAI.Application.DTOs.Availability;
 using TravelAI.Domain.Entities;
@@ -24,17 +25,19 @@ public class AvailabilityService : IAvailabilityService
             .Where(a => a.ServiceId == serviceId && a.Date >= startDate.Date && a.Date <= endDate.Date)
             .ToListAsync();
 
-        return data.Select(a => {
+        var availabilityDtos = await Task.WhenAll(data.Select(async a => {
             // CÔNG THỨC CHÍNH: Còn lại = Tổng - (Đã thanh toán + Đang giữ chỗ tạm thời)
             int remaining = a.TotalStock - (a.BookedCount + a.HeldCount);
             
             return new ServiceAvailabilityDto(
                 a.Date,
-                a.Price,
+                await _pricingService.CalculateFinalPriceAsync(serviceId, a.Date, a.Price),
                 remaining < 0 ? 0 : remaining, // Đảm bảo không bị số âm
                 remaining > 0                  // Còn chỗ thì là true
             );
-        }).OrderBy(x => x.Date);
+        }));
+
+        return availabilityDtos.OrderBy(x => x.Date);
     }
 
     // 2. Kiểm tra chặt chẽ số lượng ngay lúc khách bấm nút "Đặt"
@@ -54,6 +57,8 @@ public class AvailabilityService : IAvailabilityService
     // 3. Dành cho Partner: Cập nhật giá và số lượng cho một ngày cụ thể
     public async Task<bool> SetAvailabilityAsync(int serviceId, DateTime date, decimal price, int stock)
     {
+        ValidatePriceAndStock(price, stock);
+
         var existing = await _context.ServiceAvailabilities
             .FirstOrDefaultAsync(a => a.ServiceId == serviceId && a.Date == date.Date);
 
@@ -68,7 +73,7 @@ public class AvailabilityService : IAvailabilityService
             {
                 ServiceId = serviceId,
                 Date = date.Date,
-                Price = price,
+Price = price,
                 TotalStock = stock,
                 BookedCount = 0,
                 HeldCount = 0
@@ -80,11 +85,14 @@ public class AvailabilityService : IAvailabilityService
     }
 
     // 4. Bulk set availability cho nhiều ngày
-    public async Task<bool> BulkSetAvailabilityAsync(int serviceId, int partnerId, DateTime startDate, DateTime endDate, decimal price, int stock)
+    public async Task<bool> BulkSetAvailabilityAsync(int serviceId, int requestingUserId, bool isAdmin, DateTime startDate, DateTime endDate, decimal price, int stock)
     {
+        ValidateDateRange(startDate, endDate);
+        ValidatePriceAndStock(price, stock);
+
         // Kiểm tra service thuộc về partner
         var service = await _context.Services.FindAsync(serviceId);
-        if (service == null || service.PartnerId != partnerId)
+        if (service == null || (!isAdmin && service.PartnerId != requestingUserId))
         {
             return false;
         }
@@ -95,17 +103,9 @@ public class AvailabilityService : IAvailabilityService
             var existing = await _context.ServiceAvailabilities
                 .FirstOrDefaultAsync(a => a.ServiceId == serviceId && a.Date == currentDate);
 
-            var finalPrice = price;
-
-            // Tự động tăng giá 20% cho cuối tuần (Thứ 7 và Chủ nhật)
-            if (currentDate.DayOfWeek == DayOfWeek.Saturday || currentDate.DayOfWeek == DayOfWeek.Sunday)
-            {
-                finalPrice = price * 1.2m;
-            }
-
             if (existing != null)
             {
-                existing.Price = finalPrice;
+                existing.Price = price;
                 existing.TotalStock = stock;
             }
             else
@@ -114,7 +114,7 @@ public class AvailabilityService : IAvailabilityService
                 {
                     ServiceId = serviceId,
                     Date = currentDate,
-                    Price = finalPrice,
+                    Price = price,
                     TotalStock = stock,
                     BookedCount = 0,
                     HeldCount = 0
@@ -129,13 +129,15 @@ public class AvailabilityService : IAvailabilityService
     }
 
     // 5. Cập nhật availability cho 1 ngày cụ thể
-    public async Task<bool> UpdateAvailabilityAsync(int availId, int partnerId, decimal? price, int? stock)
+    public async Task<bool> UpdateAvailabilityAsync(int availId, int requestingUserId, bool isAdmin, decimal? price, int? stock)
     {
+        ValidateOptionalPriceAndStock(price, stock);
+
         var avail = await _context.ServiceAvailabilities
             .Include(a => a.Service)
             .FirstOrDefaultAsync(a => a.AvailId == availId);
 
-        if (avail == null || avail.Service.PartnerId != partnerId)
+        if (avail == null || (!isAdmin && avail.Service.PartnerId != requestingUserId))
         {
             return false;
         }
@@ -161,7 +163,7 @@ public class AvailabilityService : IAvailabilityService
 
         var services = await _context.Services
             .Where(s => s.PartnerId == partnerId)
-            .Include(s => s.Availabilities.Where(a => a.Date >= start && a.Date <= end))
+.Include(s => s.Availabilities.Where(a => a.Date >= start && a.Date <= end))
             .ToListAsync();
 
         var result = new List<MyServicesAvailabilityDto>();
@@ -201,34 +203,103 @@ public class AvailabilityService : IAvailabilityService
     }
 
     // 7. Áp dụng giá cuối tuần tự động
-    public async Task<bool> ApplyWeekendPricingAsync(int serviceId, int partnerId, DateTime startDate, DateTime endDate, decimal weekendMultiplier)
+    public async Task<bool> ApplyWeekendPricingAsync(int serviceId, int requestingUserId, bool isAdmin, DateTime startDate, DateTime endDate, decimal weekendMultiplier)
     {
+        ValidateDateRange(startDate, endDate);
+        if (weekendMultiplier < 1)
+        {
+            throw new InvalidOperationException("He so gia cuoi tuan phai lon hon hoac bang 1.");
+        }
+
         // Kiểm tra service thuộc về partner
         var service = await _context.Services.FindAsync(serviceId);
-        if (service == null || service.PartnerId != partnerId)
+        if (service == null || (!isAdmin && service.PartnerId != requestingUserId))
         {
             return false;
         }
 
-        var currentDate = startDate.Date;
-        while (currentDate <= endDate.Date)
+        var weekendDates = EnumerateDates(startDate.Date, endDate.Date)
+            .Where(IsWeekend)
+            .ToList();
+
+        if (weekendDates.Count == 0)
         {
-            // Chỉ áp dụng cho cuối tuần
-            if (currentDate.DayOfWeek == DayOfWeek.Saturday || currentDate.DayOfWeek == DayOfWeek.Sunday)
+            return true;
+        }
+
+        var rangeStart = weekendDates.Min();
+        var rangeEnd = weekendDates.Max();
+        var existingAutoWeekendRules = await _context.PricingRules
+            .Where(rule =>
+                rule.ServiceId == serviceId &&
+                rule.Description != null &&
+                rule.Description.StartsWith("Auto weekend pricing") &&
+                rule.StartDate >= rangeStart &&
+                rule.EndDate <= rangeEnd)
+            .ToListAsync();
+
+        _context.PricingRules.RemoveRange(existingAutoWeekendRules);
+
+        foreach (var weekendDate in weekendDates)
+        {
+            _context.PricingRules.Add(new PricingRule
             {
-                var existing = await _context.ServiceAvailabilities
-                    .FirstOrDefaultAsync(a => a.ServiceId == serviceId && a.Date == currentDate);
-
-                if (existing != null)
-                {
-                    // Áp dụng multiplier lên giá hiện tại
-                    existing.Price = existing.Price * weekendMultiplier;
-                }
-            }
-
-            currentDate = currentDate.AddDays(1);
+                ServiceId = serviceId,
+StartDate = weekendDate,
+                EndDate = weekendDate,
+                PriceMultiplier = weekendMultiplier,
+                Description = $"Auto weekend pricing x{weekendMultiplier}",
+                CreatedAt = DateTimeHelper.Now
+            });
         }
 
         return await _context.SaveChangesAsync() > 0;
+    }
+
+    private static IEnumerable<DateTime> EnumerateDates(DateTime startDate, DateTime endDate)
+    {
+        var currentDate = startDate.Date;
+        while (currentDate <= endDate.Date)
+        {
+            yield return currentDate;
+            currentDate = currentDate.AddDays(1);
+        }
+    }
+
+    private static bool IsWeekend(DateTime date)
+        => date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
+
+    private static void ValidateDateRange(DateTime startDate, DateTime endDate)
+    {
+        if (startDate.Date > endDate.Date)
+        {
+            throw new InvalidOperationException("Ngay bat dau phai nho hon hoac bang ngay ket thuc.");
+        }
+    }
+
+    private static void ValidatePriceAndStock(decimal price, int stock)
+    {
+        if (price < 0)
+        {
+            throw new InvalidOperationException("Gia khong duoc am.");
+        }
+
+        if (stock < 0)
+        {
+            throw new InvalidOperationException("So luong ton kho khong duoc am.");
+        }
+    }
+
+    private static void ValidateOptionalPriceAndStock(decimal? price, int? stock)
+    {
+        if (price.HasValue && price.Value < 0)
+        {
+            throw new InvalidOperationException("Gia khong duoc am.");
+        }
+
+        if (stock.HasValue && stock.Value < 0)
+        {
+            throw new InvalidOperationException("So luong ton kho khong duoc am.");
+        }
     }
 }

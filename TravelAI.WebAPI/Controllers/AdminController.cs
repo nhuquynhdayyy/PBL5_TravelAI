@@ -489,45 +489,6 @@ return Ok(new { success = true, message = "Da tu choi doi tac." });
         return Ok(dto);
     }
 
-    [HttpPost("partners/{userId}/approve")]
-    public async Task<IActionResult> ApprovePartnerByUserId(int userId, [FromBody] PartnerApprovalActionRequest? request)
-    {
-        var profile = await _context.PartnerProfiles.FirstOrDefaultAsync(p => p.UserId == userId);
-        if (profile == null)
-        {
-            return NotFound(new { message = "Khong tim thay ho so doi tac." });
-        }
-
-        profile.VerificationStatus = PartnerVerificationStatus.Approved;
-        profile.ReviewNote = NormalizeOptionalText(request?.ReviewNote);
-        profile.ReviewedAt = DateTimeHelper.Now;
-        await _context.SaveChangesAsync();
-
-        return Ok(new { success = true, message = "Da duyet doi tac." });
-    }
-
-    [HttpPost("partners/{userId}/reject")]
-    public async Task<IActionResult> RejectPartnerByUserId(int userId, [FromBody] PartnerApprovalActionRequest request)
-    {
-        if (string.IsNullOrWhiteSpace(request.ReviewNote))
-        {
-            return BadRequest(new { message = "Vui long nhap ly do tu choi." });
-        }
-
-        var profile = await _context.PartnerProfiles.FirstOrDefaultAsync(p => p.UserId == userId);
-        if (profile == null)
-        {
-            return NotFound(new { message = "Khong tim thay ho so doi tac." });
-        }
-
-        profile.VerificationStatus = PartnerVerificationStatus.Rejected;
-        profile.ReviewNote = request.ReviewNote.Trim();
-        profile.ReviewedAt = DateTimeHelper.Now;
-        await _context.SaveChangesAsync();
-
-        return Ok(new { success = true, message = "Da tu choi doi tac." });
-    }
-
     // ──────────────────────────────────────────────
     //  HELPERS
     // ──────────────────────────────────────────────

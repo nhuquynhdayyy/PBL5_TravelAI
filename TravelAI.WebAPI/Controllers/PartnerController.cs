@@ -411,53 +411,7 @@ header[3] == 0x46,
 
         var partnerId = int.Parse(partnerIdClaim.Value);
 
-        // TỰ ĐỘNG HỦY CÁC ĐƠN QUÁ HẠN TRƯỚC KHI LOAD
         var now = DateTimeHelper.Now;
-        var expiredOrders = await _context.Bookings
-            .Include(b => b.BookingItems)
-            .Include(b => b.Payments)
-            .Where(b => b.Status == BookingStatus.Paid
-                && !b.IsApprovedByPartner
-                && b.ApprovalDeadline.HasValue
-                && b.ApprovalDeadline.Value <= now
-&& b.BookingItems.Any(bi => bi.Service.PartnerId == partnerId))
-            .ToListAsync();
-
-        if (expiredOrders.Any())
-        {
-            foreach (var booking in expiredOrders)
-            {
-                // Hủy đơn
-                booking.Status = BookingStatus.Cancelled;
-
-                // Tạo refund
-                var latestPayment = booking.Payments.OrderByDescending(p => p.PaymentTime).FirstOrDefault();
-                if (latestPayment != null)
-                {
-                    _context.Refunds.Add(new Domain.Entities.Refund
-                    {
-                        PaymentId = latestPayment.PaymentId,
-                        RefundAmount = latestPayment.Amount,
-                        RefundRef = Guid.NewGuid().ToString("N")[..12].ToUpper(),
-                        Reason = "Quá hạn duyệt",
-                        RefundTime = DateTimeHelper.Now
-                    });
-                }
-
-                // Giải phóng inventory
-                foreach (var item in booking.BookingItems)
-                {
-                    var availability = await _context.ServiceAvailabilities
-                        .FirstOrDefaultAsync(a => a.ServiceId == item.ServiceId && a.Date == item.CheckInDate.Date);
-                    if (availability != null)
-                    {
-                        availability.BookedCount = Math.Max(0, availability.BookedCount - item.Quantity);
-                    }
-                }
-            }
-
-            await _context.SaveChangesAsync();
-        }
 
         var query = _context.BookingItems
             .AsNoTracking()
@@ -470,7 +424,7 @@ header[3] == 0x46,
         if (status.HasValue)
         {
             var bookingStatus = (BookingStatus)status.Value;
-            query = query.Where(bi => bi.Booking.Status == bookingStatus);
+query = query.Where(bi => bi.Booking.Status == bookingStatus);
         }
 
         // Filter by date range
@@ -502,7 +456,7 @@ header[3] == 0x46,
                 quantity = bi.Quantity,
                 totalAmount = bi.PriceAtBooking * bi.Quantity,
                 status = bi.Booking.Status,
-createdAt = bi.Booking.CreatedAt,
+                createdAt = bi.Booking.CreatedAt,
                 isApprovedByPartner = bi.Booking.IsApprovedByPartner,
                 approvedAt = bi.Booking.ApprovedAt,
                 approvalDeadline = bi.Booking.ApprovalDeadline,
@@ -553,8 +507,7 @@ createdAt = bi.Booking.CreatedAt,
         }
 
         var partnerId = int.Parse(partnerIdClaim.Value);
-
-        var booking = await _context.Bookings
+var booking = await _context.Bookings
             .AsNoTracking()
             .Include(b => b.User)
             .Include(b => b.BookingItems)
@@ -587,7 +540,7 @@ createdAt = bi.Booking.CreatedAt,
 
         var latestRefund = booking.Payments
             .SelectMany(p => p.Refunds)
-.OrderByDescending(r => r.RefundTime)
+            .OrderByDescending(r => r.RefundTime)
             .FirstOrDefault();
 
         var result = new
@@ -636,7 +589,7 @@ createdAt = bi.Booking.CreatedAt,
         var success = await _partnerOrderService.ApproveOrderAsync(bookingId, partnerId);
 
         if (!success)
-        {
+{
             return BadRequest(new { message = "Khong the duyet don hang nay. Vui long kiem tra lai." });
         }
 
@@ -665,7 +618,8 @@ createdAt = bi.Booking.CreatedAt,
         {
             return BadRequest(new { message = "Khong the tu choi don hang nay. Vui long kiem tra lai." });
         }
-return Ok(new { message = "Da tu choi don hang va hoan tien cho khach hang." });
+
+        return Ok(new { message = "Da tu choi don hang va hoan tien cho khach hang." });
     }
 
     [HttpGet("orders/pending-count")]

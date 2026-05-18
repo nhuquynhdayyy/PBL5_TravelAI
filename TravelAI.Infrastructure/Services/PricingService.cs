@@ -17,11 +17,13 @@ public class PricingService : IPricingService
     }
 
     // Tạo pricing rule mới
-    public async Task<int> CreatePricingRuleAsync(int serviceId, int partnerId, DateTime startDate, DateTime endDate, decimal priceMultiplier, string? description)
+    public async Task<int> CreatePricingRuleAsync(int serviceId, int requestingUserId, bool isAdmin, DateTime startDate, DateTime endDate, decimal priceMultiplier, string? description)
     {
+        ValidatePricingRule(startDate, endDate, priceMultiplier);
+
         // Kiểm tra service thuộc về partner
         var service = await _context.Services.FindAsync(serviceId);
-        if (service == null || service.PartnerId != partnerId)
+        if (service == null || (!isAdmin && service.PartnerId != requestingUserId))
         {
             return 0;
         }
@@ -63,13 +65,13 @@ public class PricingService : IPricingService
     }
 
     // Xóa pricing rule
-    public async Task<bool> DeletePricingRuleAsync(int ruleId, int partnerId)
+    public async Task<bool> DeletePricingRuleAsync(int ruleId, int requestingUserId, bool isAdmin)
     {
         var rule = await _context.PricingRules
             .Include(r => r.Service)
             .FirstOrDefaultAsync(r => r.RuleId == ruleId);
 
-        if (rule == null || rule.Service.PartnerId != partnerId)
+        if (rule == null || (!isAdmin && rule.Service.PartnerId != requestingUserId))
         {
             return false;
         }
@@ -86,13 +88,25 @@ public class PricingService : IPricingService
             .ToListAsync();
 
         var finalPrice = basePrice;
-
-        // Áp dụng tất cả rules (nhân lũy thừa)
+// Áp dụng tất cả rules (nhân lũy thừa)
         foreach (var rule in rules)
         {
             finalPrice *= rule.PriceMultiplier;
         }
 
         return finalPrice;
+    }
+
+    private static void ValidatePricingRule(DateTime startDate, DateTime endDate, decimal priceMultiplier)
+    {
+        if (startDate.Date > endDate.Date)
+        {
+            throw new InvalidOperationException("Ngay bat dau phai nho hon hoac bang ngay ket thuc.");
+        }
+
+        if (priceMultiplier <= 0)
+        {
+            throw new InvalidOperationException("He so gia phai lon hon 0.");
+        }
     }
 }

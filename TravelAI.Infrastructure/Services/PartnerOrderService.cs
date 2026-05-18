@@ -53,12 +53,40 @@ public class PartnerOrderService : IPartnerOrderService
             return false; // Đã được duyệt rồi
         }
 
-        // 5. Cập nhật trạng thái approved
+        // 5. Chuyển từ HeldCount sang BookedCount
+        var serviceIds = booking.BookingItems
+            .Select(item => item.ServiceId)
+            .Distinct()
+            .ToList();
+
+        var bookingDates = booking.BookingItems
+            .Select(item => item.CheckInDate.Date)
+            .Distinct()
+            .ToList();
+
+        var availabilities = await _context.ServiceAvailabilities
+            .Where(a => serviceIds.Contains(a.ServiceId) && bookingDates.Contains(a.Date))
+            .ToListAsync();
+
+        foreach (var item in booking.BookingItems)
+        {
+            var availability = availabilities.FirstOrDefault(a =>
+                a.ServiceId == item.ServiceId && a.Date == item.CheckInDate.Date);
+
+            if (availability != null)
+            {
+                // Chuyển từ held sang booked
+                availability.HeldCount = Math.Max(0, availability.HeldCount - item.Quantity);
+                availability.BookedCount += item.Quantity;
+            }
+        }
+
+        // 6. Cập nhật trạng thái approved
         booking.IsApprovedByPartner = true;
         booking.ApprovedAt = DateTimeHelper.Now;
         await _context.SaveChangesAsync();
 
-        // 6. Gửi email thông báo cho khách hàng
+        // 7. Gửi email thông báo cho khách hàng
         var firstService = booking.BookingItems.FirstOrDefault()?.Service;
         if (firstService != null)
         {

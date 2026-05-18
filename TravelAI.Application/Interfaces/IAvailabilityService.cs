@@ -14,14 +14,14 @@ public interface IAvailabilityService
     Task<bool> CheckStockAsync(int serviceId, DateTime date, int requestedQuantity);
 
     // Hàm 4: Bulk set availability cho nhiều ngày
-    Task<bool> BulkSetAvailabilityAsync(int serviceId, int partnerId, DateTime startDate, DateTime endDate, decimal price, int stock);
+    Task<bool> BulkSetAvailabilityAsync(int serviceId, int requestingUserId, bool isAdmin, DateTime startDate, DateTime endDate, decimal price, int stock);
 
     // Hàm 5: Cập nhật availability cho 1 ngày cụ thể
-    Task<bool> UpdateAvailabilityAsync(int availId, int partnerId, decimal? price, int? stock);
+    Task<bool> UpdateAvailabilityAsync(int availId, int requestingUserId, bool isAdmin, decimal? price, int? stock);
 
     // Hàm 6: Lấy tất cả availability của services thuộc partner
     Task<IEnumerable<MyServicesAvailabilityDto>> GetMyServicesAvailabilityAsync(int partnerId, DateTime? startDate, DateTime? endDate);
 
     // Hàm 7: Áp dụng giá cuối tuần tự động
-    Task<bool> ApplyWeekendPricingAsync(int serviceId, int partnerId, DateTime startDate, DateTime endDate, decimal weekendMultiplier);
+    Task<bool> ApplyWeekendPricingAsync(int serviceId, int requestingUserId, bool isAdmin, DateTime startDate, DateTime endDate, decimal weekendMultiplier);
 }
