@@ -32,10 +32,10 @@ type CustomerBooking = {
 };
 
 const statusMap: Record<number, { label: string; className: string }> = {
-  1: { label: 'Cho thanh toan', className: 'bg-amber-100 text-amber-700 border border-amber-200' },
-  2: { label: 'Da thanh toan', className: 'bg-emerald-100 text-emerald-700 border border-emerald-200' },
-  3: { label: 'Da hoan tien', className: 'bg-sky-100 text-sky-700 border border-sky-200' },
-  4: { label: 'Da huy', className: 'bg-rose-100 text-rose-700 border border-rose-200' },
+  1: { label: 'Chờ thanh toán', className: 'bg-amber-100 text-amber-700 border border-amber-200' },
+  2: { label: 'Đã thanh toán', className: 'bg-emerald-100 text-emerald-700 border border-emerald-200' },
+  3: { label: 'Đã hoàn tiền', className: 'bg-sky-100 text-sky-700 border border-sky-200' },
+  4: { label: 'Đã hủy', className: 'bg-rose-100 text-rose-700 border border-rose-200' },
 };
 
 const stringStatusMap: Record<string, number> = {
@@ -66,7 +66,7 @@ function getStatusMeta(status: BookingStatus) {
 
 function formatPaymentMethod(paymentMethod: string | null) {
   if (!paymentMethod) {
-    return 'Chua thanh toan';
+    return 'Chưa thanh toán';
   }
 
   if (paymentMethod.toLowerCase() === 'mock') {
@@ -106,16 +106,16 @@ function getCancelPolicy(booking: CustomerBooking) {
   const statusKey = resolveStatusKey(booking.status);
 
   if (statusKey === 1) {
-    return 'Booking dang cho thanh toan, he thong se giai phong cho da giu.';
+    return 'Booking đang chờ thanh toán, hệ thống sẽ giải phóng chỗ đã giữ.';
   }
 
   if (statusKey === 2) {
     return canCancelBooking(booking)
-      ? 'Huy truoc 24 gio: hoan 100% gia tri thanh toan.'
-      : 'Chi duoc huy booking da thanh toan khi check-in con hon 24 gio.';
+      ? 'Hủy trước 24 giờ: hoàn 100% giá trị thanh toán.'
+      : 'Chỉ được hủy booking đã thanh toán khi check-in còn hơn 24 giờ.';
   }
 
-  return 'Booking hien tai khong ho tro huy.';
+  return 'Booking hiện tại không hỗ trợ hủy.';
 }
 
 function getEstimatedRefundAmount(booking: CustomerBooking) {
@@ -141,8 +141,8 @@ const MyBookings = () => {
       const res = await axiosClient.get('/bookings/my-bookings');
       setBookings(res.data ?? []);
     } catch (error) {
-      console.error('Loi lay lich su dat dich vu:', error);
-      alert('Khong the tai lich su dat dich vu luc nay.');
+      console.error('Lỗi lấy lịch sử đặt dịch vụ:', error);
+      alert('Không thể tải lịch sử đặt dịch vụ lúc này.');
     } finally {
       setLoading(false);
     }
@@ -186,11 +186,11 @@ const MyBookings = () => {
     const cancelPolicy = getCancelPolicy(booking);
 
     const refundMessage = estimatedRefundAmount > 0
-      ? `So tien hoan du kien: ${currencyFormatter.format(estimatedRefundAmount)}d`
-      : 'Booking chua thanh toan, he thong se giai phong cho da giu.';
+      ? `Số tiền hoàn dự kiến: ${currencyFormatter.format(estimatedRefundAmount)}đ`
+      : 'Booking chưa thanh toán, hệ thống sẽ giải phóng chỗ đã giữ.';
 
     const confirmed = window.confirm(
-      `Ban co chac muon huy booking nay khong?\n${refundMessage}\n${cancelPolicy}`,
+      `Bạn có chắc muốn hủy booking này không?\n${refundMessage}\n${cancelPolicy}`,
     );
 
     if (!confirmed) {
@@ -207,13 +207,13 @@ const MyBookings = () => {
         canCancel: false,
         refundedAmount: refundAmount,
         estimatedRefundAmount: 0,
-        cancelPolicy: String(res.data?.refundPolicy ?? 'Booking da duoc huy.'),
+        cancelPolicy: String(res.data?.refundPolicy ?? 'Booking đã được hủy.'),
       });
 
-      alert(`Da huy booking thanh cong. So tien hoan lai: ${currencyFormatter.format(refundAmount)}d`);
+      alert(`Đã hủy booking thành công. Số tiền hoàn lại: ${currencyFormatter.format(refundAmount)}đ`);
     } catch (error) {
-      console.error('Loi huy booking:', error);
-      alert('Khong the huy booking luc nay.');
+      console.error('Lỗi hủy booking:', error);
+      alert('Không thể hủy booking lúc này.');
     } finally {
       setCancellingId(null);
     }
@@ -226,12 +226,12 @@ const MyBookings = () => {
           onClick={() => navigate('/profile')}
           className="rounded-full border border-slate-200 px-5 py-2 text-sm font-black text-slate-500 transition-all hover:border-slate-300 hover:text-slate-700"
         >
-          Lich trinh da luu
+          Lịch trình đã lưu
         </button>
         <button
           className="rounded-full bg-slate-900 px-5 py-2 text-sm font-black text-white shadow-lg"
         >
-          Dich vu da dat
+          Dịch vụ đã đặt
         </button>
       </div>
 
@@ -240,9 +240,9 @@ const MyBookings = () => {
           <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-xs font-black uppercase tracking-[0.2em] text-blue-600">
             <Receipt size={14} /> My bookings
           </div>
-          <h1 className="text-4xl font-black tracking-tight text-slate-900">DICH VU DA DAT</h1>
+          <h1 className="text-4xl font-black tracking-tight text-slate-900">DỊCH VỤ ĐÃ ĐẶT</h1>
           <p className="mt-3 max-w-2xl font-medium text-slate-500">
-            Xem lai cac booking da tao, mo chi tiet nhanh va huy booking dang cho thanh toan.
+            Xem lại các booking đã tạo, mở chi tiết nhanh và hủy booking đang chờ thanh toán.
           </p>
         </div>
 
@@ -250,14 +250,14 @@ const MyBookings = () => {
           onClick={fetchBookings}
           className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900 px-6 py-3 text-sm font-black text-white shadow-lg transition-all hover:bg-blue-600 active:scale-95"
         >
-          <RefreshCw size={18} /> Tai lai
+          <RefreshCw size={18} /> Tải lại
         </button>
       </div>
 
       <div className="mb-10 grid grid-cols-1 gap-5 md:grid-cols-3">
         <div className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Tong booking</span>
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Tổng booking</span>
             <ClipboardList className="text-blue-500" size={22} />
           </div>
           <div className="text-3xl font-black text-slate-900">{bookings.length}</div>
@@ -265,7 +265,7 @@ const MyBookings = () => {
 
         <div className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Cho thanh toan</span>
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Chờ thanh toán</span>
             <Package className="text-amber-500" size={22} />
           </div>
           <div className="text-3xl font-black text-slate-900">{pendingBookings}</div>
@@ -273,7 +273,7 @@ const MyBookings = () => {
 
         <div className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Da thanh toan</span>
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Đã thanh toán</span>
             <CreditCard className="text-emerald-500" size={22} />
           </div>
           <div className="text-3xl font-black text-slate-900">{paidBookings}</div>
@@ -314,7 +314,7 @@ const MyBookings = () => {
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div className="rounded-2xl bg-slate-50 p-4">
                     <p className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-                      Ngay su dung
+                      Ngày sử dụng
                     </p>
                     <p className="flex items-center gap-2 font-bold text-slate-800">
                       <CalendarDays size={16} className="text-blue-500" />
@@ -324,16 +324,16 @@ const MyBookings = () => {
 
                   <div className="rounded-2xl bg-slate-50 p-4">
                     <p className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-                      Tong tien
+                      Tổng tiền
                     </p>
                     <p className="font-black text-emerald-600">
-                      {currencyFormatter.format(booking.totalAmount)}d
+                      {currencyFormatter.format(booking.totalAmount)}đ
                     </p>
                   </div>
 
                   <div className="rounded-2xl bg-slate-50 p-4">
                     <p className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-                      Ngay dat
+                      Ngày đặt
                     </p>
                     <p className="font-bold text-slate-800">
                       {formatVietnameseDate(booking.createdAt)}
@@ -342,7 +342,7 @@ const MyBookings = () => {
 
                   <div className="rounded-2xl bg-slate-50 p-4">
                     <p className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-                      Thanh toan
+                      Thanh toán
                     </p>
                     <p className="font-bold text-slate-800">{formatPaymentMethod(booking.paymentMethod)}</p>
                   </div>
@@ -350,9 +350,9 @@ const MyBookings = () => {
 
                 {booking.refundedAmount > 0 && (
                   <div className="mt-4 rounded-2xl bg-sky-50 p-4 text-sm text-sky-700">
-                    <span className="font-black uppercase tracking-[0.18em] text-[10px]">Da hoan tien</span>
+                    <span className="font-black uppercase tracking-[0.18em] text-[10px]">Đã hoàn tiền</span>
                     <div className="mt-1 text-lg font-black">
-                      {currencyFormatter.format(booking.refundedAmount)}d
+                      {currencyFormatter.format(booking.refundedAmount)}đ
                     </div>
                   </div>
                 )}
