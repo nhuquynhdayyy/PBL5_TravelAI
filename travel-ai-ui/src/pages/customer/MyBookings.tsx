@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import axiosClient from '../../api/axiosClient';
 import { formatVietnameseDate } from '../../utils/dateTimeUtils';
+import { toVietnamTime } from '../../utils/dateUtils';
 
 type BookingStatus = number | string;
 

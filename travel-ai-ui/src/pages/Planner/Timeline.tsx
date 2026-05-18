@@ -14,9 +14,14 @@ import {
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import 'leaflet/dist/leaflet.css';
 import axiosClient from '../../api/axiosClient';
+import { useCart } from '../../contexts/CartContext';
+import DayTabs from './DayTabs';
+import HotelCard from './HotelCard';
 import ItineraryMap from './ItineraryMap';
 import ItinerarySkeleton from './ItinerarySkeleton';
 import ItineraryTimeline from './ItineraryTimeline';
+import PlannerSidebar from './PlannerSidebar';
+import StickyFooter from './StickyFooter';
 import { exportItineraryPdf } from './itineraryPdf';
 import type { ItineraryActivity, ItineraryViewModel } from './itineraryTypes';
 import {
@@ -161,6 +166,7 @@ const Timeline: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams();
+  const { addItem } = useCart();
   const routeItineraryId = params.id;
   const stateData = (location.state as { data?: unknown } | null)?.data;
 
@@ -174,6 +180,7 @@ const Timeline: React.FC = () => {
   const [loadingTrips, setLoadingTrips] = useState(false);
   const [activeDay, setActiveDay] = useState(1);
   const [error, setError] = useState<string | null>(null);
+  const [showSidebar, setShowSidebar] = useState(true);
 
   const itineraryId = itinerary?.itineraryId || (routeItineraryId ? Number(routeItineraryId) : null);
 
@@ -306,6 +313,48 @@ const Timeline: React.FC = () => {
     }
   };
 
+  const handleBookAll = () => {
+    if (!itinerary) return;
+
+    const bookableActivities = flattenActivities(itinerary.days).filter((activity) => activity.serviceId);
+
+    if (bookableActivities.length === 0) {
+      alert('Không có dịch vụ nào có thể đặt trong lịch trình này.');
+      return;
+    }
+
+    // Add all bookable activities to cart
+    bookableActivities.forEach((activity) => {
+      if (activity.serviceId) {
+        const checkInDate = itinerary.startDate 
+          ? new Date(itinerary.startDate)
+          : new Date();
+        
+        // Adjust date based on activity day
+        checkInDate.setDate(checkInDate.getDate() + activity.day - 1);
+
+        addItem({
+          serviceId: activity.serviceId,
+          serviceName: activity.title,
+          checkInDate,
+          price: activity.estimatedCost,
+          quantity: 1,
+        });
+      }
+    });
+
+    alert(`Đã thêm ${bookableActivities.length} dịch vụ vào giỏ hàng!`);
+    navigate('/cart');
+  };
+
+  const handleActivityClick = (activity: ItineraryActivity) => {
+    // Scroll map to activity location
+    if (activity.latitude && activity.longitude) {
+      // Map will auto-focus based on activeDay
+      console.log('Activity clicked:', activity.title);
+    }
+  };
+
   if (loading) return <ItinerarySkeleton />;
 
   if (error) {
@@ -337,121 +386,126 @@ const Timeline: React.FC = () => {
     );
   }
 
+  const bookableCount = flattenActivities(itinerary.days).filter((a) => a.serviceId).length;
+
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8">
-      <div className="mb-8 overflow-hidden rounded-[32px] bg-slate-950 p-6 text-white shadow-2xl shadow-slate-200 md:p-8">
-        <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
-          <div>
-            <button
-              type="button"
-              onClick={() => navigate(-1)}
-              className="mb-5 inline-flex items-center gap-2 text-sm font-bold text-blue-100 transition hover:text-white"
-            >
-              <ArrowLeft size={18} />
-              Quay lại
-            </button>
-            <p className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-blue-100">
-              <Sparkles size={15} />
-              AI itinerary manager
-            </p>
-            <h1 className="max-w-4xl text-4xl font-black tracking-tight md:text-6xl">
-              {itinerary.tripTitle}
-            </h1>
-            <div className="mt-5 flex flex-wrap gap-3 text-sm font-bold text-slate-200">
-              <span className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2">
-                <MapPin size={16} className="text-blue-300" />
-                {itinerary.destination}
-              </span>
-              <span className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2">
-                <CalendarDays size={16} className="text-blue-300" />
-                {getTripDateRange(itinerary)}
-              </span>
-              <span className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2">
-                <Route size={16} className="text-blue-300" />
-                {flattenActivities(itinerary.days).length} hoạt động
-              </span>
-              <span className="inline-flex items-center gap-2 rounded-xl bg-emerald-500/15 px-3 py-2 text-emerald-100">
-                {formatCurrency(itinerary.totalEstimatedCost)}
-              </span>
+    <>
+      <div className="mx-auto max-w-[1800px] px-4 py-8 pb-32">
+        {/* Header */}
+        <div className="mb-8 overflow-hidden rounded-[32px] bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 p-6 text-white shadow-2xl md:p-8">
+          <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
+            <div>
+              <button
+                type="button"
+                onClick={() => navigate(-1)}
+                className="mb-5 inline-flex items-center gap-2 text-sm font-bold text-blue-100 transition hover:text-white"
+              >
+                <ArrowLeft size={18} />
+                Quay lại
+              </button>
+              <p className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-blue-100">
+                <Sparkles size={15} />
+                Quản lý lịch trình AI
+              </p>
+              <h1 className="max-w-4xl text-4xl font-black tracking-tight md:text-6xl">
+                {itinerary.tripTitle}
+              </h1>
+              <div className="mt-5 flex flex-wrap gap-3 text-sm font-bold text-slate-200">
+                <span className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2">
+                  <MapPin size={16} className="text-blue-300" />
+                  {itinerary.destination}
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2">
+                  <CalendarDays size={16} className="text-blue-300" />
+                  {getTripDateRange(itinerary)}
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2">
+                  <Route size={16} className="text-blue-300" />
+                  {flattenActivities(itinerary.days).length} hoạt động
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-xl bg-emerald-500/15 px-3 py-2 text-emerald-100">
+                  {formatCurrency(itinerary.totalEstimatedCost)}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row lg:justify-end">
+              <button
+                type="button"
+                onClick={() => exportItineraryPdf(itinerary)}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-4 text-sm font-black text-slate-950 transition hover:bg-blue-50"
+              >
+                <Download size={18} />
+                Xuất PDF
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-5 py-4 text-sm font-black text-white ring-1 ring-white/15 transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+                Lưu
+              </button>
             </div>
           </div>
+        </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row lg:justify-end">
-            <button
-              type="button"
-              onClick={handleOptimize}
-              disabled={optimizing}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#0061ff] px-5 py-4 text-sm font-black text-white shadow-lg shadow-blue-950/30 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              {optimizing ? <Loader2 className="animate-spin" size={18} /> : <Sparkles size={18} />}
-              {optimizing ? 'AI đang tối ưu...' : 'Tối ưu lại bằng AI'}
-            </button>
-            <button
-              type="button"
-              onClick={() => exportItineraryPdf(itinerary)}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-4 text-sm font-black text-slate-950 transition hover:bg-blue-50"
-            >
-              <Download size={18} />
-              Xuất PDF
-            </button>
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={saving}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-5 py-4 text-sm font-black text-white ring-1 ring-white/15 transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-              Lưu
-            </button>
+        {optimizing && (
+          <div className="mb-8 rounded-2xl border border-blue-100 bg-blue-50 p-5 dark:border-blue-900 dark:bg-blue-900/20">
+            <div className="mb-3 flex items-center gap-3 text-sm font-black text-blue-600 dark:text-blue-400">
+              <Loader2 className="animate-spin" size={18} />
+              AI đang sắp xếp lại thứ tự điểm đến theo lộ trình ngắn hơn
+            </div>
+            <ItinerarySkeleton />
           </div>
+        )}
+
+        {/* Main 3-Column Layout */}
+        <div className="grid gap-8 lg:grid-cols-[320px_minmax(0,1fr)_420px]">
+          {/* Left Sidebar */}
+          {showSidebar && (
+            <PlannerSidebar
+              destination={itinerary.destination}
+              startDate={itinerary.startDate}
+              duration={itinerary.days.length}
+              budgetLevel={1}
+              interests={['Biển', 'Thư giãn']}
+              onRegenerate={handleOptimize}
+              regenerating={optimizing}
+            />
+          )}
+
+          {/* Center Timeline */}
+          <div className={showSidebar ? '' : 'lg:col-span-2'}>
+            <DayTabs
+              days={itinerary.days}
+              activeDay={activeDay}
+              onDayChange={setActiveDay}
+            />
+            <ItineraryTimeline
+              days={itinerary.days}
+              activeDay={activeDay}
+              onActiveDayChange={setActiveDay}
+              onBook={handleBook}
+              onActivityClick={handleActivityClick}
+            />
+          </div>
+
+          {/* Right Map */}
+          <ItineraryMap days={itinerary.days} activeDay={activeDay} />
         </div>
       </div>
 
-      {optimizing && (
-        <div className="mb-8 rounded-2xl border border-blue-100 bg-blue-50 p-5">
-          <div className="mb-3 flex items-center gap-3 text-sm font-black text-[#0061ff]">
-            <Loader2 className="animate-spin" size={18} />
-            AI đang sắp xếp lại thứ tự điểm đến theo lộ trình ngắn hơn
-          </div>
-          <ItinerarySkeleton />
-        </div>
-      )}
-
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
-        <ItineraryTimeline
-          days={itinerary.days}
-          activeDay={activeDay}
-          onActiveDayChange={setActiveDay}
-          onBook={handleBook}
+      {/* Sticky Footer */}
+      {bookableCount > 0 && (
+        <StickyFooter
+          totalCost={itinerary.totalEstimatedCost}
+          guestCount={2}
+          onBookAll={handleBookAll}
         />
-        <ItineraryMap days={itinerary.days} activeDay={activeDay} />
-      </div>
-
-      <div className="mt-10 rounded-3xl bg-gradient-to-r from-[#0061ff] to-cyan-500 p-8 text-center text-white">
-        <h2 className="text-2xl font-black">Sẵn sàng hoàn tất chuyến đi?</h2>
-        <p className="mx-auto mt-2 max-w-2xl text-sm font-medium leading-6 text-blue-50">
-          Bạn có thể lưu lịch trình, xuất PDF hoặc đặt ngay dịch vụ đầu tiên được TravelAI đề xuất.
-        </p>
-        <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="rounded-2xl bg-white px-7 py-4 text-sm font-black text-[#0061ff] transition hover:bg-blue-50 disabled:opacity-70"
-          >
-            Lưu vào tài khoản
-          </button>
-          <button
-            type="button"
-            onClick={() => bookableActivity && handleBook(bookableActivity)}
-            disabled={!bookableActivity}
-            className="rounded-2xl border border-white/30 bg-white/10 px-7 py-4 text-sm font-black text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Đặt dịch vụ gợi ý
-          </button>
-        </div>
-      </div>
-    </div>
+      )}
+    </>
   );
 };
 
