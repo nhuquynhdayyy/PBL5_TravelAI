@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/* ── Dark Mode via .dark class on <html> ── */
+@variant dark (&:where(.dark, .dark *));
+
+/* ── Dark Mode base overrides ── */
+.dark body {
+  background-color: #0f172a;
+  color: #f1f5f9;
+}
+
 /* Custom Scrollbar Styles - Modern & Beautiful */
 /* For Webkit browsers (Chrome, Safari, Edge) */
 ::-webkit-scrollbar {

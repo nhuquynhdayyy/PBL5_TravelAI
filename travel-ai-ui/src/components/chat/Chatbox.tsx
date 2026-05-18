@@ -235,25 +235,47 @@ const Chatbox = () => {
 
   return (
     <div className="fixed bottom-6 right-6 z-[100] font-sans">
+      {/* ── FLOATING ACTION BUTTON ── */}
       {!isOpen && (
-        <button
-          onClick={() => setIsOpen(true)}
-          className="bg-blue-600 p-4 rounded-full shadow-2xl hover:scale-110 transition-all text-white animate-bounce"
-        >
-          <MessageCircle size={28} />
-        </button>
+        <div className="relative flex flex-col items-end gap-3">
+          {/* Tooltip */}
+          <div className="flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white shadow-xl">
+            <Bot size={16} className="text-blue-400" />
+            <span>Hỏi AI Planner</span>
+          </div>
+
+          {/* FAB Button */}
+          <button
+            onClick={() => setIsOpen(true)}
+            className="group relative flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-2xl shadow-blue-500/40 transition-all duration-300 hover:scale-110 hover:shadow-blue-500/60"
+          >
+            {/* Pulse ring */}
+            <span className="absolute inset-0 animate-ping rounded-full bg-blue-500 opacity-20" />
+            <MessageCircle size={28} />
+          </button>
+        </div>
       )}
 
       {isOpen && (
-        <div className="bg-white w-[380px] h-[550px] rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-slate-100 animate-in slide-in-from-bottom-5">
-          <div className="bg-slate-900 p-4 flex justify-between items-center text-white">
-            <div className="flex items-center gap-2">
-              <div className="bg-blue-500 p-1.5 rounded-lg">
+        <div className="flex h-[580px] w-[390px] flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-2xl shadow-slate-900/20 animate-in slide-in-from-bottom-5 duration-300">
+          {/* Header */}
+          <div className="flex items-center justify-between bg-gradient-to-r from-slate-900 to-slate-800 p-4 text-white">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500 shadow-lg shadow-blue-500/30">
                 <Bot size={20} />
               </div>
-              <span className="font-bold">Travel AI Assistant</span>
+              <div>
+                <p className="text-sm font-black">TravelAI Assistant</p>
+                <p className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  Trực tuyến
+                </p>
+              </div>
             </div>
-            <button onClick={() => setIsOpen(false)} className="hover:bg-white/10 p-1 rounded-lg">
+            <button
+              onClick={() => setIsOpen(false)}
+              className="rounded-xl p-1.5 text-slate-400 transition hover:bg-white/10 hover:text-white"
+            >
               <X size={20} />
             </button>
           </div>
