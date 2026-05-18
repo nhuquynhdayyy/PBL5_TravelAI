@@ -23,14 +23,24 @@ public class PricingController : ControllerBase
     public async Task<IActionResult> CreateSeasonalRule([FromBody] CreatePricingRuleRequest request)
     {
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-        
-        var ruleId = await _pricingService.CreatePricingRuleAsync(
-            request.ServiceId,
-            userId,
-            request.StartDate,
-            request.EndDate,
-            request.PriceMultiplier,
-            request.Description);
+        var isAdmin = User.IsInRole("Admin");
+        int ruleId;
+
+        try
+        {
+            ruleId = await _pricingService.CreatePricingRuleAsync(
+                request.ServiceId,
+                userId,
+                isAdmin,
+                request.StartDate,
+                request.EndDate,
+                request.PriceMultiplier,
+                request.Description);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
 
         if (ruleId == 0)
         {
@@ -61,8 +71,9 @@ public class PricingController : ControllerBase
     public async Task<IActionResult> DeletePricingRule(int ruleId)
     {
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        var isAdmin = User.IsInRole("Admin");
         
-        var success = await _pricingService.DeletePricingRuleAsync(ruleId, userId);
+        var success = await _pricingService.DeletePricingRuleAsync(ruleId, userId, isAdmin);
 
         if (!success)
         {
@@ -75,7 +86,7 @@ public class PricingController : ControllerBase
     // A2.4: Tính giá cuối cùng cho 1 ngày cụ thể (utility endpoint)
     [HttpGet("calculate-price/{serviceId}")]
     [AllowAnonymous]
-    public async Task<IActionResult> CalculatePrice(int serviceId, [FromQuery] DateTime date, [FromQuery] decimal basePrice)
+public async Task<IActionResult> CalculatePrice(int serviceId, [FromQuery] DateTime date, [FromQuery] decimal basePrice)
     {
         var finalPrice = await _pricingService.CalculateFinalPriceAsync(serviceId, date, basePrice);
         

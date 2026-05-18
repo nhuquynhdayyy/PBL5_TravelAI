@@ -71,10 +71,17 @@ public class AvailabilityController : ControllerBase
             return Forbid();
         }
 
-        var success = await _availabilityService.SetAvailabilityAsync(
-            request.ServiceId, request.Date, request.Price, request.Stock);
-
-        return success ? Ok(new { message = "Cap nhat thanh cong" }) : BadRequest("Loi khi cap nhat");
+        bool success;
+        try
+        {
+            success = await _availabilityService.SetAvailabilityAsync(
+                request.ServiceId, request.Date, request.Price, request.Stock);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+return success ? Ok(new { message = "Cap nhat thanh cong" }) : BadRequest("Loi khi cap nhat");
     }
 
     // A1.1: Bulk set availability cho nhiều ngày
@@ -83,14 +90,24 @@ public class AvailabilityController : ControllerBase
     public async Task<IActionResult> BulkSetAvailability([FromBody] BulkSetAvailabilityRequest request)
     {
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-        
-        var success = await _availabilityService.BulkSetAvailabilityAsync(
-            request.ServiceId, 
-            userId, 
-            request.StartDate, 
-            request.EndDate, 
-            request.Price, 
-            request.Stock);
+        var isAdmin = User.IsInRole("Admin");
+        bool success;
+
+        try
+        {
+            success = await _availabilityService.BulkSetAvailabilityAsync(
+                request.ServiceId,
+                userId,
+                isAdmin,
+                request.StartDate,
+                request.EndDate,
+                request.Price,
+                request.Stock);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
 
         if (!success)
         {
@@ -100,7 +117,7 @@ public class AvailabilityController : ControllerBase
         var totalDays = (request.EndDate.Date - request.StartDate.Date).Days + 1;
         return Ok(new 
         { 
-            message = $"Đã cập nhật thành công {totalDays} ngày. Giá cuối tuần tự động tăng 20%.",
+            message = $"Đã cập nhật thành công {totalDays} ngày.",
             totalDays,
             startDate = request.StartDate.Date,
             endDate = request.EndDate.Date
@@ -113,12 +130,22 @@ public class AvailabilityController : ControllerBase
     public async Task<IActionResult> UpdateAvailability(int availId, [FromBody] UpdateAvailabilityRequest request)
     {
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-        
-        var success = await _availabilityService.UpdateAvailabilityAsync(
-            availId, 
-            userId, 
-            request.Price, 
-            request.Stock);
+        var isAdmin = User.IsInRole("Admin");
+        bool success;
+
+        try
+        {
+            success = await _availabilityService.UpdateAvailabilityAsync(
+                availId,
+                userId,
+                isAdmin,
+                request.Price,
+                request.Stock);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
 
         if (!success)
         {
@@ -139,20 +166,29 @@ public class AvailabilityController : ControllerBase
         
         return Ok(result);
     }
-
-    // A1.4: Áp dụng giá cuối tuần tự động
+// A1.4: Áp dụng giá cuối tuần tự động
     [HttpPost("apply-weekend-pricing")]
     [Authorize(Roles = "Partner,Admin")]
     public async Task<IActionResult> ApplyWeekendPricing([FromBody] ApplyWeekendPricingRequest request)
     {
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-        
-        var success = await _availabilityService.ApplyWeekendPricingAsync(
-            request.ServiceId, 
-            userId, 
-            request.StartDate, 
-            request.EndDate, 
-            request.WeekendMultiplier);
+        var isAdmin = User.IsInRole("Admin");
+        bool success;
+
+        try
+        {
+            success = await _availabilityService.ApplyWeekendPricingAsync(
+                request.ServiceId,
+                userId,
+                isAdmin,
+                request.StartDate,
+                request.EndDate,
+                request.WeekendMultiplier);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
 
         if (!success)
         {

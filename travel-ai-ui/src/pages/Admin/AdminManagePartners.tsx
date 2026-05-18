@@ -99,7 +99,7 @@ const AdminManagePartners = () => {
   }, [activeTab, allPartners, pendingPartners, searchQuery, statusFilter]);
 
   useEffect(() => {
-    if (!selectedPartner && filteredPartners.length > 0) {
+if (!selectedPartner && filteredPartners.length > 0) {
       setSelectedPartner(filteredPartners[0]);
       return;
     }
@@ -111,6 +111,11 @@ const AdminManagePartners = () => {
 
   const handleAction = async (type: 'approve' | 'reject' | 'need-more-info') => {
     if (!selectedPartner) {
+      return;
+    }
+
+    if (selectedPartner.verificationStatus.toLowerCase() === 'approved') {
+      alert('Partner da duoc duyet. Vui long dung action rieng neu can thu hoi phe duyet.');
       return;
     }
 
@@ -126,9 +131,21 @@ const AdminManagePartners = () => {
       });
       setReviewNote('');
       await fetchPartners();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
-      alert(error.response?.data?.message ?? 'Khong the cap nhat ho so doi tac luc nay.');
+      const message = typeof error === 'object'
+        && error !== null
+        && 'response' in error
+        && typeof error.response === 'object'
+        && error.response !== null
+        && 'data' in error.response
+        && typeof error.response.data === 'object'
+        && error.response.data !== null
+        && 'message' in error.response.data
+        && typeof error.response.data.message === 'string'
+          ? error.response.data.message
+          : 'Khong the cap nhat ho so doi tac luc nay.';
+      alert(message);
     } finally {
       setActionLoading(null);
     }
@@ -147,6 +164,8 @@ const AdminManagePartners = () => {
     }
   };
 
+  const isSelectedPartnerApproved = selectedPartner?.verificationStatus.toLowerCase() === 'approved';
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <div className="mb-8 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
@@ -161,7 +180,7 @@ const AdminManagePartners = () => {
         </div>
 
         <button
-          onClick={() => void fetchPartners()}
+onClick={() => void fetchPartners()}
           className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900 px-6 py-3 text-sm font-black text-white shadow-lg transition-all hover:bg-red-600 active:scale-95"
         >
           <RefreshCw size={18} /> Tai lai
@@ -235,7 +254,7 @@ const AdminManagePartners = () => {
             className={`rounded-full px-4 py-2 text-sm font-bold transition ${
               statusFilter === 'Rejected'
                 ? 'bg-red-600 text-white shadow-md'
-                : 'bg-red-100 text-red-700 hover:bg-red-200'
+: 'bg-red-100 text-red-700 hover:bg-red-200'
             }`}
           >
             Từ chối
@@ -298,7 +317,7 @@ const AdminManagePartners = () => {
                       <div className="mb-2 flex items-center justify-between gap-3">
                         <p className="font-black text-slate-900">{partner.businessName}</p>
                         <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${getStatusClassName(partner.verificationStatus)}`}>
-                          {partner.verificationStatus}
+{partner.verificationStatus}
                         </span>
                       </div>
                       <p className="text-sm font-semibold text-slate-600">{partner.fullName}</p>
@@ -349,8 +368,7 @@ const AdminManagePartners = () => {
                     <p className="font-bold text-slate-800">{selectedPartner.bankAccount || 'Chua cap nhat'}</p>
                   </div>
                 </div>
-
-                <div className="mt-5 rounded-[1.5rem] border border-slate-100 bg-slate-50 p-5">
+<div className="mt-5 rounded-[1.5rem] border border-slate-100 bg-slate-50 p-5">
                   <p className="mb-3 text-xs font-black uppercase tracking-widest text-slate-400">Dia chi</p>
                   <p className="text-sm leading-7 text-slate-600">{selectedPartner.address || 'Chua cap nhat dia chi doanh nghiep.'}</p>
                 </div>
@@ -381,45 +399,47 @@ const AdminManagePartners = () => {
                   <p className="text-sm leading-7 text-slate-600">{selectedPartner.reviewNote || 'Chua co ghi chu review.'}</p>
                 </div>
 
-                <div className="mt-6 rounded-[1.5rem] border border-amber-200 bg-amber-50 p-5">
-                  <p className="mb-3 text-xs font-black uppercase tracking-widest text-amber-700">Nhan xet kiem duyet</p>
-                  <textarea
-                    value={reviewNote}
-                    onChange={(event) => setReviewNote(event.target.value)}
-                    placeholder="Nhap ghi chu cho partner..."
-                    className="h-28 w-full rounded-2xl border border-amber-200 bg-white p-4 text-sm font-medium text-slate-700 outline-none transition focus:border-amber-400"
-                  />
+                {!isSelectedPartnerApproved && (
+                  <div className="mt-6 rounded-[1.5rem] border border-amber-200 bg-amber-50 p-5">
+                    <p className="mb-3 text-xs font-black uppercase tracking-widest text-amber-700">Nhan xet kiem duyet</p>
+                    <textarea
+                      value={reviewNote}
+                      onChange={(event) => setReviewNote(event.target.value)}
+                      placeholder="Nhap ghi chu cho partner..."
+                      className="h-28 w-full rounded-2xl border border-amber-200 bg-white p-4 text-sm font-medium text-slate-700 outline-none transition focus:border-amber-400"
+                    />
 
-                  <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-                    <button
-                      type="button"
-                      onClick={() => void handleAction('approve')}
-                      disabled={actionLoading === selectedPartner.profileId}
-                      className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3.5 text-sm font-black text-white shadow-lg transition hover:bg-emerald-700 disabled:opacity-70"
-                    >
-                      {actionLoading === selectedPartner.profileId ? <Loader2 size={16} className="animate-spin" /> : <BadgeCheck size={16} />}
-                      Approve
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleAction('need-more-info')}
-                      disabled={actionLoading === selectedPartner.profileId}
-                      className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-amber-500 px-5 py-3.5 text-sm font-black text-white shadow-lg transition hover:bg-amber-600 disabled:opacity-70"
-                    >
-                      {actionLoading === selectedPartner.profileId ? <Loader2 size={16} className="animate-spin" /> : <AlertCircle size={16} />}
-                      Need more info
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleAction('reject')}
-                      disabled={actionLoading === selectedPartner.profileId}
-                      className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-red-600 px-5 py-3.5 text-sm font-black text-white shadow-lg transition hover:bg-red-700 disabled:opacity-70"
-                    >
-                      {actionLoading === selectedPartner.profileId ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
-                      Reject
-                    </button>
+                    <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                      <button
+                        type="button"
+                        onClick={() => void handleAction('approve')}
+                        disabled={actionLoading === selectedPartner.profileId}
+className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3.5 text-sm font-black text-white shadow-lg transition hover:bg-emerald-700 disabled:opacity-70"
+                      >
+                        {actionLoading === selectedPartner.profileId ? <Loader2 size={16} className="animate-spin" /> : <BadgeCheck size={16} />}
+                        Approve
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleAction('need-more-info')}
+                        disabled={actionLoading === selectedPartner.profileId}
+                        className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-amber-500 px-5 py-3.5 text-sm font-black text-white shadow-lg transition hover:bg-amber-600 disabled:opacity-70"
+                      >
+                        {actionLoading === selectedPartner.profileId ? <Loader2 size={16} className="animate-spin" /> : <AlertCircle size={16} />}
+                        Need more info
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleAction('reject')}
+                        disabled={actionLoading === selectedPartner.profileId}
+                        className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-red-600 px-5 py-3.5 text-sm font-black text-white shadow-lg transition hover:bg-red-700 disabled:opacity-70"
+                      >
+                        {actionLoading === selectedPartner.profileId ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
+                        Reject
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             ) : (
               <div className="flex min-h-[30rem] items-center justify-center rounded-[1.5rem] border border-dashed border-slate-200 bg-slate-50 p-8 text-center">

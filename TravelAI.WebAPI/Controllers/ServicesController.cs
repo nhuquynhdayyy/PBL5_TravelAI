@@ -104,7 +104,7 @@ public class ServicesController : ControllerBase
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
         try
         {
-            var result = await _service.CreateAsync(userId, request, _env.WebRootPath);
+var result = await _service.CreateAsync(userId, request, _env.WebRootPath);
             
             // Log audit
             if (result.ServiceId > 0)
@@ -125,9 +125,10 @@ public class ServicesController : ControllerBase
     public async Task<IActionResult> UpdateService(int id, [FromForm] CreateServiceRequest request)
     {
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        var isAdmin = User.IsInRole("Admin");
         try
         {
-            var success = await _service.UpdateAsync(id, request, _env.WebRootPath);
+            var success = await _service.UpdateAsync(id, request, userId, isAdmin, _env.WebRootPath);
             if (!success)
             {
                 return BadRequest(new { message = "Cap nhat that bai." });
@@ -152,7 +153,9 @@ public class ServicesController : ControllerBase
     [Authorize(Roles = "Partner,Admin")]
     public async Task<IActionResult> DeleteService(int id)
     {
-        var success = await _service.DeleteAsync(id, _env.WebRootPath);
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        var isAdmin = User.IsInRole("Admin");
+        var success = await _service.DeleteAsync(id, userId, isAdmin, _env.WebRootPath);
         return success ? Ok(new { message = "Da xoa." }) : NotFound();
     }
 

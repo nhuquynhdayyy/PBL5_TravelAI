@@ -132,10 +132,7 @@ const Header: React.FC = () => {
                 <Link to="/partner/services" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
                   <Store size={14} /> MY SERVICES
                 </Link>
-                <Link to="/partner/inventory-pricing" className="flex items-center gap-2 px-6 py-2 bg-purple-600 text-white rounded-full font-black text-xs hover:bg-purple-700 transition-all shadow-lg shadow-purple-100 uppercase tracking-widest">
-                  <Package size={14} /> INVENTORY
-                </Link>
-<Link to="/partner/orders" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
+                <Link to="/partner/orders" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
                   <ClipboardList size={14} /> MY ORDERS
                 </Link>
                 <Link to="/partner/reviews" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">

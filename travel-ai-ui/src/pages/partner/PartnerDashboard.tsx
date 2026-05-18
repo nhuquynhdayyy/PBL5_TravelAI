@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
+    AlertTriangle,
     BarChart3,
     Building2,
     CalendarRange,
+    Clock,
     DollarSign,
     Loader2,
     Package,
@@ -44,6 +46,14 @@ type PartnerRevenueSummary = {
     revenueByDay: RevenueByDay[];
 };
 
+type PendingOrdersSummary = {
+    pendingCount: number;
+    nearestDeadlineHours?: number | null;
+    hoursUntilNearestDeadline?: number | null;
+    nearestHoursUntilDeadline?: number | null;
+    nearestApprovalDeadlineHours?: number | null;
+};
+
 type PeriodFilter = 'day' | 'week' | 'month' | 'custom';
 
 const currencyFormatter = new Intl.NumberFormat('vi-VN');
@@ -60,11 +70,12 @@ const periodOptions: Array<{ value: PeriodFilter; label: string }> = [
 const PartnerDashboard = () => {
     const [summary, setSummary] = useState<PartnerRevenueSummary | null>(null);
     const [loading, setLoading] = useState(true);
+    const [pendingOrders, setPendingOrders] = useState<PendingOrdersSummary | null>(null);
     const [period, setPeriod] = useState<PeriodFilter>('month');
     const [startDate, setStartDate] = useState(getTodayVietnam());
     const [endDate, setEndDate] = useState(getTodayVietnam());
 
-    const fetchSummary = async (nextPeriod = period, nextStartDate = startDate, nextEndDate = endDate) => {
+    const fetchSummary = useCallback(async (nextPeriod: PeriodFilter, nextStartDate: string, nextEndDate: string) => {
         try {
             setLoading(true);
             const params: Record<string, string> = { period: nextPeriod };
@@ -82,17 +93,34 @@ const PartnerDashboard = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
+
+    const fetchPendingOrders = useCallback(async () => {
+        try {
+const response = await axiosClient.get('/partner/orders/pending-count');
+            setPendingOrders(response.data);
+        } catch (error) {
+            console.error('Loi lay so don cho duyet cua partner:', error);
+            setPendingOrders(null);
+        }
+    }, []);
+
+    const refreshDashboard = useCallback(async (nextPeriod: PeriodFilter, nextStartDate: string, nextEndDate: string) => {
+        await Promise.all([
+            fetchSummary(nextPeriod, nextStartDate, nextEndDate),
+            fetchPendingOrders()
+        ]);
+    }, [fetchPendingOrders, fetchSummary]);
 
     useEffect(() => {
-        fetchSummary();
-    }, []);
+        refreshDashboard('month', getTodayVietnam(), getTodayVietnam());
+    }, [refreshDashboard]);
 
     const handlePeriodChange = (nextPeriod: PeriodFilter) => {
         setPeriod(nextPeriod);
 
         if (nextPeriod !== 'custom') {
-            fetchSummary(nextPeriod, startDate, endDate);
+            refreshDashboard(nextPeriod, startDate, endDate);
         }
     };
 
@@ -102,7 +130,31 @@ const PartnerDashboard = () => {
             return;
         }
 
-        fetchSummary('custom', startDate, endDate);
+        refreshDashboard('custom', startDate, endDate);
+    };
+
+    const getNearestDeadlineHours = (pendingOrdersSummary: PendingOrdersSummary | null) => {
+        if (!pendingOrdersSummary) {
+            return null;
+        }
+
+        return pendingOrdersSummary.nearestDeadlineHours
+            ?? pendingOrdersSummary.hoursUntilNearestDeadline
+            ?? pendingOrdersSummary.nearestHoursUntilDeadline
+            ?? pendingOrdersSummary.nearestApprovalDeadlineHours
+            ?? null;
+    };
+
+    const formatDeadlineHours = (hours: number) => {
+        if (hours <= 0) {
+            return 'quá hạn';
+        }
+
+        if (hours < 1) {
+            return `${Math.max(1, Math.ceil(hours * 60))} phút`;
+        }
+
+        return `${Math.ceil(hours)} giờ`;
     };
 
     const chartData = (summary?.revenueByDay ?? []).map(item => ({
@@ -115,6 +167,8 @@ const PartnerDashboard = () => {
         ? `${formatVietnameseDate(summary.rangeStart)} - ${formatVietnameseDate(summary.rangeEnd)}`
         : '';
     const periodLabel = periodOptions.find(option => option.value === (summary?.period ?? period))?.label ?? 'Thang';
+    const pendingCount = pendingOrders?.pendingCount ?? 0;
+    const nearestDeadlineHours = getNearestDeadlineHours(pendingOrders);
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
@@ -123,24 +177,59 @@ const PartnerDashboard = () => {
                     <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-50 text-emerald-700 text-xs font-black uppercase tracking-[0.2em] mb-4">
                         <BarChart3 size={14} /> Partner Revenue
                     </div>
-                    <h1 className="text-4xl font-black text-slate-900 tracking-tight">DASHBOARD DOANH THU</h1>
+<h1 className="text-4xl font-black text-slate-900 tracking-tight">DASHBOARD DOANH THU</h1>
                     <p className="mt-3 text-slate-500 font-medium max-w-2xl">
                         Theo doi doanh thu theo ngay, tuan, thang hoac khoang thoi gian tuy chon cua ban.
                     </p>
                 </div>
 
                 <button
-                    onClick={() => fetchSummary()}
+                    onClick={() => refreshDashboard(period, startDate, endDate)}
                     className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-slate-900 text-white font-black text-sm shadow-lg hover:bg-emerald-600 transition-all active:scale-95"
                 >
                     <RefreshCw size={18} /> Tai lai
                 </button>
             </div>
 
+            <Link
+                to="/partner/orders"
+                className={`flex flex-col md:flex-row md:items-center md:justify-between gap-5 rounded-[2rem] border p-6 sm:p-7 shadow-sm transition-all hover:shadow-md mb-8 ${
+                    pendingCount > 0
+                        ? 'bg-amber-50 border-amber-200 hover:border-amber-300'
+                        : 'bg-white border-slate-100 hover:border-slate-200'
+                }`}
+            >
+                <div className="flex items-start gap-4">
+                    <div className={`size-12 shrink-0 rounded-2xl flex items-center justify-center ${
+                        pendingCount > 0 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-50 text-emerald-600'
+                    }`}>
+                        {pendingCount > 0 ? <AlertTriangle size={24} /> : <Clock size={24} />}
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-2">
+                            Don cho duyet
+                        </p>
+                        <h2 className="text-2xl font-black text-slate-900">
+                            Ban co {pendingCount} don dang cho duyet.
+                        </h2>
+                        {nearestDeadlineHours !== null && pendingCount > 0 && (
+                            <p className="mt-2 text-sm font-bold text-amber-700">
+                                Don gan nhat con {formatDeadlineHours(nearestDeadlineHours)}.
+                            </p>
+                        )}
+                    </div>
+                </div>
+                <span className={`inline-flex w-fit items-center justify-center rounded-2xl px-5 py-3 text-sm font-black ${
+                    pendingCount > 0 ? 'bg-amber-600 text-white' : 'bg-slate-100 text-slate-700'
+                }`}>
+                    Xem don hang
+                </span>
+            </Link>
+
             <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm p-6 sm:p-8 mb-8">
                 <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-6">
                     <div>
-                        <div className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-3">
+<div className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-3">
                             <CalendarRange size={14} /> Bo loc thoi gian
                         </div>
                         <div className="flex flex-wrap gap-3">
@@ -190,7 +279,7 @@ const PartnerDashboard = () => {
                         <button
                             onClick={handleApplyCustomRange}
                             disabled={period !== 'custom'}
-                            className="px-6 py-3 rounded-2xl bg-emerald-600 text-white font-black text-sm shadow-lg hover:bg-emerald-500 transition-all disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
+className="px-6 py-3 rounded-2xl bg-emerald-600 text-white font-black text-sm shadow-lg hover:bg-emerald-500 transition-all disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
                         >
                             Ap dung
                         </button>
@@ -235,7 +324,7 @@ const PartnerDashboard = () => {
                             </div>
                             <div className="text-2xl font-black text-white mb-2">
                                 Quản Lý Tồn Kho & Giá
-                            </div>
+</div>
                             <p className="text-sm font-medium text-purple-100">Set giá, tồn kho & pricing rules →</p>
                         </Link>
                     </div>
@@ -278,7 +367,7 @@ const PartnerDashboard = () => {
                                             dataKey="revenue"
                                             stroke="#10b981"
                                             strokeWidth={3}
-                                            fill="url(#revenueFill)"
+fill="url(#revenueFill)"
                                         />
                                     </AreaChart>
                                 </ResponsiveContainer>
@@ -323,7 +412,7 @@ const PartnerDashboard = () => {
                                 </div>
                             ) : (
                                 <div className="rounded-[2rem] border-2 border-dashed border-slate-200 p-10 text-center bg-slate-50">
-                                    <p className="text-slate-500 font-medium">
+<p className="text-slate-500 font-medium">
                                         Chua co giao dich thanh cong trong khoang thoi gian da chon.
                                     </p>
                                 </div>
