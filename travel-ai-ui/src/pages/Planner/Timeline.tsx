@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import 'leaflet/dist/leaflet.css';
+import '../../styles/leaflet-dark.css';
 import axiosClient from '../../api/axiosClient';
 import { useCart } from '../../contexts/CartContext';
 import DayTabs from './DayTabs';
@@ -181,6 +182,7 @@ const Timeline: React.FC = () => {
   const [activeDay, setActiveDay] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [showSidebar, setShowSidebar] = useState(true);
+  const [focusedActivity, setFocusedActivity] = useState<ItineraryActivity | null>(null);
 
   const itineraryId = itinerary?.itineraryId || (routeItineraryId ? Number(routeItineraryId) : null);
 
@@ -348,11 +350,15 @@ const Timeline: React.FC = () => {
   };
 
   const handleActivityClick = (activity: ItineraryActivity) => {
-    // Scroll map to activity location
-    if (activity.latitude && activity.longitude) {
-      // Map will auto-focus based on activeDay
-      console.log('Activity clicked:', activity.title);
-    }
+    // Set focused activity to trigger map flyTo
+    setFocusedActivity(activity);
+    
+    // Clear focus after animation completes
+    setTimeout(() => {
+      setFocusedActivity(null);
+    }, 2000);
+    
+    console.log('Activity clicked:', activity.title, 'Coordinates:', activity.latitude, activity.longitude);
   };
 
   if (loading) return <ItinerarySkeleton />;
@@ -493,7 +499,11 @@ const Timeline: React.FC = () => {
           </div>
 
           {/* Right Map */}
-          <ItineraryMap days={itinerary.days} activeDay={activeDay} />
+          <ItineraryMap 
+            days={itinerary.days} 
+            activeDay={activeDay} 
+            focusedActivity={focusedActivity}
+          />
         </div>
       </div>
 

@@ -754,6 +754,32 @@ public class ItineraryService : IItineraryService
             durationMinutes = ResolveDurationMinutes(service, spot);
         }
 
+        // Get coordinates from service or spot
+        double? latitude = null;
+        double? longitude = null;
+        
+        if (service != null && service.Latitude != 0 && service.Longitude != 0)
+        {
+            latitude = service.Latitude;
+            longitude = service.Longitude;
+        }
+        else if (spot != null && spot.Latitude != 0 && spot.Longitude != 0)
+        {
+            latitude = spot.Latitude;
+            longitude = spot.Longitude;
+        }
+
+        // Get image URL
+        string? imageUrl = null;
+        if (service?.Images?.Any() == true)
+        {
+            imageUrl = service.Images.FirstOrDefault()?.ImageUrl;
+        }
+        else if (!string.IsNullOrEmpty(spot?.ImageUrl))
+        {
+            imageUrl = spot.ImageUrl;
+        }
+
         return new ActivityDto
         {
             Title = service?.Name ?? spot?.Name ?? $"Activity {item.ActivityOrder.ToString(CultureInfo.InvariantCulture)}",
@@ -761,7 +787,12 @@ public class ItineraryService : IItineraryService
             Description = service?.Description ?? spot?.Description ?? "No description available.",
             Duration = FormatDuration(durationMinutes, service?.ServiceType),
             EstimatedCost = service?.BasePrice ?? 0,
-            ServiceId = service?.ServiceId
+            ServiceId = service?.ServiceId,
+            Latitude = latitude,
+            Longitude = longitude,
+            ImageUrl = imageUrl,
+            StartTime = item.StartTime.ToString("HH:mm"),
+            EndTime = item.EndTime.ToString("HH:mm")
         };
     }
 
