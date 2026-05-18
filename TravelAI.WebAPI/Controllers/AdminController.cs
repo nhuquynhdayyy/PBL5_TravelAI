@@ -36,6 +36,11 @@ public class AdminController : ControllerBase
     [HttpGet("stats")]
     public async Task<IActionResult> GetStats()
     {
+        return Ok(await BuildAdminStatsAsync());
+    }
+
+    private async Task<AdminStatsDto> BuildAdminStatsAsync()
+    {
         var today = DateTimeHelper.Today;
         var rangeStart = today.AddDays(-29);
         var rangeEndExclusive = today.AddDays(1);
@@ -76,7 +81,7 @@ public class AdminController : ControllerBase
             .Select(booking => new AdminRecentBookingDto
             {
                 BookingId = booking.BookingId,
-                CustomerName = booking.User.FullName,
+CustomerName = booking.User.FullName,
                 CustomerEmail = booking.User.Email,
                 Status = booking.Status.ToString(),
                 TotalAmount = booking.TotalAmount,
@@ -133,7 +138,7 @@ PrimaryServiceName = booking.BookingItems
                 Revenue = group.Sum(item => item.Revenue)
             })
             .OrderByDescending(item => item.BookingCount)
-            .ThenByDescending(item => item.Revenue)
+.ThenByDescending(item => item.Revenue)
             .Take(5)
             .ToList();
 
@@ -172,7 +177,7 @@ PrimaryServiceName = booking.BookingItems
             })
             .ToList();
 
-        var response = new AdminStatsDto
+        return new AdminStatsDto
         {
             TotalUsers = totalUsers,
             TotalPartners = totalPartners,
@@ -183,8 +188,6 @@ PrimaryServiceName = booking.BookingItems
             RecentBookings = recentBookings,
             RevenueByDay = revenueByDay
         };
-
-        return Ok(response);
     }
 
     [HttpGet("users")]
@@ -211,8 +214,7 @@ PrimaryServiceName = booking.BookingItems
                 u.FullName.ToLower().Contains(keyword) ||
                 u.Email.ToLower().Contains(keyword));
         }
-
-        var totalCount = await query.CountAsync();
+var totalCount = await query.CountAsync();
         var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
 
         var users = await query
@@ -296,7 +298,7 @@ PrimaryServiceName = booking.BookingItems
         var user = await _context.Users.FirstOrDefaultAsync(u => u.UserId == userId);
         if (user == null)
         {
-            return NotFound(new { message = "Khong tim thay nguoi dung." });
+return NotFound(new { message = "Khong tim thay nguoi dung." });
         }
 
         var query = _context.AuditLogs
@@ -382,8 +384,7 @@ public async Task<IActionResult> RejectService(int id, [FromBody] RejectServiceR
         var partners = await BuildPartnerReviewQuery()
             .Where(profile => profile.VerificationStatus != PartnerVerificationStatus.Approved.ToString())
             .ToListAsync();
-
-        return Ok(partners);
+return Ok(partners);
     }
 
     [HttpGet("partners")]
@@ -456,7 +457,7 @@ return Ok(new { success = true, message = "Da tu choi doi tac." });
     // New endpoints using userId instead of profileId
     [HttpGet("partners/{userId}/profile")]
     public async Task<IActionResult> GetPartnerProfileByUserId(int userId)
-    {
+{
         var profile = await _context.PartnerProfiles
             .AsNoTracking()
             .Include(p => p.User)

@@ -256,7 +256,7 @@ rangeEnd = vietnamToday;
             .Select(offset => rangeStart.AddDays(offset))
             .Select(date => new PartnerDailyRevenueDto
 {
-                Date = date,
+Date = date,
                 Revenue = dailyRevenueLookup.GetValueOrDefault(date, 0m)
             })
             .ToList();
@@ -337,7 +337,7 @@ rangeEnd = vietnamToday;
                 header[1] == 0x50 &&
                 header[2] == 0x44 &&
 header[3] == 0x46,
-            ".jpg" or ".jpeg" => header.Length >= 3 &&
+".jpg" or ".jpeg" => header.Length >= 3 &&
                 header[0] == 0xFF &&
                 header[1] == 0xD8 &&
                 header[2] == 0xFF,
@@ -508,7 +508,7 @@ query = query.Where(bi => bi.Booking.Status == bookingStatus);
 
         var partnerId = int.Parse(partnerIdClaim.Value);
 var booking = await _context.Bookings
-            .AsNoTracking()
+.AsNoTracking()
             .Include(b => b.User)
             .Include(b => b.BookingItems)
                 .ThenInclude(bi => bi.Service)
@@ -590,7 +590,7 @@ var booking = await _context.Bookings
 
         if (!success)
 {
-            return BadRequest(new { message = "Khong the duyet don hang nay. Vui long kiem tra lai." });
+return BadRequest(new { message = "Khong the duyet don hang nay. Vui long kiem tra lai." });
         }
 
         return Ok(new { message = "Da duyet don hang thanh cong!" });
@@ -633,16 +633,39 @@ var booking = await _context.Bookings
 
         var partnerId = int.Parse(partnerIdClaim.Value);
 
-        var pendingCount = await _context.BookingItems
+        var pendingBookings = await _context.BookingItems
             .AsNoTracking()
             .Where(bi => bi.Service.PartnerId == partnerId
                 && bi.Booking.Status == BookingStatus.Paid
                 && !bi.Booking.IsApprovedByPartner)
-            .Select(bi => bi.BookingId)
+            .Select(bi => new
+            {
+                bi.BookingId,
+                bi.Booking.ApprovalDeadline
+            })
             .Distinct()
-            .CountAsync();
+            .ToListAsync();
 
-        return Ok(new { pendingCount });
+        var now = DateTimeHelper.Now;
+        var nearestApprovalDeadline = pendingBookings
+            .Where(item => item.ApprovalDeadline.HasValue)
+            .Select(item => item.ApprovalDeadline!.Value)
+            .OrderBy(deadline => deadline)
+            .FirstOrDefault();
+
+        double? nearestDeadlineHours = nearestApprovalDeadline == default
+            ? null
+            : (nearestApprovalDeadline - now).TotalHours;
+        DateTime? nearestApprovalDeadlineVietnam = nearestApprovalDeadline == default
+            ? null
+            : ToVietnamTime(nearestApprovalDeadline);
+
+        return Ok(new
+        {
+            pendingCount = pendingBookings.Count,
+            nearestDeadlineHours,
+            nearestApprovalDeadline = nearestApprovalDeadlineVietnam
+        });
     }
 }
 
