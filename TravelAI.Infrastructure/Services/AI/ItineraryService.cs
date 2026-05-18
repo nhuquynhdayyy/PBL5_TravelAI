@@ -40,7 +40,7 @@ public class ItineraryService : IItineraryService
         _notificationService = notificationService;
     }
 
-    public async Task<ItineraryResponseDto?> GenerateAndLogItineraryAsync(int userId, GenerateItineraryRequest request)
+    public async Task<ItineraryResponseDto?> GenerateAndLogItineraryAsync(int? userId, GenerateItineraryRequest request)
     {
         if (request.DestinationId <= 0)
         {
@@ -52,13 +52,17 @@ public class ItineraryService : IItineraryService
             throw new InvalidOperationException("So ngay phai lon hon 0.");
         }
 
-        await _notificationService.NotifyUserAsync(userId, "itinerary_processing", new
+        // Chỉ gửi notification khi user đã đăng nhập
+        if (userId.HasValue)
         {
-            status = "started",
-            destinationId = request.DestinationId,
-            days = request.NumberOfDays,
-            message = "AI dang phan tich so thich, thoi tiet va dich vu phu hop."
-        });
+            await _notificationService.NotifyUserAsync(userId.Value, "itinerary_processing", new
+            {
+                status = "started",
+                destinationId = request.DestinationId,
+                days = request.NumberOfDays,
+                message = "AI dang phan tich so thich, thoi tiet va dich vu phu hop."
+            });
+        }
 
         var dest = await _db.Destinations.FindAsync(request.DestinationId);
         if (dest == null)
@@ -66,8 +70,16 @@ public class ItineraryService : IItineraryService
             throw new InvalidOperationException("Khong tim thay diem den de tao lich trinh.");
         }
 
-        var pref = await _db.UserPreferences.FirstOrDefaultAsync(u => u.UserId == userId)
-            ?? new UserPreference
+        var pref = userId.HasValue
+            ? await _db.UserPreferences.FirstOrDefaultAsync(u => u.UserId == userId.Value)
+                ?? new UserPreference
+                {
+                    TravelStyle = "Kham pha tong hop",
+                    BudgetLevel = BudgetLevel.Medium,
+                    TravelPace = TravelPace.Balanced,
+                    CuisinePref = "Khong co yeu cau dac biet"
+                }
+            : new UserPreference
             {
                 TravelStyle = "Kham pha tong hop",
                 BudgetLevel = BudgetLevel.Medium,
@@ -105,12 +117,14 @@ public class ItineraryService : IItineraryService
         
         var promptServices = await GetAvailableServicesForPromptAsync(dest, tripStartDate, request.NumberOfDays, request.ServiceFilters);
         var availableServiceEntities = await GetAvailableServiceEntitiesForPromptAsync(dest, tripStartDate, request.NumberOfDays, request.ServiceFilters);
-        var historyLogs = await _db.AISuggestionLogs
-            .AsNoTracking()
-            .Where(log => log.UserId == userId)
-            .OrderByDescending(log => log.CreatedAt)
-            .Take(3)
-            .ToListAsync();
+        var historyLogs = userId.HasValue
+            ? await _db.AISuggestionLogs
+                .AsNoTracking()
+                .Where(log => log.UserId == userId.Value)
+                .OrderByDescending(log => log.CreatedAt)
+                .Take(3)
+                .ToListAsync()
+            : new List<AISuggestionLog>();
         var weatherData = centerLat.HasValue && centerLng.HasValue
             ? await _weatherService.GetWeatherAsync(centerLat.Value, centerLng.Value)
             : null;
@@ -139,17 +153,19 @@ public class ItineraryService : IItineraryService
             systemPrompt: AIPrompts.ItinerarySystemPrompt,
             requireJsonResponse: true);
 
-        var aiLog = new AISuggestionLog
+        var aiLog = userId.HasValue ? new AISuggestionLog
         {
-            UserId = userId,
+            UserId = userId.Value,
             UserPrompt = prompt,
             AiResponseJson = rawAiResponse,
             CreatedAt = DateTimeHelper.Now
-        };
+        } : null;
 
-        _db.AISuggestionLogs.Add(aiLog);
-
-        await _db.SaveChangesAsync();
+        if (aiLog != null)
+        {
+            _db.AISuggestionLogs.Add(aiLog);
+            await _db.SaveChangesAsync();
+        }
 
         if (GeminiService.TryExtractErrorMessage(rawAiResponse, out var aiError))
         {
@@ -163,8 +179,11 @@ public class ItineraryService : IItineraryService
 
             if (!string.IsNullOrWhiteSpace(repairedResponse))
             {
-                aiLog.AiResponseJson = $"ORIGINAL RESPONSE:{Environment.NewLine}{rawAiResponse}{Environment.NewLine}{Environment.NewLine}REPAIRED RESPONSE:{Environment.NewLine}{repairedResponse}";
-                await _db.SaveChangesAsync();
+                if (aiLog != null)
+                {
+                    aiLog.AiResponseJson = $"ORIGINAL RESPONSE:{Environment.NewLine}{rawAiResponse}{Environment.NewLine}{Environment.NewLine}REPAIRED RESPONSE:{Environment.NewLine}{repairedResponse}";
+                    await _db.SaveChangesAsync();
+                }
 
                 if (GeminiService.TryExtractErrorMessage(repairedResponse, out var repairError))
                 {
@@ -177,12 +196,15 @@ public class ItineraryService : IItineraryService
 
         if (parsed == null)
         {
-            await _notificationService.NotifyUserAsync(userId, "itinerary_processing", new
+            if (userId.HasValue)
             {
-                status = "failed",
-                destinationId = request.DestinationId,
-                message = "AI chua tra ve lich trinh hop le."
-            });
+                await _notificationService.NotifyUserAsync(userId.Value, "itinerary_processing", new
+                {
+                    status = "failed",
+                    destinationId = request.DestinationId,
+                    message = "AI chua tra ve lich trinh hop le."
+                });
+            }
 
             throw new InvalidOperationException(BuildInvalidJsonMessage(rawAiResponse));
         }
@@ -190,18 +212,24 @@ public class ItineraryService : IItineraryService
         parsed.StartDate = tripStartDate;
         parsed.EndDate = tripStartDate.AddDays(parsed.Days.Count);
 
-        // Lưu metadata vào log để analytics query thẳng DB, tránh parse JSON sau này.
-        aiLog.DestinationName = dest.Name;
-        aiLog.EstimatedCost = parsed.TotalEstimatedCost > 0 ? parsed.TotalEstimatedCost : null;
-        await _db.SaveChangesAsync();
-
-        await _notificationService.NotifyUserAsync(userId, "itinerary_processing", new
+        // Lưu metadata vào log để analytics query thẳng DB — chỉ khi user đã đăng nhập
+        if (aiLog != null)
         {
-            status = "completed",
-            destination = dest.Name,
-            days = parsed.Days.Count,
-            message = "AI da tao xong lich trinh."
-        });
+            aiLog.DestinationName = dest.Name;
+            aiLog.EstimatedCost = parsed.TotalEstimatedCost > 0 ? parsed.TotalEstimatedCost : null;
+            await _db.SaveChangesAsync();
+        }
+
+        if (userId.HasValue)
+        {
+            await _notificationService.NotifyUserAsync(userId.Value, "itinerary_processing", new
+            {
+                status = "completed",
+                destination = dest.Name,
+                days = parsed.Days.Count,
+                message = "AI da tao xong lich trinh."
+            });
+        }
 
         return parsed;
     }
