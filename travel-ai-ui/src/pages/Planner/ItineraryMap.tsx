@@ -8,128 +8,158 @@ type LatLngTuple = [number, number];
 
 const DAY_COLORS = ['#0061ff', '#10b981', '#f97316', '#8b5cf6', '#ef4444'];
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const isValidCoord = (lat: unknown, lng: unknown): boolean => {
+  const la = Number(lat);
+  const lo = Number(lng);
+  return (
+    Number.isFinite(la) && Number.isFinite(lo) &&
+    la !== 0 && lo !== 0 &&
+    la >= -90 && la <= 90 &&
+    lo >= -180 && lo <= 180
+  );
+};
 
 const hasCoord = (a: { latitude?: number | null; longitude?: number | null }) =>
-  typeof a.latitude === 'number' &&
-  Number.isFinite(a.latitude) &&
-  typeof a.longitude === 'number' &&
-  Number.isFinite(a.longitude);
+  isValidCoord(a.latitude, a.longitude);
 
-/** Offset duplicate coordinates slightly so markers don't stack */
+/** Spiral-offset duplicate coordinates so markers don't stack */
 const jitterDuplicates = (points: LatLngTuple[]): LatLngTuple[] => {
   const seen = new Map<string, number>();
   return points.map(([lat, lng]) => {
-    const key = `${lat.toFixed(5)},${lng.toFixed(5)}`;
-    const count = seen.get(key) ?? 0;
-    seen.set(key, count + 1);
-    if (count === 0) return [lat, lng];
-    // Spiral offset: ~30m per step
-    const angle = (count * 137.5 * Math.PI) / 180;
-    const r = 0.0003 * Math.sqrt(count);
+    const key = `${lat.toFixed(4)},${lng.toFixed(4)}`;
+    const n = seen.get(key) ?? 0;
+    seen.set(key, n + 1);
+    if (n === 0) return [lat, lng];
+    const angle = (n * 137.5 * Math.PI) / 180;
+    const r = 0.0004 * Math.sqrt(n); // ~44m per step
     return [lat + r * Math.cos(angle), lng + r * Math.sin(angle)];
   });
 };
 
-// ─── Custom marker icon ──────────────────────────────────────────────────────
+// ─── Marker icon ─────────────────────────────────────────────────────────────
 
 const makeIcon = (label: string | number, color: string, size: number, pulse = false) =>
   L.divIcon({
     className: '',
-    html: `
-      <div style="position:relative;width:${size}px;height:${size}px;">
-        ${pulse ? `<div style="
-          position:absolute;inset:-6px;border-radius:50%;
-          background:${color}22;animation:pulse 1.8s infinite;
-        "></div>` : ''}
-        <div style="
-          width:${size}px;height:${size}px;
-          display:flex;align-items:center;justify-content:center;
-          border-radius:${size / 2.5}px;
-          background:${color};
-          color:#fff;font-weight:900;font-size:${size * 0.38}px;
-          border:3px solid #fff;
-          box-shadow:0 4px 14px ${color}66,0 2px 6px rgba(0,0,0,.25);
-        ">${label}</div>
+    html: `<div style="position:relative;width:${size}px;height:${size}px;">
+      ${pulse ? `<div style="position:absolute;inset:-8px;border-radius:50%;
+        background:${color}33;animation:itm-pulse 1.6s ease-out infinite;"></div>` : ''}
+      <div style="width:${size}px;height:${size}px;display:flex;align-items:center;
+        justify-content:center;border-radius:${Math.round(size / 2.6)}px;
+        background:${color};color:#fff;font-weight:900;font-size:${Math.round(size * 0.38)}px;
+        border:3px solid #fff;box-shadow:0 4px 12px ${color}55,0 2px 4px rgba(0,0,0,.2);">
+        ${label}
       </div>
-    `,
+    </div>`,
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
-    popupAnchor: [0, -(size / 2 + 4)],
+    popupAnchor: [0, -(size / 2 + 6)],
   });
 
-// ─── Inner map controllers ───────────────────────────────────────────────────
+// ─── Map controllers (must be children of MapContainer) ──────────────────────
 
+/**
+ * Re-fits bounds every time `points` array reference changes.
+ * Uses a stable key derived from actual coordinates so it fires
+ * even when the count stays the same (e.g. Hà Nội 5 pts → Đà Nẵng 5 pts).
+ */
 const FitBounds = ({ points }: { points: LatLngTuple[] }) => {
   const map = useMap();
-  const prevLen = useRef(0);
+  // Build a string key from actual coordinates — changes whenever coords change
+  const coordKey = points.map((p) => p.join(',')).join('|');
+  const prevKey = useRef('');
 
   useEffect(() => {
     if (points.length === 0) return;
-    // Only re-fit when point count changes (new itinerary loaded)
-    if (points.length === prevLen.current) return;
-    prevLen.current = points.length;
+    if (coordKey === prevKey.current) return;
+    prevKey.current = coordKey;
 
-    setTimeout(() => {
+    const apply = () => {
       map.invalidateSize();
       if (points.length === 1) {
-        map.setView(points[0], 14);
+        map.setView(points[0], 15);
       } else {
-        map.fitBounds(L.latLngBounds(points), { padding: [48, 48], maxZoom: 14 });
+        try {
+          const bounds = L.latLngBounds(points);
+          if (bounds.isValid()) {
+            map.fitBounds(bounds, { padding: [52, 52], maxZoom: 15, animate: true });
+          }
+        } catch {
+          map.setView(points[0], 13);
+        }
       }
-    }, 120);
-  }, [map, points]);
+    };
+
+    // Small delay to let the container finish rendering
+    const t = setTimeout(apply, 150);
+    return () => clearTimeout(t);
+  }, [map, coordKey, points]);
 
   return null;
 };
 
 const FlyTo = ({ target }: { target: LatLngTuple | null }) => {
   const map = useMap();
+  const prev = useRef<string>('');
   useEffect(() => {
-    if (target) map.flyTo(target, 16, { duration: 1.4, easeLinearity: 0.3 });
+    if (!target) return;
+    const key = target.join(',');
+    if (key === prev.current) return;
+    prev.current = key;
+    map.flyTo(target, 16, { duration: 1.3, easeLinearity: 0.3 });
   }, [map, target]);
   return null;
 };
 
-// ─── Main component ──────────────────────────────────────────────────────────
+// ─── Main component ───────────────────────────────────────────────────────────
 
-interface ItineraryMapProps {
+interface Props {
   days: ItineraryDay[];
   activeDay: number;
   focusedActivity?: ItineraryActivity | null;
 }
 
-const ItineraryMap = ({ days, activeDay, focusedActivity }: ItineraryMapProps) => {
+const ItineraryMap = ({ days, activeDay, focusedActivity }: Props) => {
   const [enrichedDays, setEnrichedDays] = useState<ItineraryDay[]>(days);
   const [geocoding, setGeocoding] = useState(false);
 
-  // ── Geocode activities that lack coordinates ──────────────────────────────
+  // ── Geocode whenever `days` changes ────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
+    setGeocoding(false);
 
     const run = async () => {
+      // First pass: use whatever coords backend already gave us
+      setEnrichedDays(days);
+
+      // Check if any activity is missing valid coords
       const needsGeo = days.some((d) =>
         d.activities.some((a) => !hasCoord(a) && a.location?.trim()),
       );
-
-      if (!needsGeo) {
-        setEnrichedDays(days);
-        return;
-      }
+      if (!needsGeo) return;
 
       setGeocoding(true);
 
-      const result = await Promise.all(
+      // Geocode in parallel batches of 3 to respect Nominatim rate limit
+      const enriched = await Promise.all(
         days.map(async (day) => ({
           ...day,
           activities: await Promise.all(
             day.activities.map(async (act) => {
-              if (hasCoord(act) || !act.location?.trim()) return act;
+              if (hasCoord(act)) return act;
+              if (!act.location?.trim()) return act;
               try {
-                const geo = await geocodeLocation(act.location, 'vn');
-                if (geo) return { ...act, latitude: geo.latitude, longitude: geo.longitude };
+                // Try with full location string first, then just the name
+                const geo =
+                  (await geocodeLocation(act.location, 'vn')) ??
+                  (await geocodeLocation(act.title, 'vn'));
+                if (geo && isValidCoord(geo.latitude, geo.longitude)) {
+                  return { ...act, latitude: geo.latitude, longitude: geo.longitude };
+                }
               } catch {
-                // silently skip
+                // skip silently
               }
               return act;
             }),
@@ -138,7 +168,7 @@ const ItineraryMap = ({ days, activeDay, focusedActivity }: ItineraryMapProps) =
       );
 
       if (!cancelled) {
-        setEnrichedDays(result);
+        setEnrichedDays(enriched);
         setGeocoding(false);
       }
     };
@@ -147,57 +177,66 @@ const ItineraryMap = ({ days, activeDay, focusedActivity }: ItineraryMapProps) =
     return () => { cancelled = true; };
   }, [days]);
 
-  // ── Build per-day point lists (with jitter for duplicates) ────────────────
+  // ── Build point lists ───────────────────────────────────────────────────────
   const daysWithPoints = useMemo(() => {
     return enrichedDays.map((day, dayIdx) => {
-      const raw: LatLngTuple[] = day.activities
-        .filter(hasCoord)
-        .map((a) => [a.latitude as number, a.longitude as number]);
-
-      const jittered = jitterDuplicates(raw);
-
-      const points = day.activities
-        .filter(hasCoord)
-        .map((activity, i) => ({ activity, position: jittered[i] }));
-
-      return { ...day, dayIdx, points };
+      const validActivities = day.activities.filter(hasCoord);
+      const rawPositions: LatLngTuple[] = validActivities.map((a) => [
+        a.latitude as number,
+        a.longitude as number,
+      ]);
+      const jittered = jitterDuplicates(rawPositions);
+      const points = validActivities.map((activity, i) => ({
+        activity,
+        position: jittered[i],
+      }));
+      return { day: day.day, dayIdx, points };
     });
   }, [enrichedDays]);
 
-  const allPoints = daysWithPoints.flatMap((d) => d.points.map((p) => p.position));
+  const allPoints = useMemo(
+    () => daysWithPoints.flatMap((d) => d.points.map((p) => p.position)),
+    [daysWithPoints],
+  );
 
-  // Default center: first point or Đà Nẵng
-  const defaultCenter: LatLngTuple = allPoints[0] ?? [16.0471, 108.2068];
+  // Stable initial center — will be overridden by FitBounds immediately
+  const initCenter: LatLngTuple = allPoints[0] ?? [16.0471, 108.2068];
 
   const focusedPos: LatLngTuple | null = useMemo(() => {
     if (!focusedActivity || !hasCoord(focusedActivity)) return null;
     return [focusedActivity.latitude as number, focusedActivity.longitude as number];
   }, [focusedActivity]);
 
+  // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <>
-      {/* Pulse animation keyframe injected once */}
       <style>{`
-        @keyframes pulse {
-          0%,100%{transform:scale(1);opacity:.6}
-          50%{transform:scale(1.5);opacity:0}
+        @keyframes itm-pulse {
+          0%   { transform: scale(1);   opacity: .5 }
+          100% { transform: scale(2.2); opacity: 0  }
         }
-        /* Fix: ensure tiles render above the grey background */
-        .leaflet-tile-pane { z-index: 2 !important; }
-        .leaflet-overlay-pane { z-index: 4 !important; }
-        .leaflet-marker-pane { z-index: 6 !important; }
-        .leaflet-popup-pane { z-index: 8 !important; }
-        .leaflet-control { z-index: 10 !important; }
-        /* Prevent map from overlapping navbar */
-        .itinerary-map-container .leaflet-container { z-index: 1; }
-        /* Dark mode tile inversion */
-        .dark .leaflet-tile-pane {
-          filter: brightness(0.72) contrast(1.2) hue-rotate(180deg) invert(1);
+        /* Ensure tiles always render above the grey canvas */
+        .itm-map .leaflet-tile-pane    { z-index: 2 !important; }
+        .itm-map .leaflet-overlay-pane { z-index: 4 !important; }
+        .itm-map .leaflet-marker-pane  { z-index: 6 !important; }
+        .itm-map .leaflet-popup-pane   { z-index: 8 !important; }
+        .itm-map .leaflet-control      { z-index: 10 !important; }
+        /* Dark mode: invert tiles */
+        .dark .itm-map .leaflet-tile-pane {
+          filter: brightness(.72) contrast(1.2) hue-rotate(180deg) invert(1);
         }
-        .dark .leaflet-container { background: #1e293b; }
+        .dark .itm-map .leaflet-container { background: #1e293b; }
+        /* Dark mode controls */
+        .dark .itm-map .leaflet-control-zoom a {
+          background: #1e293b; color: #e2e8f0; border-color: #334155;
+        }
+        .dark .itm-map .leaflet-popup-content-wrapper {
+          background: #1e293b; color: #e2e8f0; border-radius: 10px;
+        }
+        .dark .itm-map .leaflet-popup-tip { background: #1e293b; }
       `}</style>
 
-      <aside className="itinerary-map-container sticky top-24 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
+      <aside className="sticky top-24 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
         {/* Header */}
         <div className="border-b border-slate-100 p-5 dark:border-slate-700">
           <p className="text-xs font-black uppercase tracking-[0.22em] text-[#0061ff] dark:text-blue-400">
@@ -211,30 +250,29 @@ const ItineraryMap = ({ days, activeDay, focusedActivity }: ItineraryMapProps) =
           </p>
           {geocoding && (
             <div className="mt-3 flex items-center gap-2 text-xs font-bold text-blue-600 dark:text-blue-400">
-              <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+              <span className="h-3 w-3 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
               Đang tìm tọa độ cho các địa điểm…
             </div>
           )}
         </div>
 
-        {/* Map area */}
-        <div className="h-[600px]">
+        {/* Map */}
+        <div className="itm-map h-[600px]">
           {allPoints.length > 0 ? (
             <MapContainer
-              center={defaultCenter}
+              center={initCenter}
               zoom={13}
               scrollWheelZoom
               style={{ height: '100%', width: '100%' }}
-              // Do NOT use className here — it breaks tile rendering in some setups
             >
-              {/* CartoDB Positron — clean, modern, works without API key */}
               <TileLayer
                 url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
-                maxZoom={19}
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
                 subdomains="abcd"
+                maxZoom={19}
               />
 
+              {/* Re-fits every time coordinates actually change */}
               <FitBounds points={allPoints} />
               <FlyTo target={focusedPos} />
 
@@ -244,7 +282,6 @@ const ItineraryMap = ({ days, activeDay, focusedActivity }: ItineraryMapProps) =
 
                 return (
                   <Fragment key={day}>
-                    {/* Route line */}
                     {points.length > 1 && (
                       <Polyline
                         positions={points.map((p) => p.position)}
@@ -252,12 +289,11 @@ const ItineraryMap = ({ days, activeDay, focusedActivity }: ItineraryMapProps) =
                           color,
                           weight: isActive ? 5 : 2.5,
                           opacity: isActive ? 1 : 0.4,
-                          dashArray: isActive ? undefined : '6 4',
+                          dashArray: isActive ? undefined : '7 5',
                         }}
                       />
                     )}
 
-                    {/* Markers */}
                     {points.map(({ activity, position }, idx) => {
                       const isFocused = focusedActivity?.id === activity.id;
                       const active = isActive || isFocused;
@@ -267,37 +303,34 @@ const ItineraryMap = ({ days, activeDay, focusedActivity }: ItineraryMapProps) =
                         <Marker
                           key={`${activity.id}-${idx}`}
                           position={position}
-                          icon={makeIcon(idx + 1, active ? color : '#475569', size, isFocused)}
+                          icon={makeIcon(idx + 1, active ? color : '#64748b', size, isFocused)}
                           zIndexOffset={active ? 1000 : 0}
                         >
                           <Popup minWidth={200} maxWidth={280}>
-                            <div style={{ fontFamily: 'inherit' }}>
+                            <div style={{ fontFamily: 'system-ui, sans-serif' }}>
                               {activity.imageUrl && (
                                 <img
                                   src={activity.imageUrl}
                                   alt={activity.title}
                                   style={{
-                                    width: '100%',
-                                    height: 100,
-                                    objectFit: 'cover',
-                                    borderRadius: 8,
-                                    marginBottom: 8,
+                                    width: '100%', height: 96,
+                                    objectFit: 'cover', borderRadius: 8, marginBottom: 8,
                                   }}
                                 />
                               )}
-                              <div style={{ fontSize: 11, fontWeight: 700, color, marginBottom: 2 }}>
+                              <div style={{ fontSize: 11, fontWeight: 700, color, marginBottom: 3 }}>
                                 Ngày {day} · {activity.startTime}
                               </div>
-                              <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', lineHeight: 1.3 }}>
+                              <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', lineHeight: 1.35 }}>
                                 {activity.title}
                               </div>
-                              <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+                              <div style={{ fontSize: 12, color: '#64748b', marginTop: 5 }}>
                                 📍 {activity.location}
                               </div>
                               {activity.description && (
                                 <div style={{ fontSize: 12, color: '#475569', marginTop: 6, lineHeight: 1.5 }}>
-                                  {activity.description.slice(0, 120)}
-                                  {activity.description.length > 120 ? '…' : ''}
+                                  {activity.description.slice(0, 110)}
+                                  {activity.description.length > 110 ? '…' : ''}
                                 </div>
                               )}
                             </div>
@@ -310,6 +343,7 @@ const ItineraryMap = ({ days, activeDay, focusedActivity }: ItineraryMapProps) =
               })}
             </MapContainer>
           ) : (
+            /* Empty / loading state */
             <div className="flex h-full flex-col items-center justify-center gap-4 px-8 text-center">
               <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-blue-50 text-3xl dark:bg-blue-900/30">
                 🗺️
@@ -319,9 +353,7 @@ const ItineraryMap = ({ days, activeDay, focusedActivity }: ItineraryMapProps) =
                   {geocoding ? 'Đang tìm tọa độ…' : 'Chưa có tọa độ bản đồ'}
                 </h3>
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                  {geocoding
-                    ? 'Vui lòng chờ trong giây lát'
-                    : 'Bản đồ sẽ hiện khi có dữ liệu tọa độ'}
+                  {geocoding ? 'Vui lòng chờ trong giây lát' : 'Bản đồ sẽ hiện khi có dữ liệu tọa độ'}
                 </p>
               </div>
             </div>

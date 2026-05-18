@@ -1,89 +1,92 @@
-/**
- * Geocoding utility using Nominatim API (OpenStreetMap)
- * Includes caching to avoid excessive API calls
- */
-
 type GeocodingResult = {
   latitude: number;
   longitude: number;
   displayName: string;
 };
 
-type CacheEntry = {
-  result: GeocodingResult;
-  timestamp: number;
+// ── Persistent cache via localStorage ────────────────────────────────────────
+const CACHE_KEY = 'travelai_geocache_v1';
+const CACHE_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+type CacheStore = Record<string, { result: GeocodingResult; ts: number }>;
+
+const loadCache = (): CacheStore => {
+  try {
+    return JSON.parse(localStorage.getItem(CACHE_KEY) ?? '{}');
+  } catch {
+    return {};
+  }
 };
 
-// In-memory cache (consider using localStorage for persistence)
-const geocodeCache = new Map<string, CacheEntry>();
+const saveCache = (store: CacheStore) => {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(store));
+  } catch {
+    // quota exceeded — ignore
+  }
+};
 
-// Cache duration: 7 days
-const CACHE_DURATION = 7 * 24 * 60 * 60 * 1000;
+// In-memory mirror for fast reads
+let memCache: CacheStore = loadCache();
 
-// Rate limiting: minimum delay between API calls
-let lastApiCall = 0;
-const MIN_API_DELAY = 1000; // 1 second between calls
-
-/**
- * Geocode a location name to coordinates using Nominatim API
- * @param locationName - The location name to geocode
- * @param countryCode - Optional country code to improve accuracy (e.g., 'vn' for Vietnam)
- * @returns Promise with latitude, longitude, and display name
- */
-export const geocodeLocation = async (
-  locationName: string,
-  countryCode?: string,
-): Promise<GeocodingResult | null> => {
-  if (!locationName || locationName.trim() === '') {
+const getCached = (key: string): GeocodingResult | null => {
+  const entry = memCache[key];
+  if (!entry) return null;
+  if (Date.now() - entry.ts > CACHE_TTL) {
+    delete memCache[key];
     return null;
   }
+  return entry.result;
+};
 
-  const cacheKey = `${locationName.toLowerCase()}_${countryCode || ''}`;
+const setCache = (key: string, result: GeocodingResult) => {
+  memCache[key] = { result, ts: Date.now() };
+  saveCache(memCache);
+};
 
-  // Check cache first
-  const cached = geocodeCache.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-    return cached.result;
-  }
+// ── Rate limiter ──────────────────────────────────────────────────────────────
+// Nominatim policy: max 1 req/s. We use a simple queue.
+let lastCall = 0;
+const MIN_DELAY = 1050; // slightly over 1s to be safe
 
-  // Rate limiting
-  const now = Date.now();
-  const timeSinceLastCall = now - lastApiCall;
-  if (timeSinceLastCall < MIN_API_DELAY) {
-    await new Promise((resolve) => setTimeout(resolve, MIN_API_DELAY - timeSinceLastCall));
-  }
+const rateLimit = async () => {
+  const wait = MIN_DELAY - (Date.now() - lastCall);
+  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  lastCall = Date.now();
+};
+
+// ── Core geocode function ─────────────────────────────────────────────────────
+
+export const geocodeLocation = async (
+  query: string,
+  countryCode = 'vn',
+): Promise<GeocodingResult | null> => {
+  const q = query.trim();
+  if (!q) return null;
+
+  const key = `${q.toLowerCase()}|${countryCode}`;
+  const cached = getCached(key);
+  if (cached) return cached;
+
+  await rateLimit();
 
   try {
-    lastApiCall = Date.now();
-
     const params = new URLSearchParams({
-      q: locationName,
+      q,
       format: 'json',
       limit: '1',
-      addressdetails: '1',
+      countrycodes: countryCode,
     });
 
-    if (countryCode) {
-      params.append('countrycodes', countryCode);
-    }
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?${params}`,
+      { headers: { 'User-Agent': 'TravelAI/1.0 (travel-ai-ui)' } },
+    );
 
-    const response = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
-      headers: {
-        'User-Agent': 'TravelAI-App/1.0',
-      },
-    });
+    if (!res.ok) return null;
 
-    if (!response.ok) {
-      console.error(`Geocoding API error: ${response.status}`);
-      return null;
-    }
-
-    const data = await response.json();
-
-    if (!data || data.length === 0) {
-      console.warn(`No geocoding results for: ${locationName}`);
-      return null;
-    }
+    const data: Array<{ lat: string; lon: string; display_name: string }> = await res.json();
+    if (!data.length) return null;
 
     const result: GeocodingResult = {
       latitude: parseFloat(data[0].lat),
@@ -91,56 +94,14 @@ export const geocodeLocation = async (
       displayName: data[0].display_name,
     };
 
-    // Cache the result
-    geocodeCache.set(cacheKey, {
-      result,
-      timestamp: Date.now(),
-    });
-
+    setCache(key, result);
     return result;
-  } catch (error) {
-    console.error('Geocoding error:', error);
+  } catch {
     return null;
   }
 };
 
-/**
- * Batch geocode multiple locations with rate limiting
- * @param locations - Array of location names
- * @param countryCode - Optional country code
- * @returns Promise with array of results (null for failed geocoding)
- */
-export const batchGeocodeLocations = async (
-  locations: string[],
-  countryCode?: string,
-): Promise<(GeocodingResult | null)[]> => {
-  const results: (GeocodingResult | null)[] = [];
-
-  for (const location of locations) {
-    const result = await geocodeLocation(location, countryCode);
-    results.push(result);
-  }
-
-  return results;
-};
-
-/**
- * Clear the geocoding cache
- */
 export const clearGeocodeCache = () => {
-  geocodeCache.clear();
-};
-
-/**
- * Get cache statistics
- */
-export const getGeocodeStats = () => {
-  return {
-    cacheSize: geocodeCache.size,
-    entries: Array.from(geocodeCache.entries()).map(([key, entry]) => ({
-      key,
-      age: Date.now() - entry.timestamp,
-      result: entry.result,
-    })),
-  };
+  memCache = {};
+  try { localStorage.removeItem(CACHE_KEY); } catch { /* ignore */ }
 };
