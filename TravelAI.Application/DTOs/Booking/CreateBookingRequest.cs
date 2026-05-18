@@ -5,3 +5,8 @@ public record CreateBookingRequest(
     int Quantity, 
     DateTime CheckInDate
 );
+
+public sealed class CreateCartBookingRequest
+{
+    public List<CreateBookingRequest> Items { get; set; } = new();
+}

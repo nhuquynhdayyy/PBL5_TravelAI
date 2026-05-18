@@ -10,6 +10,14 @@ public class AISuggestionLogConfiguration : IEntityTypeConfiguration<AISuggestio
     {
         builder.HasKey(l => l.LogId);
 
+        builder.Property(l => l.DestinationName)
+               .HasMaxLength(256)
+               .IsRequired(false);
+
+        builder.Property(l => l.EstimatedCost)
+               .HasColumnType("decimal(18,2)")
+               .IsRequired(false);
+
         builder.HasOne(l => l.User)
                .WithMany()
                .HasForeignKey(l => l.UserId)

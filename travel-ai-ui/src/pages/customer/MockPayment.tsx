@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
 import { ArrowLeft, CheckCircle2, Loader2, QrCode, ShieldCheck } from 'lucide-react';
@@ -12,7 +12,7 @@ const MockPayment = () => {
   const { provider = 'vnpay', bookingId } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [paying, setPaying] = useState(false);
+  const [polling, setPolling] = useState(false);
 
   const amount = Number(searchParams.get('amount') || 0);
   const providerName = providerLabels[provider.toLowerCase()] || provider.toUpperCase();
@@ -21,26 +21,27 @@ const MockPayment = () => {
     [amount]
   );
 
-  const confirmPayment = async () => {
-    if (!bookingId || !amount) return;
+  useEffect(() => {
+    if (!bookingId) return;
 
-    try {
-      setPaying(true);
-      const res = await axiosClient.post('/payments/mock/confirm', {
-        bookingId: Number(bookingId),
-        amount,
-      });
-
-      if (res.data.success) {
-        navigate(`/booking-success/${bookingId}?paymentStatus=success&message=Mock ${providerName} payment confirmed`);
+    setPolling(true);
+    const intervalId = window.setInterval(async () => {
+      try {
+        const res = await axiosClient.get(`/payment/status/${bookingId}`);
+        if (res.data.status === 'Paid') {
+          window.clearInterval(intervalId);
+          navigate(`/booking-success/${bookingId}?paymentStatus=success&message=${providerName} payment confirmed`);
+        }
+      } catch (err) {
+        console.error(err);
       }
-    } catch (err) {
-      console.error(err);
-      alert('Khong xac nhan duoc thanh toan demo. Vui long thu lai.');
-    } finally {
-      setPaying(false);
-    }
-  };
+    }, 3000);
+
+    return () => {
+      window.clearInterval(intervalId);
+      setPolling(false);
+    };
+  }, [bookingId, navigate, providerName]);
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
@@ -78,20 +79,16 @@ const MockPayment = () => {
               <div className="flex items-start gap-3 rounded-2xl bg-amber-50 p-4 text-amber-800">
                 <ShieldCheck className="mt-0.5 shrink-0" size={20} />
                 <p className="text-sm font-medium">
-                  Booking chi duoc confirm sau khi ban bam nut xac nhan demo ben duoi. Khong co
-                  callback tu dong thanh cong.
+                  Booking chi duoc confirm khi backend nhan callback/IPN hop le tu cong thanh toan.
+                  Trang demo nay chi dung de kiem tra luong polling trang thai.
                 </p>
               </div>
             </div>
 
-            <button
-              onClick={confirmPayment}
-              disabled={paying}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 py-4 text-sm font-black text-white transition-all hover:bg-blue-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              {paying ? <Loader2 className="animate-spin" /> : <CheckCircle2 size={20} />}
-              {paying ? 'DANG XAC NHAN...' : 'TOI DA THANH TOAN DEMO'}
-            </button>
+            <div className="flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-100 py-4 text-sm font-black text-slate-600">
+              {polling ? <Loader2 className="animate-spin" /> : <CheckCircle2 size={20} />}
+              {polling ? 'DANG CHO BACKEND XAC NHAN...' : 'CHO XAC NHAN'}
+            </div>
           </div>
         </div>
       </div>

@@ -1,0 +1,49 @@
+/* ── Leaflet base fixes ─────────────────────────────────────────────────── */
+
+/* Ensure tiles always render on top of the grey background */
+.leaflet-tile-pane   { z-index: 2 !important; }
+.leaflet-overlay-pane{ z-index: 4 !important; }
+.leaflet-marker-pane { z-index: 6 !important; }
+.leaflet-popup-pane  { z-index: 8 !important; }
+.leaflet-control     { z-index: 10 !important; }
+
+/* Prevent map from overlapping fixed navbar / chatbot */
+.itinerary-map-container .leaflet-container {
+  z-index: 1;
+  border-radius: 0 0 24px 24px;
+}
+
+/* ── Dark mode ──────────────────────────────────────────────────────────── */
+.dark .leaflet-tile-pane {
+  filter: brightness(0.72) contrast(1.2) hue-rotate(180deg) invert(1);
+}
+.dark .leaflet-container {
+  background: #1e293b;
+}
+.dark .leaflet-control-zoom a {
+  background: #1e293b;
+  color: #e2e8f0;
+  border-color: #334155;
+}
+.dark .leaflet-control-zoom a:hover {
+  background: #334155;
+}
+.dark .leaflet-control-attribution {
+  background: rgba(15,23,42,.8);
+  color: #94a3b8;
+}
+.dark .leaflet-control-attribution a {
+  color: #60a5fa;
+}
+.dark .leaflet-popup-content-wrapper {
+  background: #1e293b;
+  color: #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0,0,0,.5);
+}
+.dark .leaflet-popup-tip {
+  background: #1e293b;
+}
+.dark .leaflet-popup-close-button {
+  color: #94a3b8 !important;
+}
