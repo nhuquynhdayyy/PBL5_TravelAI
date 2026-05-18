@@ -103,6 +103,78 @@ const HeroSection = () => (
   </section>
 );
 
+const ServicesStripSection = () => {
+  const navigate = useNavigate();
+
+  const services = [
+    {
+      icon: Hotel,
+      label: 'Khách sạn',
+      description: 'Tìm chỗ ở ưng ý',
+      path: '/hotels',
+      color: 'blue',
+      bgColor: 'bg-blue-50',
+      hoverBg: 'hover:bg-blue-100',
+      iconColor: 'text-blue-600',
+    },
+    {
+      icon: Compass,
+      label: 'Tour du lịch',
+      description: 'Trải nghiệm thú vị',
+      path: '/tours',
+      color: 'emerald',
+      bgColor: 'bg-emerald-50',
+      hoverBg: 'hover:bg-emerald-100',
+      iconColor: 'text-emerald-600',
+    },
+    {
+      icon: MapPin,
+      label: 'Vận chuyển',
+      description: 'Di chuyển tiện lợi',
+      path: '/transportation',
+      color: 'purple',
+      bgColor: 'bg-purple-50',
+      hoverBg: 'hover:bg-purple-100',
+      iconColor: 'text-purple-600',
+    },
+    {
+      icon: Hotel,
+      label: 'Thuê xe',
+      description: 'Tự do khám phá',
+      path: '/services',
+      color: 'orange',
+      bgColor: 'bg-orange-50',
+      hoverBg: 'hover:bg-orange-100',
+      iconColor: 'text-orange-600',
+    },
+  ];
+
+  return (
+    <section className="py-8">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4 md:gap-6">
+        {services.map((service) => {
+          const Icon = service.icon;
+          return (
+            <button
+              key={service.label}
+              onClick={() => navigate(service.path)}
+              className={`group flex flex-col items-center gap-3 rounded-2xl ${service.bgColor} p-6 transition-all duration-300 ${service.hoverBg} hover:-translate-y-1 hover:shadow-xl`}
+            >
+              <div className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-white ${service.iconColor} shadow-sm transition-transform duration-300 group-hover:scale-110`}>
+                <Icon size={28} strokeWidth={2} />
+              </div>
+              <div className="text-center">
+                <h3 className="text-sm font-black text-slate-900">{service.label}</h3>
+                <p className="mt-1 text-xs font-medium text-slate-500">{service.description}</p>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+};
+
 const WhyTravelAISection = () => {
   const items = [
     {
@@ -335,6 +407,7 @@ const HomeFooter = () => {
 const Home: React.FC = () => (
   <div className="space-y-16 bg-white">
     <HeroSection />
+    <ServicesStripSection />
     <WhyTravelAISection />
     <FeaturedServicesSection />
     <CommunitySection />
