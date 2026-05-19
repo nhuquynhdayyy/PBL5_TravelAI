@@ -86,7 +86,15 @@ public class BookingsController : ControllerBase
         }
 
         int userId = int.Parse(userIdClaim.Value);
-        var bookingId = await _bookingService.CreateDraftBookingAsync(userId, request);
+        int? bookingId;
+        try
+        {
+            bookingId = await _bookingService.CreateDraftBookingAsync(userId, request);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
 
         if (bookingId == null)
         {
@@ -128,38 +136,68 @@ public class BookingsController : ControllerBase
 
         var userId = int.Parse(userIdClaim.Value, CultureInfo.InvariantCulture);
         var requestedItems = request.Items
-            .GroupBy(item => new { item.ServiceId, Date = item.CheckInDate.Date })
+            .GroupBy(item => new { item.ServiceId, CheckInDate = item.CheckInDate.Date, CheckOutDate = item.CheckOutDate?.Date })
             .Select(group => new CreateBookingRequest(
                 group.Key.ServiceId,
                 group.Sum(item => item.Quantity),
-                group.Key.Date))
+                group.Key.CheckInDate,
+                group.Key.CheckOutDate))
             .ToList();
+
+        if (requestedItems.Any(item => item.CheckOutDate.HasValue && item.CheckOutDate.Value.Date < item.CheckInDate.Date))
+        {
+            return BadRequest(new { message = "Ngay tra xe phai lon hon hoac bang ngay nhan xe." });
+        }
 
         await using var transaction = await _context.Database.BeginTransactionAsync();
 
         var serviceIds = requestedItems.Select(item => item.ServiceId).Distinct().ToList();
-        var bookingDates = requestedItems.Select(item => item.CheckInDate.Date).Distinct().ToList();
+        var services = await _context.Services
+            .Where(service => serviceIds.Contains(service.ServiceId))
+            .ToDictionaryAsync(service => service.ServiceId);
+
+        if (services.Count != serviceIds.Count)
+        {
+            return BadRequest(new { message = "Thong tin dich vu trong gio hang khong hop le." });
+        }
+
+        var requestedAvailabilityKeys = requestedItems
+            .SelectMany(item => EnumerateBookingDates(item)
+                .Select(date => new { item.ServiceId, Date = date }))
+            .ToList();
+        var bookingDates = requestedAvailabilityKeys.Select(item => item.Date).Distinct().ToList();
         var availabilities = await _context.ServiceAvailabilities
             .Where(a => serviceIds.Contains(a.ServiceId) && bookingDates.Contains(a.Date))
             .ToListAsync();
 
         foreach (var item in requestedItems)
         {
-            var availability = availabilities.FirstOrDefault(a =>
-                a.ServiceId == item.ServiceId && a.Date == item.CheckInDate.Date);
-
-            if (availability == null
-                || availability.TotalStock - availability.BookedCount - availability.HeldCount < item.Quantity)
+            foreach (var bookingDate in EnumerateBookingDates(item))
             {
-                return BadRequest(new
+                var availability = availabilities.FirstOrDefault(a =>
+                    a.ServiceId == item.ServiceId && a.Date == bookingDate);
+
+                if (availability == null
+                    || availability.TotalStock - availability.BookedCount - availability.HeldCount < item.Quantity)
                 {
-                    message = "Xin loi, ngay nay da het cho hoac khong du so luong ban yeu cau!"
-                });
+                    return BadRequest(new
+                    {
+                        message = $"Xe da het cho trong ngay {bookingDate:dd/MM/yyyy}"
+                    });
+                }
             }
         }
 
         var totalAmount = requestedItems.Sum(item =>
         {
+            var service = services[item.ServiceId];
+            var days = (item.CheckOutDate?.Date - item.CheckInDate.Date)?.Days + 1 ?? 1;
+
+            if (service.ServiceType == ServiceType.Transport && item.CheckOutDate.HasValue)
+            {
+                return service.BasePrice * days * item.Quantity;
+            }
+
             var availability = availabilities.First(a =>
                 a.ServiceId == item.ServiceId && a.Date == item.CheckInDate.Date);
             return availability.Price * item.Quantity;
@@ -170,7 +208,7 @@ public class BookingsController : ControllerBase
             UserId = userId,
             TotalAmount = totalAmount,
             Status = BookingStatus.Pending,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTimeHelper.Now
         };
 
         _context.Bookings.Add(booking);
@@ -178,19 +216,28 @@ public class BookingsController : ControllerBase
 
         foreach (var item in requestedItems)
         {
-            var availability = availabilities.First(a =>
-                a.ServiceId == item.ServiceId && a.Date == item.CheckInDate.Date);
+            var service = services[item.ServiceId];
+            var days = (item.CheckOutDate?.Date - item.CheckInDate.Date)?.Days + 1 ?? 1;
+            var priceAtBooking = service.ServiceType == ServiceType.Transport && item.CheckOutDate.HasValue
+                ? service.BasePrice * days
+                : availabilities.First(a => a.ServiceId == item.ServiceId && a.Date == item.CheckInDate.Date).Price;
 
             _context.BookingItems.Add(new BookingItem
             {
                 BookingId = booking.BookingId,
                 ServiceId = item.ServiceId,
                 Quantity = item.Quantity,
-                PriceAtBooking = availability.Price,
-                CheckInDate = item.CheckInDate.Date
+                PriceAtBooking = priceAtBooking,
+                CheckInDate = item.CheckInDate.Date,
+                CheckOutDate = item.CheckOutDate?.Date
             });
 
-            availability.HeldCount += item.Quantity;
+            foreach (var bookingDate in EnumerateBookingDates(item))
+            {
+                var availability = availabilities.First(a =>
+                    a.ServiceId == item.ServiceId && a.Date == bookingDate);
+                availability.HeldCount += item.Quantity;
+            }
         }
 
         await _context.SaveChangesAsync();
@@ -305,17 +352,19 @@ public class BookingsController : ControllerBase
 
         foreach (var item in items)
         {
-            var availability = await _context.ServiceAvailabilities
-                .FirstOrDefaultAsync(a => a.ServiceId == item.ServiceId
-                    && a.Date == item.CheckInDate.Date);
-
-            if (availability == null)
+            foreach (var bookingDate in EnumerateBookingDates(item))
             {
-                continue;
-            }
+                var availability = await _context.ServiceAvailabilities
+                    .FirstOrDefaultAsync(a => a.ServiceId == item.ServiceId && a.Date == bookingDate);
 
-            availability.BookedCount += item.Quantity;
-            availability.HeldCount = Math.Max(0, availability.HeldCount - item.Quantity);
+                if (availability == null)
+                {
+                    continue;
+                }
+
+                availability.BookedCount += item.Quantity;
+                availability.HeldCount = Math.Max(0, availability.HeldCount - item.Quantity);
+            }
         }
 
         _context.Payments.Add(new Payment
@@ -559,15 +608,12 @@ public class BookingsController : ControllerBase
             return BadRequest(new { message = "Khong tim thay giao dich thanh toan de tao hoan tien." });
         }
 
-        var serviceIds = booking.BookingItems
-            .Select(item => item.ServiceId)
-            .Distinct()
+        var requestedAvailabilityKeys = booking.BookingItems
+            .SelectMany(item => EnumerateBookingDates(item)
+                .Select(date => new { item.ServiceId, Date = date }))
             .ToList();
-
-        var bookingDates = booking.BookingItems
-            .Select(item => item.CheckInDate.Date)
-            .Distinct()
-            .ToList();
+        var serviceIds = requestedAvailabilityKeys.Select(item => item.ServiceId).Distinct().ToList();
+        var bookingDates = requestedAvailabilityKeys.Select(item => item.Date).Distinct().ToList();
 
         var availabilities = await _context.ServiceAvailabilities
             .Where(a => serviceIds.Contains(a.ServiceId) && bookingDates.Contains(a.Date))
@@ -575,21 +621,24 @@ public class BookingsController : ControllerBase
 
         foreach (var item in booking.BookingItems)
         {
-            var availability = availabilities.FirstOrDefault(a =>
-                a.ServiceId == item.ServiceId && a.Date == item.CheckInDate.Date);
+            foreach (var bookingDate in EnumerateBookingDates(item))
+            {
+                var availability = availabilities.FirstOrDefault(a =>
+                    a.ServiceId == item.ServiceId && a.Date == bookingDate);
 
-            if (availability == null)
-            {
-                continue;
-            }
+                if (availability == null)
+                {
+                    continue;
+                }
 
-            if (booking.Status == BookingStatus.Pending)
-            {
-                availability.HeldCount = Math.Max(0, availability.HeldCount - item.Quantity);
-            }
-            else
-            {
-                availability.BookedCount = Math.Max(0, availability.BookedCount - item.Quantity);
+                if (booking.Status == BookingStatus.Pending)
+                {
+                    availability.HeldCount = Math.Max(0, availability.HeldCount - item.Quantity);
+                }
+                else
+                {
+                    availability.BookedCount = Math.Max(0, availability.BookedCount - item.Quantity);
+                }
             }
         }
 
@@ -767,24 +816,31 @@ public class BookingsController : ControllerBase
 
         if (booking.Status == BookingStatus.Pending)
         {
-            var serviceIds = booking.BookingItems.Select(item => item.ServiceId).Distinct().ToList();
-            var bookingDates = booking.BookingItems.Select(item => item.CheckInDate.Date).Distinct().ToList();
+            var requestedAvailabilityKeys = booking.BookingItems
+                .SelectMany(item => EnumerateBookingDates(item)
+                    .Select(date => new { item.ServiceId, Date = date }))
+                .ToList();
+            var serviceIds = requestedAvailabilityKeys.Select(item => item.ServiceId).Distinct().ToList();
+            var bookingDates = requestedAvailabilityKeys.Select(item => item.Date).Distinct().ToList();
             var availabilities = await _context.ServiceAvailabilities
                 .Where(a => serviceIds.Contains(a.ServiceId) && bookingDates.Contains(a.Date))
                 .ToListAsync();
 
             foreach (var item in booking.BookingItems)
             {
-                var availability = availabilities.FirstOrDefault(a =>
-                    a.ServiceId == item.ServiceId && a.Date == item.CheckInDate.Date);
-
-                if (availability == null)
+                foreach (var bookingDate in EnumerateBookingDates(item))
                 {
-                    continue;
-                }
+                    var availability = availabilities.FirstOrDefault(a =>
+                        a.ServiceId == item.ServiceId && a.Date == bookingDate);
 
-                availability.BookedCount += item.Quantity;
-                availability.HeldCount = Math.Max(0, availability.HeldCount - item.Quantity);
+                    if (availability == null)
+                    {
+                        continue;
+                    }
+
+                    availability.BookedCount += item.Quantity;
+                    availability.HeldCount = Math.Max(0, availability.HeldCount - item.Quantity);
+                }
             }
 
             booking.Status = BookingStatus.Paid;
@@ -859,6 +915,28 @@ public class BookingsController : ControllerBase
         return int.TryParse(bookingPart, NumberStyles.Integer, CultureInfo.InvariantCulture, out var bookingId)
             ? bookingId
             : null;
+    }
+
+    private static IEnumerable<DateTime> EnumerateBookingDates(BookingItem item)
+    {
+        var startDate = item.CheckInDate.Date;
+        var endDate = item.CheckOutDate?.Date ?? startDate;
+
+        for (var date = startDate; date <= endDate; date = date.AddDays(1))
+        {
+            yield return date;
+        }
+    }
+
+    private static IEnumerable<DateTime> EnumerateBookingDates(CreateBookingRequest item)
+    {
+        var startDate = item.CheckInDate.Date;
+        var endDate = item.CheckOutDate?.Date ?? startDate;
+
+        for (var date = startDate; date <= endDate; date = date.AddDays(1))
+        {
+            yield return date;
+        }
     }
 
     private static CancellationEvaluation EvaluateCancellationPolicy(Booking booking, DateTime nowUtc)

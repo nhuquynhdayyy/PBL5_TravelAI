@@ -29,6 +29,14 @@ public class ServicesController : ControllerBase
         return Ok(data);
     }
 
+    [HttpGet("rentals")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetRentals()
+    {
+        var data = await _service.GetAllAsync(2);
+        return Ok(data);
+    }
+
     [HttpGet("search")]
     [AllowAnonymous]
     public async Task<IActionResult> SearchServices([FromQuery] ServiceFilterRequest request)

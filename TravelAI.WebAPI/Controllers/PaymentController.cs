@@ -684,24 +684,31 @@ public sealed class PaymentController : ControllerBase
 
         if (booking.Status == BookingStatus.Pending)
         {
-            var serviceIds = booking.BookingItems.Select(item => item.ServiceId).Distinct().ToList();
-            var bookingDates = booking.BookingItems.Select(item => item.CheckInDate.Date).Distinct().ToList();
+            var requestedAvailabilityKeys = booking.BookingItems
+                .SelectMany(item => EnumerateBookingDates(item)
+                    .Select(date => new { item.ServiceId, Date = date }))
+                .ToList();
+            var serviceIds = requestedAvailabilityKeys.Select(item => item.ServiceId).Distinct().ToList();
+            var bookingDates = requestedAvailabilityKeys.Select(item => item.Date).Distinct().ToList();
             var availabilities = await _context.ServiceAvailabilities
                 .Where(a => serviceIds.Contains(a.ServiceId) && bookingDates.Contains(a.Date))
                 .ToListAsync();
 
             foreach (var item in booking.BookingItems)
             {
-                var availability = availabilities.FirstOrDefault(a =>
-                    a.ServiceId == item.ServiceId && a.Date == item.CheckInDate.Date);
-
-                if (availability == null)
+                foreach (var bookingDate in EnumerateBookingDates(item))
                 {
-                    continue;
-                }
+                    var availability = availabilities.FirstOrDefault(a =>
+                        a.ServiceId == item.ServiceId && a.Date == bookingDate);
 
-                availability.BookedCount += item.Quantity;
-                availability.HeldCount = Math.Max(0, availability.HeldCount - item.Quantity);
+                    if (availability == null)
+                    {
+                        continue;
+                    }
+
+                    availability.BookedCount += item.Quantity;
+                    availability.HeldCount = Math.Max(0, availability.HeldCount - item.Quantity);
+                }
             }
 
             booking.Status = BookingStatus.Paid;
@@ -852,6 +859,17 @@ public sealed class PaymentController : ControllerBase
             && DateTime.TryParseExact(parts[1], "yyyyMMddHHmmss", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
             ? date
             : null;
+    }
+
+    private static IEnumerable<DateTime> EnumerateBookingDates(BookingItem item)
+    {
+        var startDate = item.CheckInDate.Date;
+        var endDate = item.CheckOutDate?.Date ?? startDate;
+
+        for (var date = startDate; date <= endDate; date = date.AddDays(1))
+        {
+            yield return date;
+        }
     }
 
     private bool UseMockGatewayWhenConfigured(string provider)

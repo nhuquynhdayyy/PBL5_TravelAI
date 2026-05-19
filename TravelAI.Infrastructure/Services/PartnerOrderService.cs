@@ -20,7 +20,6 @@ public class PartnerOrderService : IPartnerOrderService
 
     public async Task<bool> ApproveOrderAsync(int bookingId, int partnerId)
     {
-        // 1. Lấy booking và kiểm tra quyền
         var booking = await _context.Bookings
             .Include(b => b.User)
             .Include(b => b.BookingItems)
@@ -32,61 +31,46 @@ public class PartnerOrderService : IPartnerOrderService
             return false;
         }
 
-        // 2. Kiểm tra booking có service của partner không
-        var hasPartnerService = booking.BookingItems
-            .Any(item => item.Service.PartnerId == partnerId);
-
-        if (!hasPartnerService)
+        if (!booking.BookingItems.Any(item => item.Service.PartnerId == partnerId))
         {
             return false;
         }
 
-        // 3. Kiểm tra trạng thái - chỉ approve được đơn đã thanh toán
-        if (booking.Status != BookingStatus.Paid)
+        if (booking.Status != BookingStatus.Paid || booking.IsApprovedByPartner)
         {
             return false;
         }
 
-        // 4. Kiểm tra đã được approve chưa
-        if (booking.IsApprovedByPartner)
-        {
-            return false; // Đã được duyệt rồi
-        }
-
-        // 5. Chuyển từ HeldCount sang BookedCount
-        var serviceIds = booking.BookingItems
-            .Select(item => item.ServiceId)
-            .Distinct()
+        var availabilityKeys = booking.BookingItems
+            .SelectMany(item => EnumerateBookingDates(item).Select(date => new { item.ServiceId, Date = date }))
             .ToList();
-
-        var bookingDates = booking.BookingItems
-            .Select(item => item.CheckInDate.Date)
-            .Distinct()
-            .ToList();
-
+        var serviceIds = availabilityKeys.Select(item => item.ServiceId).Distinct().ToList();
+        var bookingDates = availabilityKeys.Select(item => item.Date).Distinct().ToList();
         var availabilities = await _context.ServiceAvailabilities
             .Where(a => serviceIds.Contains(a.ServiceId) && bookingDates.Contains(a.Date))
             .ToListAsync();
 
         foreach (var item in booking.BookingItems)
         {
-            var availability = availabilities.FirstOrDefault(a =>
-                a.ServiceId == item.ServiceId && a.Date == item.CheckInDate.Date);
-
-            if (availability != null)
+            foreach (var bookingDate in EnumerateBookingDates(item))
             {
-                // Chuyển từ held sang booked
+                var availability = availabilities.FirstOrDefault(a =>
+                    a.ServiceId == item.ServiceId && a.Date == bookingDate);
+
+                if (availability == null)
+                {
+                    continue;
+                }
+
                 availability.HeldCount = Math.Max(0, availability.HeldCount - item.Quantity);
                 availability.BookedCount += item.Quantity;
             }
         }
 
-        // 6. Cập nhật trạng thái approved
         booking.IsApprovedByPartner = true;
         booking.ApprovedAt = DateTimeHelper.Now;
         await _context.SaveChangesAsync();
 
-        // 7. Gửi email thông báo cho khách hàng
         var firstService = booking.BookingItems.FirstOrDefault()?.Service;
         if (firstService != null)
         {
@@ -94,16 +78,14 @@ public class PartnerOrderService : IPartnerOrderService
                 booking.User.Email,
                 booking.User.FullName,
                 bookingId,
-                firstService.Name
-            );
+                firstService.Name);
         }
-        
+
         return true;
     }
 
     public async Task<bool> RejectOrderAsync(int bookingId, int partnerId, string reason)
     {
-        // 1. Lấy booking và kiểm tra quyền
         var booking = await _context.Bookings
             .Include(b => b.User)
             .Include(b => b.BookingItems)
@@ -117,70 +99,57 @@ public class PartnerOrderService : IPartnerOrderService
             return false;
         }
 
-        // 2. Kiểm tra booking có service của partner không
-        var hasPartnerService = booking.BookingItems
-            .Any(item => item.Service.PartnerId == partnerId);
-
-        if (!hasPartnerService)
+        if (!booking.BookingItems.Any(item => item.Service.PartnerId == partnerId))
         {
             return false;
         }
 
-        // 3. Kiểm tra trạng thái - chỉ reject được đơn đã thanh toán
         if (booking.Status != BookingStatus.Paid)
         {
             return false;
         }
 
-        // 4. Cập nhật status = Cancelled
         booking.Status = BookingStatus.Cancelled;
 
-        // 5. Hoàn tiền tự động (nếu đã thanh toán)
         var latestPayment = booking.Payments
             .OrderByDescending(p => p.PaymentTime)
             .FirstOrDefault();
 
         if (latestPayment != null)
         {
-            var refundAmount = latestPayment.Amount;
-
             _context.Refunds.Add(new Refund
             {
                 PaymentId = latestPayment.PaymentId,
-                RefundAmount = refundAmount,
+                RefundAmount = latestPayment.Amount,
                 RefundRef = Guid.NewGuid().ToString("N")[..12].ToUpper(),
-                Reason = reason, // Chỉ lưu lý do, không thêm prefix
+                Reason = reason,
                 RefundTime = DateTimeHelper.Now
             });
         }
 
-        // 6. Giải phóng inventory
-        var serviceIds = booking.BookingItems
-            .Select(item => item.ServiceId)
-            .Distinct()
+        var availabilityKeys = booking.BookingItems
+            .SelectMany(item => EnumerateBookingDates(item).Select(date => new { item.ServiceId, Date = date }))
             .ToList();
-
-        var bookingDates = booking.BookingItems
-            .Select(item => item.CheckInDate.Date)
-            .Distinct()
-            .ToList();
-
+        var serviceIds = availabilityKeys.Select(item => item.ServiceId).Distinct().ToList();
+        var bookingDates = availabilityKeys.Select(item => item.Date).Distinct().ToList();
         var availabilities = await _context.ServiceAvailabilities
             .Where(a => serviceIds.Contains(a.ServiceId) && bookingDates.Contains(a.Date))
             .ToListAsync();
 
         foreach (var item in booking.BookingItems)
         {
-            var availability = availabilities.FirstOrDefault(a =>
-                a.ServiceId == item.ServiceId && a.Date == item.CheckInDate.Date);
-
-            if (availability != null)
+            foreach (var bookingDate in EnumerateBookingDates(item))
             {
-                availability.BookedCount = Math.Max(0, availability.BookedCount - item.Quantity);
+                var availability = availabilities.FirstOrDefault(a =>
+                    a.ServiceId == item.ServiceId && a.Date == bookingDate);
+
+                if (availability != null)
+                {
+                    availability.BookedCount = Math.Max(0, availability.BookedCount - item.Quantity);
+                }
             }
         }
 
-        // 7. Gửi email thông báo
         var firstService = booking.BookingItems.FirstOrDefault()?.Service;
         if (firstService != null)
         {
@@ -189,11 +158,21 @@ public class PartnerOrderService : IPartnerOrderService
                 booking.User.FullName,
                 bookingId,
                 firstService.Name,
-                reason
-            );
+                reason);
         }
 
         await _context.SaveChangesAsync();
         return true;
+    }
+
+    private static IEnumerable<DateTime> EnumerateBookingDates(BookingItem item)
+    {
+        var startDate = item.CheckInDate.Date;
+        var endDate = item.CheckOutDate?.Date ?? startDate;
+
+        for (var date = startDate; date <= endDate; date = date.AddDays(1))
+        {
+            yield return date;
+        }
     }
 }

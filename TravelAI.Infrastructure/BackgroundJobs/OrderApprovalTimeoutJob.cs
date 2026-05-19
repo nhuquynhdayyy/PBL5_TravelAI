@@ -4,6 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TravelAI.Application.Helpers;
 using TravelAI.Application.Interfaces;
+using TravelAI.Domain.Entities;
 using TravelAI.Domain.Enums;
 using TravelAI.Infrastructure.Persistence;
 

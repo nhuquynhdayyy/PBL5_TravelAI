@@ -13,7 +13,7 @@ export interface CartItem {
 interface CartContextValue {
   items: CartItem[];
   addItem: (item: CartItem) => void;
-  removeItem: (serviceId: number, checkInDate: Date) => void;
+  removeItem: (serviceId: number, checkInDate: Date, checkOutDate?: Date) => void;
   clearCart: () => void;
   totalAmount: number;
 }
@@ -35,8 +35,8 @@ const formatDateKey = (date: Date) => {
   return `${year}-${month}-${day}`;
 };
 
-const getCartItemKey = (item: Pick<CartItem, 'serviceId' | 'checkInDate'>) =>
-  `${item.serviceId}-${formatDateKey(item.checkInDate)}`;
+const getCartItemKey = (item: Pick<CartItem, 'serviceId' | 'checkInDate' | 'checkOutDate'>) =>
+  `${item.serviceId}-${formatDateKey(item.checkInDate)}-${item.checkOutDate ? formatDateKey(item.checkOutDate) : 'single'}`;
 
 const parseCartItems = (value: string | null): CartItem[] => {
   if (!value) return [];
@@ -78,6 +78,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
               ...cartItem,
               serviceName: item.serviceName,
               checkInDate: item.checkInDate,
+              checkOutDate: item.checkOutDate,
               quantity: cartItem.quantity + item.quantity,
               price: item.price
             }
@@ -86,8 +87,8 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
-  const removeItem = (serviceId: number, checkInDate: Date) => {
-    const itemKey = getCartItemKey({ serviceId, checkInDate });
+  const removeItem = (serviceId: number, checkInDate: Date, checkOutDate?: Date) => {
+    const itemKey = getCartItemKey({ serviceId, checkInDate, checkOutDate });
     setItems((current) => current.filter((item) => getCartItemKey(item) !== itemKey));
   };
 

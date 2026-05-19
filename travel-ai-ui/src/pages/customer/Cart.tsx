@@ -34,7 +34,8 @@ const Cart = () => {
         items: items.map((item) => ({
           serviceId: item.serviceId,
           quantity: item.quantity,
-          checkInDate: formatDateForApi(item.checkInDate)
+          checkInDate: formatDateForApi(item.checkInDate),
+          checkOutDate: item.checkOutDate ? formatDateForApi(item.checkOutDate) : null
         }))
       });
 
@@ -95,10 +96,12 @@ const Cart = () => {
                   <div className="mt-3 flex flex-wrap gap-3 text-sm font-bold text-slate-500">
                     <span className="flex items-center gap-2">
                       <Calendar size={16} className="text-blue-500" />
-                      {item.checkInDate.toLocaleDateString('vi-VN')}
+                      {item.checkOutDate
+                        ? `${item.checkInDate.toLocaleDateString('vi-VN')} - ${item.checkOutDate.toLocaleDateString('vi-VN')}`
+                        : item.checkInDate.toLocaleDateString('vi-VN')}
                     </span>
-                    <span>{item.quantity} khach</span>
-                    <span>{currencyFormatter.format(item.price)} VND / khach</span>
+                    <span>{item.quantity} muc</span>
+                    <span>{currencyFormatter.format(item.price)} VND / muc</span>
                   </div>
                 </div>
                 <div className="flex items-center justify-between gap-4 sm:flex-col sm:items-end">
@@ -107,7 +110,7 @@ const Cart = () => {
                   </p>
                   <button
                     type="button"
-                    onClick={() => removeItem(item.serviceId, item.checkInDate)}
+                    onClick={() => removeItem(item.serviceId, item.checkInDate, item.checkOutDate)}
                     className="inline-flex items-center gap-2 rounded-2xl bg-red-50 px-4 py-2 text-sm font-black text-red-600 hover:bg-red-100"
                   >
                     <Trash2 size={16} /> XOA

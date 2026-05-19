@@ -103,9 +103,11 @@ public class PromptBuilder
         var filterLines = BuildServiceFilterContext(serviceFilters);
         
         // Kiểm tra TravelStyle để ưu tiên gợi ý xe
-        var shouldPrioritizeTransport = travelStyle.Contains("Phượt", StringComparison.OrdinalIgnoreCase) 
-                                      || travelStyle.Contains("Tự túc", StringComparison.OrdinalIgnoreCase)
-                                      || travelStyle.Contains("Backpacker", StringComparison.OrdinalIgnoreCase);
+        var normalizedTravelStyle = RemoveDiacritics(travelStyle).ToLowerInvariant();
+        var shouldPrioritizeTransport = pref.BudgetLevel == BudgetLevel.High
+                                      || normalizedTravelStyle.Contains("phuot", StringComparison.Ordinal)
+                                      || normalizedTravelStyle.Contains("tu tuc", StringComparison.Ordinal)
+                                      || normalizedTravelStyle.Contains("backpacker", StringComparison.Ordinal);
 
         var prompt = new StringBuilder();
         prompt.AppendLine($"Ban la chuyen gia lap ke hoach du lich. Hay lap lich trinh {days} ngay tai {dest.Name}.");
@@ -150,7 +152,7 @@ public class PromptBuilder
         prompt.AppendLine(transportLines);
         if (shouldPrioritizeTransport)
         {
-            prompt.AppendLine("*** LUU Y: Nguoi dung co phong cach du lich Phuot/Tu tuc, hay UU TIEN GOI Y THUE XE TU LAI (xe may hoac o to) thay vi di taxi hoac xe khach. Dich vu thue xe giup nguoi dung tu do kham pha va phu hop voi phong cach phuot. ***");
+            prompt.AppendLine("*** LUU Y: Nguoi dung co ngan sach cao hoac phong cach Phuot/Tu tuc. Hay UU TIEN chen dich vu THUE XE (ServiceType = 2, xe may hoac o to tu lai) vao lich trinh thay vi goi y taxi, bus hoac xe khach khi co service_id kha dung. ***");
         }
         prompt.AppendLine();
         prompt.AppendLine("### GOI Y COMBO DICH VU - DIA DANH:");
@@ -549,6 +551,27 @@ public class PromptBuilder
         return string.IsNullOrWhiteSpace(travelStyle)
             ? "Khong co yeu cau dac biet"
             : travelStyle.Trim();
+    }
+
+    private static string RemoveDiacritics(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var normalized = value.Normalize(NormalizationForm.FormD);
+        var builder = new StringBuilder(normalized.Length);
+
+        foreach (var character in normalized)
+        {
+            if (CharUnicodeInfo.GetUnicodeCategory(character) != UnicodeCategory.NonSpacingMark)
+            {
+                builder.Append(character);
+            }
+        }
+
+        return builder.ToString().Normalize(NormalizationForm.FormC);
     }
 
     private static string FormatBudgetLevel(BudgetLevel budgetLevel)
