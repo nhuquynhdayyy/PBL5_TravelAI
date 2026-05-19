@@ -35,7 +35,6 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, isAdminOrPartner, on
   };
 
   const isHotel = service.serviceType === 'Hotel' || service.serviceType === 0 || service.serviceType === '0';
-  const isTransport = service.serviceType === 'Transport' || service.serviceType === 2 || service.serviceType === '2';
 
   useEffect(() => {
     let isActive = true;
@@ -156,20 +155,17 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, isAdminOrPartner, on
 
           <div className="mt-6 grid grid-cols-2 gap-3">
             <button
-              onClick={() => {
-                const detailPath = isTransport ? `/transport/${service.serviceId}` : `/services/${service.serviceId}`;
-                navigate(`${detailPath}${selectedDate ? `?date=${selectedDate}` : ''}`);
-              }}
+              onClick={() => navigate(`/services/${service.serviceId}${selectedDate ? `?date=${selectedDate}` : ''}`)}
               className="flex items-center justify-center gap-1 rounded-2xl bg-slate-100 py-3 text-xs font-bold text-slate-700"
             >
               CHI TIET <ArrowUpRight size={14} />
             </button>
             <button
               onClick={handleAddToCart}
-              disabled={!activeAvailability || isTransport}
+              disabled={!activeAvailability}
               className="flex items-center justify-center gap-1 rounded-2xl bg-blue-600 py-3 text-xs font-black text-white transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
             >
-              <ShoppingCart size={14} /> {isTransport ? 'XEM' : 'THEM'}
+              <ShoppingCart size={14} /> THEM
             </button>
           </div>
         </div>

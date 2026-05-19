@@ -1,5 +1,3 @@
-using System.Text.Json.Serialization;
-
 namespace TravelAI.Application.DTOs.Chat;
 
 public class ChatMessage
@@ -25,10 +23,6 @@ public class ChatIntentAnalysis
 public class ChatServiceItem
 {
     public int Id { get; set; }
-
-    [JsonPropertyName("service_id")]
-    public int? ServiceId { get; set; }
-
     public string Name { get; set; } = string.Empty;
     public decimal Price { get; set; }
     public string? Location { get; set; }

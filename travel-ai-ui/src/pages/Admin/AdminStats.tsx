@@ -23,7 +23,6 @@ import {
   Store,
   Users,
 } from 'lucide-react';
-import { formatVietnameseDate, formatVietnameseDateShort } from '../../utils/dateTimeUtils';
 
 type TopDestination = {
   destinationId: number;
@@ -105,7 +104,10 @@ const AdminStats = () => {
 
   const revenueChartData = (stats?.revenueByDay ?? []).map((item) => ({
     ...item,
-    label: formatVietnameseDateShort(item.date)
+    label: new Date(item.date).toLocaleDateString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+    }),
   }));
 
   const statusChartData = (stats?.bookingStatusBreakdown ?? []).map((item) => ({
@@ -147,6 +149,13 @@ value: currencyFormatter.format(stats?.totalPartners ?? 0),
       shell: 'bg-emerald-50 text-emerald-600',
     },
   ];
+
+  const formatDate = (value: string) =>
+    new Date(value).toLocaleDateString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -402,7 +411,7 @@ Trang thai
                             <td className="px-6 py-4">
                               <p className="font-bold text-slate-900">#{booking.bookingId}</p>
                               <p className="mt-1 text-sm text-slate-500">
-                                {booking.itemCount} muc • {formatVietnameseDate(booking.createdAt)}
+                                {booking.itemCount} muc • {formatDate(booking.createdAt)}
                               </p>
                             </td>
                             <td className="px-6 py-4 text-sm font-black text-cyan-700">

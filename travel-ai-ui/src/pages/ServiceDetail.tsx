@@ -14,8 +14,6 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import axiosClient from '../api/axiosClient';
 import AvailabilityCalendar, { getDisplayAvailabilityPrice } from '../components/AvailabilityCalendar';
 import { useCart } from '../contexts/CartContext';
-import { formatVietnameseDate, formatVietnameseDateTime } from '../utils/dateTimeUtils';
-import { getTodayVietnam } from '../utils/dateUtils';
 
 type ServiceDetailDto = {
   serviceId: number;
@@ -36,7 +34,6 @@ type ReviewItem = {
   rating: number;
   comment?: string | null;
   replyText?: string | null;
-  replyTime?: string | null;
   createdAt: string;
 };
 
@@ -84,6 +81,13 @@ const getInitials = (name: string) =>
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? '')
     .join('');
+
+const formatDate = (value: string) =>
+  new Date(value).toLocaleDateString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  });
 
 const getApiErrorMessage = (err: any, fallback: string) => {
   const data = err?.response?.data;
@@ -273,11 +277,23 @@ const ServiceDetail = () => {
     }
   };
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (!service) return;
 
     if (!selectedDate) {
       alert('Vui long chon ngay su dung truoc khi them vao gio hang.');
+      return;
+    }
+
+    const availability = await axiosClient
+      .get(`/availability/check/${service.serviceId}`, {
+        params: { date: selectedDate, qty: quantity }
+      })
+      .then((res) => Boolean(res.data?.canBook))
+      .catch(() => false);
+
+    if (!availability) {
+      alert('Ngay da chon khong con lich trong. Vui long chon ngay khac.');
       return;
     }
 
@@ -575,7 +591,7 @@ const ServiceDetail = () => {
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
                         <h4 className="text-lg font-black text-slate-900">{review.customerName}</h4>
-                        <p className="text-sm text-slate-400">{formatVietnameseDate(review.createdAt)}</p>
+                        <p className="text-sm text-slate-400">{formatDate(review.createdAt)}</p>
                       </div>
                       {renderStars(review.rating)}
                     </div>
@@ -590,11 +606,6 @@ const ServiceDetail = () => {
                           <MessageSquareReply size={16} /> Phản hồi
                         </div>
                         <p className="mt-2 text-slate-700">{review.replyText}</p>
-                        {review.replyTime && (
-                          <p className="mt-2 text-xs text-slate-500">
-                            Phản hồi lúc {formatVietnameseDateTime(review.replyTime)}
-                          </p>
-                        )}
                       </div>
                     )}
 

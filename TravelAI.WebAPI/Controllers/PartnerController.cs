@@ -1,9 +1,10 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using TravelAI.Application.Common;
 using TravelAI.Application.DTOs.Partner;
-using TravelAI.Application.Helpers;
 using TravelAI.Application.Interfaces;
 using TravelAI.Domain.Entities;
 using TravelAI.Domain.Enums;
@@ -16,50 +17,18 @@ namespace TravelAI.WebAPI.Controllers;
 [Authorize(Roles = "Partner")]
 public class PartnerController : ControllerBase
 {
-    private const long MaxBusinessLicenseSizeBytes = 10 * 1024 * 1024;
-    private static readonly HashSet<string> AllowedBusinessLicenseExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".pdf",
-        ".jpg",
-        ".jpeg",
-        ".png",
-        ".webp"
-    };
-
-    private static readonly HashSet<string> AllowedBusinessLicenseContentTypes = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "application/pdf",
-        "image/jpeg",
-        "image/png",
-        "image/webp"
-    };
-
     private readonly ApplicationDbContext _context;
     private readonly IWebHostEnvironment _environment;
-    private readonly IPartnerOrderService _partnerOrderService;
-    private readonly IAuditLogService _auditLogService;
+    private readonly IRealtimeNotificationService _notificationService;
 
     public PartnerController(
-        ApplicationDbContext context, 
+        ApplicationDbContext context,
         IWebHostEnvironment environment,
-        IPartnerOrderService partnerOrderService,
-        IAuditLogService auditLogService)
+        IRealtimeNotificationService notificationService)
     {
         _context = context;
         _environment = environment;
-        _partnerOrderService = partnerOrderService;
-        _auditLogService = auditLogService;
-    }
-
-    // Helper method to convert UTC to Vietnam time (UTC+7)
-    private static DateTime ToVietnamTime(DateTime utcTime)
-    {
-        return utcTime.AddHours(7);
-    }
-
-    private static DateTime? ToVietnamTime(DateTime? utcTime)
-    {
-        return utcTime?.AddHours(7);
+        _notificationService = notificationService;
     }
 
     [HttpGet("profile")]
@@ -94,7 +63,8 @@ public class PartnerController : ControllerBase
         {
             return Unauthorized(new { message = "Vui long dang nhap!" });
         }
-var partnerId = int.Parse(partnerIdClaim.Value);
+
+        var partnerId = int.Parse(partnerIdClaim.Value);
 
         var profile = await _context.PartnerProfiles
             .FirstOrDefaultAsync(item => item.UserId == partnerId);
@@ -127,14 +97,7 @@ var partnerId = int.Parse(partnerIdClaim.Value);
 
         if (request.BusinessLicenseFile != null)
         {
-            try
-            {
-                profile.BusinessLicenseUrl = await SaveBusinessLicenseAsync(request.BusinessLicenseFile);
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
+            profile.BusinessLicenseUrl = await SaveBusinessLicenseAsync(request.BusinessLicenseFile);
         }
 
         if (string.IsNullOrWhiteSpace(profile.BusinessLicenseUrl))
@@ -148,6 +111,39 @@ var partnerId = int.Parse(partnerIdClaim.Value);
         profile.ReviewedAt = null;
 
         await _context.SaveChangesAsync();
+
+        var payload = new
+        {
+            partnerId,
+            businessName = profile.BusinessName,
+            submittedAt = profile.SubmittedAt,
+            message = $"Partner '{profile.BusinessName}' vua nop ho so cho duyet."
+        };
+
+        var adminIds = await _context.Users
+            .Where(user => user.Role.RoleName == "Admin")
+            .Select(user => user.UserId)
+            .ToListAsync();
+
+        foreach (var adminId in adminIds)
+        {
+            _context.Notifications.Add(new Notification
+            {
+                UserId = adminId,
+                Type = "admin_new_partner_pending",
+                Message = payload.message,
+                IsRead = false,
+                CreatedAt = DateTimeHelper.Now,
+                MetadataJson = JsonSerializer.Serialize(payload)
+            });
+        }
+
+        if (adminIds.Count > 0)
+        {
+            await _context.SaveChangesAsync();
+        }
+
+        await _notificationService.NotifyAdminAsync("admin_new_partner_pending", payload);
 
         return Ok(MapToPartnerProfileDto(profile));
     }
@@ -165,7 +161,7 @@ var partnerId = int.Parse(partnerIdClaim.Value);
         }
 
         var partnerId = int.Parse(partnerIdClaim.Value);
-        var vietnamToday = DateTimeHelper.Today;
+        var utcToday = DateTime.UtcNow.Date;
         var normalizedPeriod = (period ?? "month").Trim().ToLowerInvariant();
 
         if (normalizedPeriod is not ("day" or "week" or "month" or "custom"))
@@ -179,12 +175,12 @@ var partnerId = int.Parse(partnerIdClaim.Value);
         switch (normalizedPeriod)
         {
             case "day":
-                rangeStart = vietnamToday;
-rangeEnd = vietnamToday;
+                rangeStart = utcToday;
+                rangeEnd = utcToday;
                 break;
             case "week":
-                var diff = ((int)vietnamToday.DayOfWeek + 6) % 7;
-                rangeStart = vietnamToday.AddDays(-diff);
+                var diff = ((int)utcToday.DayOfWeek + 6) % 7;
+                rangeStart = utcToday.AddDays(-diff);
                 rangeEnd = rangeStart.AddDays(6);
                 break;
             case "custom":
@@ -197,7 +193,7 @@ rangeEnd = vietnamToday;
                 rangeEnd = endDate.Value.Date;
                 break;
             default:
-                rangeStart = new DateTime(vietnamToday.Year, vietnamToday.Month, 1);
+                rangeStart = new DateTime(utcToday.Year, utcToday.Month, 1);
                 rangeEnd = rangeStart.AddMonths(1).AddDays(-1);
                 break;
         }
@@ -255,8 +251,8 @@ rangeEnd = vietnamToday;
         var revenueByDay = Enumerable.Range(0, totalDays)
             .Select(offset => rangeStart.AddDays(offset))
             .Select(date => new PartnerDailyRevenueDto
-{
-Date = date,
+            {
+                Date = date,
                 Revenue = dailyRevenueLookup.GetValueOrDefault(date, 0m)
             })
             .ToList();
@@ -277,90 +273,19 @@ Date = date,
 
     private async Task<string> SaveBusinessLicenseAsync(IFormFile file)
     {
-        var extension = await ValidateBusinessLicenseAsync(file);
         var folderPath = Path.Combine(_environment.WebRootPath, "uploads", "partner-documents");
         if (!Directory.Exists(folderPath))
         {
             Directory.CreateDirectory(folderPath);
         }
 
-        var fileName = $"{Guid.NewGuid():N}{extension}";
+        var fileName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
         var filePath = Path.Combine(folderPath, fileName);
 
         await using var stream = new FileStream(filePath, FileMode.Create);
         await file.CopyToAsync(stream);
 
         return $"/uploads/partner-documents/{fileName}";
-    }
-
-    private static async Task<string> ValidateBusinessLicenseAsync(IFormFile file)
-    {
-        if (file.Length <= 0)
-        {
-            throw new InvalidOperationException("File giay phep kinh doanh khong duoc de trong.");
-        }
-
-        if (file.Length > MaxBusinessLicenseSizeBytes)
-        {
-            throw new InvalidOperationException("File giay phep kinh doanh khong duoc vuot qua 10MB.");
-        }
-
-        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
-        if (!AllowedBusinessLicenseExtensions.Contains(extension))
-        {
-            throw new InvalidOperationException("Chi chap nhan giay phep kinh doanh dang .pdf, .jpg, .jpeg, .png, .webp.");
-        }
-
-        if (string.IsNullOrWhiteSpace(file.ContentType) ||
-            !AllowedBusinessLicenseContentTypes.Contains(file.ContentType))
-        {
-            throw new InvalidOperationException("File giay phep kinh doanh khong dung dinh dang hop le.");
-        }
-
-        await using var stream = file.OpenReadStream();
-        var header = new byte[12];
-        var bytesRead = await stream.ReadAsync(header);
-        if (!HasValidBusinessLicenseSignature(header.AsSpan(0, bytesRead), extension))
-        {
-            throw new InvalidOperationException("Noi dung file giay phep kinh doanh khong hop le.");
-        }
-
-        return extension;
-    }
-
-    private static bool HasValidBusinessLicenseSignature(ReadOnlySpan<byte> header, string extension)
-    {
-        return extension switch
-        {
-            ".pdf" => header.Length >= 4 &&
-                header[0] == 0x25 &&
-                header[1] == 0x50 &&
-                header[2] == 0x44 &&
-header[3] == 0x46,
-".jpg" or ".jpeg" => header.Length >= 3 &&
-                header[0] == 0xFF &&
-                header[1] == 0xD8 &&
-                header[2] == 0xFF,
-            ".png" => header.Length >= 8 &&
-                header[0] == 0x89 &&
-                header[1] == 0x50 &&
-                header[2] == 0x4E &&
-                header[3] == 0x47 &&
-                header[4] == 0x0D &&
-                header[5] == 0x0A &&
-                header[6] == 0x1A &&
-                header[7] == 0x0A,
-            ".webp" => header.Length >= 12 &&
-                header[0] == 0x52 &&
-                header[1] == 0x49 &&
-                header[2] == 0x46 &&
-                header[3] == 0x46 &&
-                header[8] == 0x57 &&
-                header[9] == 0x45 &&
-                header[10] == 0x42 &&
-                header[11] == 0x50,
-            _ => false
-        };
     }
 
     private static PartnerProfileDto MapToPartnerProfileDto(PartnerProfile profile)
@@ -391,282 +316,4 @@ header[3] == 0x46,
 
         return value.Trim();
     }
-
-    // ──────────────────────────────────────────────
-    //  ORDER MANAGEMENT
-    // ──────────────────────────────────────────────
-
-    [HttpGet("orders")]
-    public async Task<IActionResult> GetOrders(
-        [FromQuery] int? status,
-        [FromQuery] DateTime? startDate,
-        [FromQuery] DateTime? endDate,
-        [FromQuery] int? serviceId)
-    {
-        var partnerIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-        if (partnerIdClaim == null)
-        {
-            return Unauthorized(new { message = "Vui long dang nhap!" });
-        }
-
-        var partnerId = int.Parse(partnerIdClaim.Value);
-
-        var now = DateTimeHelper.Now;
-
-        var query = _context.BookingItems
-            .AsNoTracking()
-            .Include(bi => bi.Service)
-            .Include(bi => bi.Booking)
-                .ThenInclude(b => b.User)
-            .Where(bi => bi.Service.PartnerId == partnerId);
-
-        // Filter by status
-        if (status.HasValue)
-        {
-            var bookingStatus = (BookingStatus)status.Value;
-query = query.Where(bi => bi.Booking.Status == bookingStatus);
-        }
-
-        // Filter by date range
-        if (startDate.HasValue)
-        {
-            query = query.Where(bi => bi.CheckInDate >= startDate.Value.Date);
-        }
-
-        if (endDate.HasValue)
-        {
-            query = query.Where(bi => bi.CheckInDate <= endDate.Value.Date);
-        }
-
-        // Filter by serviceId
-        if (serviceId.HasValue)
-        {
-            query = query.Where(bi => bi.ServiceId == serviceId.Value);
-        }
-
-        var orders = await query
-            .Select(bi => new
-            {
-                bookingId = bi.BookingId,
-                serviceName = bi.Service.Name,
-                serviceId = bi.ServiceId,
-                customerName = bi.Booking.User.FullName,
-                customerEmail = bi.Booking.User.Email,
-                checkInDate = bi.CheckInDate,
-                quantity = bi.Quantity,
-                totalAmount = bi.PriceAtBooking * bi.Quantity,
-                status = bi.Booking.Status,
-                createdAt = bi.Booking.CreatedAt,
-                isApprovedByPartner = bi.Booking.IsApprovedByPartner,
-                approvedAt = bi.Booking.ApprovedAt,
-                approvalDeadline = bi.Booking.ApprovalDeadline,
-                // Tính thời gian còn lại để duyệt (giờ)
-                hoursUntilDeadline = bi.Booking.ApprovalDeadline.HasValue 
-                    ? (bi.Booking.ApprovalDeadline.Value - now).TotalHours 
-                    : (double?)null,
-                // Lý do hủy (từ Refund.Reason)
-                cancellationReason = bi.Booking.Payments
-                    .SelectMany(p => p.Refunds)
-                    .OrderByDescending(r => r.RefundTime)
-                    .Select(r => r.Reason)
-                    .FirstOrDefault()
-            })
-            .OrderByDescending(x => x.checkInDate)
-            .ToListAsync();
-
-        // Convert UTC to Vietnam time
-        var ordersWithVnTime = orders.Select(o => new
-        {
-            o.bookingId,
-            o.serviceName,
-            o.serviceId,
-            o.customerName,
-            o.customerEmail,
-            o.checkInDate,
-            o.quantity,
-            o.totalAmount,
-            o.status,
-            createdAt = ToVietnamTime(o.createdAt),
-            o.isApprovedByPartner,
-            approvedAt = ToVietnamTime(o.approvedAt),
-            approvalDeadline = ToVietnamTime(o.approvalDeadline),
-            o.hoursUntilDeadline,
-            o.cancellationReason
-        }).ToList();
-
-        return Ok(ordersWithVnTime);
-    }
-
-    [HttpGet("orders/{bookingId:int}")]
-    public async Task<IActionResult> GetOrderDetail(int bookingId)
-    {
-        var partnerIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-        if (partnerIdClaim == null)
-        {
-            return Unauthorized(new { message = "Vui long dang nhap!" });
-        }
-
-        var partnerId = int.Parse(partnerIdClaim.Value);
-var booking = await _context.Bookings
-.AsNoTracking()
-            .Include(b => b.User)
-            .Include(b => b.BookingItems)
-                .ThenInclude(bi => bi.Service)
-            .Include(b => b.Payments)
-                .ThenInclude(p => p.Refunds)
-            .FirstOrDefaultAsync(b => b.BookingId == bookingId);
-
-        if (booking == null)
-        {
-            return NotFound(new { message = "Khong tim thay don hang." });
-        }
-
-        // Kiểm tra quyền - booking phải có service của partner
-        var hasPartnerService = booking.BookingItems
-            .Any(item => item.Service.PartnerId == partnerId);
-
-        if (!hasPartnerService)
-        {
-            return Forbid();
-        }
-
-        var latestPayment = booking.Payments
-            .OrderByDescending(p => p.PaymentTime)
-            .FirstOrDefault();
-
-        var totalRefunded = booking.Payments
-            .SelectMany(p => p.Refunds)
-            .Sum(r => r.RefundAmount);
-
-        var latestRefund = booking.Payments
-            .SelectMany(p => p.Refunds)
-            .OrderByDescending(r => r.RefundTime)
-            .FirstOrDefault();
-
-        var result = new
-        {
-            bookingId = booking.BookingId,
-            customerName = booking.User.FullName,
-            customerEmail = booking.User.Email,
-            status = booking.Status,
-            totalAmount = booking.TotalAmount,
-            createdAt = ToVietnamTime(booking.CreatedAt),
-            paymentMethod = latestPayment?.Method,
-            paymentTime = ToVietnamTime(latestPayment?.PaymentTime),
-            refundedAmount = totalRefunded,
-            cancellationReason = latestRefund?.Reason, // Lý do hủy
-            isApprovedByPartner = booking.IsApprovedByPartner,
-            approvedAt = ToVietnamTime(booking.ApprovedAt),
-            approvalDeadline = ToVietnamTime(booking.ApprovalDeadline),
-            hoursUntilDeadline = booking.ApprovalDeadline.HasValue 
-                ? (booking.ApprovalDeadline.Value - DateTimeHelper.Now).TotalHours 
-                : (double?)null,
-            items = booking.BookingItems.Select(item => new
-            {
-                serviceId = item.ServiceId,
-                serviceName = item.Service.Name,
-                quantity = item.Quantity,
-                priceAtBooking = item.PriceAtBooking,
-                checkInDate = item.CheckInDate,
-                notes = item.Notes
-            }).ToList()
-        };
-
-        return Ok(result);
-    }
-
-    [HttpPost("orders/{bookingId:int}/approve")]
-    public async Task<IActionResult> ApproveOrder(int bookingId)
-    {
-        var partnerIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-        if (partnerIdClaim == null)
-        {
-            return Unauthorized(new { message = "Vui long dang nhap!" });
-        }
-
-        var partnerId = int.Parse(partnerIdClaim.Value);
-
-        var success = await _partnerOrderService.ApproveOrderAsync(bookingId, partnerId);
-
-        if (!success)
-{
-return BadRequest(new { message = "Khong the duyet don hang nay. Vui long kiem tra lai." });
-        }
-
-        return Ok(new { message = "Da duyet don hang thanh cong!" });
-    }
-
-    [HttpPost("orders/{bookingId:int}/reject")]
-    public async Task<IActionResult> RejectOrder(int bookingId, [FromBody] RejectOrderRequest request)
-    {
-        var partnerIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-        if (partnerIdClaim == null)
-        {
-            return Unauthorized(new { message = "Vui long dang nhap!" });
-        }
-
-        if (string.IsNullOrWhiteSpace(request.Reason))
-        {
-            return BadRequest(new { message = "Vui long nhap ly do tu choi." });
-        }
-
-        var partnerId = int.Parse(partnerIdClaim.Value);
-
-        var success = await _partnerOrderService.RejectOrderAsync(bookingId, partnerId, request.Reason);
-
-        if (!success)
-        {
-            return BadRequest(new { message = "Khong the tu choi don hang nay. Vui long kiem tra lai." });
-        }
-
-        return Ok(new { message = "Da tu choi don hang va hoan tien cho khach hang." });
-    }
-
-    [HttpGet("orders/pending-count")]
-    public async Task<IActionResult> GetPendingOrdersCount()
-    {
-        var partnerIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-        if (partnerIdClaim == null)
-        {
-            return Unauthorized(new { message = "Vui long dang nhap!" });
-        }
-
-        var partnerId = int.Parse(partnerIdClaim.Value);
-
-        var pendingBookings = await _context.BookingItems
-            .AsNoTracking()
-            .Where(bi => bi.Service.PartnerId == partnerId
-                && bi.Booking.Status == BookingStatus.Paid
-                && !bi.Booking.IsApprovedByPartner)
-            .Select(bi => new
-            {
-                bi.BookingId,
-                bi.Booking.ApprovalDeadline
-            })
-            .Distinct()
-            .ToListAsync();
-
-        var now = DateTimeHelper.Now;
-        var nearestApprovalDeadline = pendingBookings
-            .Where(item => item.ApprovalDeadline.HasValue)
-            .Select(item => item.ApprovalDeadline!.Value)
-            .OrderBy(deadline => deadline)
-            .FirstOrDefault();
-
-        double? nearestDeadlineHours = nearestApprovalDeadline == default
-            ? null
-            : (nearestApprovalDeadline - now).TotalHours;
-        DateTime? nearestApprovalDeadlineVietnam = nearestApprovalDeadline == default
-            ? null
-            : ToVietnamTime(nearestApprovalDeadline);
-
-        return Ok(new
-        {
-            pendingCount = pendingBookings.Count,
-            nearestDeadlineHours,
-            nearestApprovalDeadline = nearestApprovalDeadlineVietnam
-        });
-    }
 }
-
-public record RejectOrderRequest(string Reason);

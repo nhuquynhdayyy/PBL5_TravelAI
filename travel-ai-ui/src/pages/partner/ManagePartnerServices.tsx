@@ -5,13 +5,10 @@ import {
   BarChart3,
   Loader2,
   Plus,
-  RefreshCw,
   Settings2,
   Trash2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { refreshPartnerStatus } from '../../utils/userUtils';
 
 type PartnerProfileGate = {
   verificationStatus?: string;
@@ -20,82 +17,48 @@ type PartnerProfileGate = {
 };
 
 const ManagePartnerServices = () => {
+  const [myServices, setMyServices] = useState<any[]>([]);
+  const [profile, setProfile] = useState<PartnerProfileGate | null>(null);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
 
-  const { data, isLoading: loading } = useQuery({
-    queryKey: ['partner-services-page'],
-    queryFn: async () => {
-      await refreshPartnerStatus();
+  const fetchData = async () => {
+    try {
+      setLoading(true);
       const [servicesResponse, profileResponse] = await Promise.all([
         axiosClient.get('/services/my-services'),
-        axiosClient.get('/partner/profile'),
+        axiosClient.get('/partner/profile')
       ]);
-      return {
-        services: servicesResponse.data ?? [],
-        profile: profileResponse.data ?? null,
-      };
-    },
-  });
+      setMyServices(servicesResponse.data || []);
+      setProfile(profileResponse.data || null);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const myServices: any[] = data?.services ?? [];
-  const profile: PartnerProfileGate | null = data?.profile ?? null;
-
-  // Auto-refresh profile every 10s if not approved yet
   useEffect(() => {
-    if (profile?.canCreateServices) return;
-
-    const intervalId = setInterval(async () => {
-      const updatedUser = await refreshPartnerStatus();
-      await queryClient.invalidateQueries({ queryKey: ['partner-services-page'] });
-      if (updatedUser?.canCreateServices) {
-        window.dispatchEvent(new Event('userUpdated'));
-      }
-    }, 10_000);
-
-    return () => clearInterval(intervalId);
-  }, [profile?.canCreateServices, queryClient]);
-
-  const deleteMutation = useMutation({
-    mutationFn: (id: number) => axiosClient.delete(`/services/${id}`),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['partner-services-page'] });
-    },
-    onError: () => {
-      alert('Loi khi xoa!');
-    },
-  });
-
-  const [isRefreshing, setIsRefreshing] = useState(false);
+    void fetchData();
+  }, []);
 
   const canCreateServices = Boolean(profile?.canCreateServices);
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     if (window.confirm('Ban co chac chan muon xoa dich vu nay?')) {
-      deleteMutation.mutate(id);
+      try {
+        await axiosClient.delete(`/services/${id}`);
+        setMyServices((previous) => previous.filter((service) => service.serviceId !== id));
+        alert('Da xoa thanh cong!');
+      } catch {
+        alert('Loi khi xoa!');
+      }
     }
   };
 
   const handleBlockedAction = () => {
     alert('Ho so doi tac chua duoc duyet. Vui long hoan thien va gui ho so trong trang Business.');
     navigate('/partner/profile');
-  };
-
-  const handleRefreshProfile = async () => {
-    try {
-      setIsRefreshing(true);
-      const updatedUser = await refreshPartnerStatus();
-      await queryClient.invalidateQueries({ queryKey: ['partner-services-page'] });
-      if (updatedUser?.canCreateServices) {
-        alert('Ho so cua ban da duoc duyet! Ban co the dang dich vu ngay bay gio.');
-        window.dispatchEvent(new Event('userUpdated'));
-      }
-    } catch (error) {
-      console.error('Failed to refresh profile:', error);
-      alert('Khong the cap nhat trang thai. Vui long thu lai.');
-    } finally {
-      setIsRefreshing(false);
-    }
   };
 
   return (
@@ -127,7 +90,7 @@ const ManagePartnerServices = () => {
         <div className="mb-8 rounded-[2rem] border border-amber-200 bg-amber-50 p-5">
           <div className="flex items-start gap-3">
             <AlertCircle className="mt-0.5 text-amber-600" size={18} />
-            <div className="flex-grow">
+            <div>
               <p className="font-black text-amber-900">Tai khoan partner chua duoc phe duyet</p>
               <p className="mt-1 text-sm font-medium text-amber-800">
                 Chi khi ho so o trang Business duoc admin duyet thi ban moi co the dang hoac cap nhat dich vu.
@@ -136,15 +99,6 @@ const ManagePartnerServices = () => {
                 <p className="mt-2 text-sm font-semibold text-amber-900">Ghi chu admin: {profile.reviewNote}</p>
               )}
             </div>
-            <button
-              onClick={handleRefreshProfile}
-              disabled={isRefreshing}
-              className="flex items-center gap-2 rounded-xl bg-amber-600 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-amber-700 disabled:opacity-50"
-              title="Kiem tra lai trang thai duyet"
-            >
-              <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
-              {isRefreshing ? 'Dang kiem tra...' : 'Kiem tra lai'}
-            </button>
           </div>
         </div>
       )}

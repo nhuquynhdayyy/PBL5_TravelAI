@@ -7,7 +7,6 @@ public class BookingItem {
     public int Quantity { get; set; }
     public decimal PriceAtBooking { get; set; }
     public DateTime CheckInDate { get; set; }
-    public DateTime? CheckOutDate { get; set; }  // Thêm ngày trả cho dịch vụ Transport
     public string? Notes { get; set; }
 
     public Booking Booking { get; set; } = null!;

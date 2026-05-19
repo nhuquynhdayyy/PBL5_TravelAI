@@ -17,11 +17,20 @@ import {
   Users,
   Wallet,
 } from 'lucide-react';
-import { formatVietnameseDate } from '../../utils/dateTimeUtils';
 
 const promotions: Record<string, { percent: number; maxAmount: number }> = {
   TRAVELAI10: { percent: 10, maxAmount: 100000 },
   WELCOME5: { percent: 5, maxAmount: 50000 },
+};
+
+type BookingItem = {
+  itemId: number;
+  serviceId: number;
+  serviceName: string;
+  checkInDate: string;
+  quantity: number;
+  priceAtBooking: number;
+  lineTotal: number;
 };
 
 const Checkout = () => {
@@ -65,8 +74,26 @@ const Checkout = () => {
 
   const finalAmount = useMemo(() => {
     if (!booking) return 0;
-    return Math.max(0, booking.totalAmount - discountAmount);
-  }, [booking, discountAmount]);
+    return booking.totalAmount;
+  }, [booking]);
+
+  const bookingItems: BookingItem[] = useMemo(() => {
+    if (!booking?.items?.length) {
+      return booking
+        ? [{
+            itemId: booking.bookingId,
+            serviceId: 0,
+            serviceName: booking.serviceName || 'Dich vu du lich',
+            checkInDate: booking.checkInDate,
+            quantity: booking.quantity || 0,
+            priceAtBooking: booking.quantity ? booking.totalAmount / booking.quantity : booking.totalAmount,
+            lineTotal: booking.totalAmount,
+          }]
+        : [];
+    }
+
+    return booking.items;
+  }, [booking]);
 
   const applyPromotion = () => {
     const normalizedCode = promotionCode.trim().toUpperCase();
@@ -110,7 +137,7 @@ const Checkout = () => {
       if (paymentMethod === 'vietqr') {
         const res = await axiosClient.post('/payment/vietqr/create', {
           bookingId: Number(bookingId),
-          amount: finalAmount,
+          amount: booking.totalAmount,
         });
 
         setOfflinePayment({ type: 'vietqr', ...res.data });
@@ -120,7 +147,7 @@ const Checkout = () => {
       if (paymentMethod === 'counter') {
         const res = await axiosClient.post('/payment/counter/create', {
           bookingId: Number(bookingId),
-          amount: finalAmount,
+          amount: booking.totalAmount,
         });
 
         setOfflinePayment({ type: 'counter', ...res.data });
@@ -375,26 +402,33 @@ const Checkout = () => {
             <div className="mb-8 space-y-4">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Dich vu</p>
-                <p className="line-clamp-2 text-lg font-black text-blue-400">
-                  {booking.serviceName || 'Dich vu du lich'}
+                <p className="text-lg font-black text-blue-400">
+                  {bookingItems.length} muc da chon
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 border-t border-white/10 pt-4">
-                <div>
-                  <p className="text-[10px] font-bold uppercase text-slate-400">Ngay di</p>
-                  <div className="mt-1 flex items-center gap-1.5 font-bold">
-                    <Calendar size={14} className="text-blue-400" />
-                    {formatVietnameseDate(booking.checkInDate)}
+              <div className="space-y-3 border-t border-white/10 pt-4">
+                {bookingItems.map((item) => (
+                  <div key={item.itemId} className="rounded-2xl bg-white/5 p-4">
+                    <p className="line-clamp-2 font-black text-white">{item.serviceName}</p>
+                    <div className="mt-3 grid grid-cols-2 gap-3 text-xs font-bold text-slate-300">
+                      <span className="flex items-center gap-1.5">
+                        <Calendar size={14} className="text-blue-400" />
+                        {new Date(item.checkInDate).toLocaleDateString('vi-VN')}
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <Users size={14} className="text-blue-400" />
+                        {item.quantity} khach
+                      </span>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
+                      <span>{new Intl.NumberFormat('vi-VN').format(item.priceAtBooking)} VND / khach</span>
+                      <span className="font-black text-blue-300">
+                        {new Intl.NumberFormat('vi-VN').format(item.lineTotal)} VND
+                      </span>
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase text-slate-400">So luong</p>
-                  <div className="mt-1 flex items-center gap-1.5 font-bold">
-                    <Users size={14} className="text-blue-400" />
-                    {booking.quantity} khach
-                  </div>
-                </div>
+                ))}
               </div>
             </div>
 
@@ -408,8 +442,9 @@ const Checkout = () => {
                 <span className="font-bold">-{new Intl.NumberFormat('vi-VN').format(discountAmount)} VND</span>
               </div>
               {discountAmount > 0 && (
-                <p className="mb-3 rounded-xl bg-emerald-400/10 p-2 text-xs font-bold text-emerald-300">
-                  Đã áp dụng mã giảm giá thành công.
+                <p className="mb-3 rounded-xl bg-amber-400/10 p-2 text-xs font-bold text-amber-200">
+                  Ma giam gia da duoc ghi nhan tren giao dien. So tien thanh toan thuc te se theo
+                  booking backend xac nhan.
                 </p>
               )}
               <div className="flex items-center justify-between border-t border-white/10 pt-3">

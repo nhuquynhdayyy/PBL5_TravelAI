@@ -6,7 +6,6 @@ using TravelAI.Application.DTOs.Admin;
 using TravelAI.Application.DTOs.Partner;
 using TravelAI.Application.DTOs.Service;
 using TravelAI.Application.DTOs.User;
-using TravelAI.Application.Helpers;
 using TravelAI.Application.Interfaces;
 using TravelAI.Domain.Enums;
 using TravelAI.Infrastructure.Persistence;
@@ -20,13 +19,11 @@ public class AdminController : ControllerBase
 {
     private readonly IServiceService _serviceService;
     private readonly ApplicationDbContext _context;
-    private readonly IAuditLogService _auditLogService;
 
-    public AdminController(IServiceService serviceService, ApplicationDbContext context, IAuditLogService auditLogService)
+    public AdminController(IServiceService serviceService, ApplicationDbContext context)
     {
         _serviceService = serviceService;
         _context = context;
-        _auditLogService = auditLogService;
     }
 
     // ──────────────────────────────────────────────
@@ -36,12 +33,7 @@ public class AdminController : ControllerBase
     [HttpGet("stats")]
     public async Task<IActionResult> GetStats()
     {
-        return Ok(await BuildAdminStatsAsync());
-    }
-
-    private async Task<AdminStatsDto> BuildAdminStatsAsync()
-    {
-        var today = DateTimeHelper.Today;
+        var today = DateTime.UtcNow.Date;
         var rangeStart = today.AddDays(-29);
         var rangeEndExclusive = today.AddDays(1);
 
@@ -81,7 +73,7 @@ public class AdminController : ControllerBase
             .Select(booking => new AdminRecentBookingDto
             {
                 BookingId = booking.BookingId,
-CustomerName = booking.User.FullName,
+                CustomerName = booking.User.FullName,
                 CustomerEmail = booking.User.Email,
                 Status = booking.Status.ToString(),
                 TotalAmount = booking.TotalAmount,
@@ -138,7 +130,7 @@ PrimaryServiceName = booking.BookingItems
                 Revenue = group.Sum(item => item.Revenue)
             })
             .OrderByDescending(item => item.BookingCount)
-.ThenByDescending(item => item.Revenue)
+            .ThenByDescending(item => item.Revenue)
             .Take(5)
             .ToList();
 
@@ -177,7 +169,7 @@ PrimaryServiceName = booking.BookingItems
             })
             .ToList();
 
-        return new AdminStatsDto
+        var response = new AdminStatsDto
         {
             TotalUsers = totalUsers,
             TotalPartners = totalPartners,
@@ -188,12 +180,14 @@ PrimaryServiceName = booking.BookingItems
             RecentBookings = recentBookings,
             RevenueByDay = revenueByDay
         };
+
+        return Ok(response);
     }
 
     [HttpGet("dashboard-stats")]
     public async Task<IActionResult> GetDashboardStats()
     {
-        var today = DateTimeHelper.Today;
+        var today = DateTime.UtcNow.Date;
         var rangeStart = today.AddDays(-29);
         var rangeEndExclusive = today.AddDays(1);
 
@@ -374,7 +368,8 @@ PrimaryServiceName = booking.BookingItems
                 u.FullName.ToLower().Contains(keyword) ||
                 u.Email.ToLower().Contains(keyword));
         }
-var totalCount = await query.CountAsync();
+
+        var totalCount = await query.CountAsync();
         var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
 
         var users = await query
@@ -425,9 +420,6 @@ var totalCount = await query.CountAsync();
 
         user.IsActive = false;
         await _context.SaveChangesAsync();
-        
-        // Log audit
-        await _auditLogService.LogAsync(adminUserId, "BAN", "Users", id);
 
         return Ok(new { success = true, message = "Da khoa tai khoan nguoi dung." });
     }
@@ -435,8 +427,6 @@ var totalCount = await query.CountAsync();
     [HttpPost("users/{id}/unban")]
     public async Task<IActionResult> UnbanUser(int id)
     {
-        var adminUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-        
         var user = await _context.Users.FirstOrDefaultAsync(u => u.UserId == id);
         if (user == null)
         {
@@ -445,52 +435,8 @@ var totalCount = await query.CountAsync();
 
         user.IsActive = true;
         await _context.SaveChangesAsync();
-        
-        // Log audit
-        await _auditLogService.LogAsync(adminUserId, "UNBAN", "Users", id);
 
         return Ok(new { success = true, message = "Da mo khoa tai khoan nguoi dung." });
-    }
-
-    [HttpGet("users/{userId}/activity-log")]
-    public async Task<IActionResult> GetUserActivityLog(int userId, [FromQuery] int page = 1, [FromQuery] int pageSize = 50)
-    {
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.UserId == userId);
-        if (user == null)
-        {
-return NotFound(new { message = "Khong tim thay nguoi dung." });
-        }
-
-        var query = _context.AuditLogs
-            .AsNoTracking()
-            .Where(log => log.UserId == userId)
-            .OrderByDescending(log => log.Timestamp);
-
-        var totalCount = await query.CountAsync();
-        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
-
-        var logs = await query
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(log => new UserActivityLogDto
-            {
-                LogId = log.LogId,
-                Action = log.Action,
-                TableName = log.TableName,
-                RecordId = log.RecordId,
-                Timestamp = log.Timestamp
-            })
-            .ToListAsync();
-
-        return Ok(new
-        {
-            userId,
-            userName = user.FullName,
-            items = logs,
-            totalCount,
-            totalPages,
-            currentPage = page
-        });
     }
 
     // ──────────────────────────────────────────────
@@ -544,7 +490,8 @@ public async Task<IActionResult> RejectService(int id, [FromBody] RejectServiceR
         var partners = await BuildPartnerReviewQuery()
             .Where(profile => profile.VerificationStatus != PartnerVerificationStatus.Approved.ToString())
             .ToListAsync();
-return Ok(partners);
+
+        return Ok(partners);
     }
 
     [HttpGet("partners")]
@@ -565,7 +512,7 @@ return Ok(partners);
 
         profile.VerificationStatus = PartnerVerificationStatus.Approved;
         profile.ReviewNote = NormalizeOptionalText(request?.ReviewNote);
-        profile.ReviewedAt = DateTimeHelper.Now;
+        profile.ReviewedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
         return Ok(new { success = true, message = "Da duyet doi tac." });
@@ -587,7 +534,7 @@ return Ok(partners);
 
         profile.VerificationStatus = PartnerVerificationStatus.Rejected;
         profile.ReviewNote = request.ReviewNote.Trim();
-        profile.ReviewedAt = DateTimeHelper.Now;
+        profile.ReviewedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 return Ok(new { success = true, message = "Da tu choi doi tac." });
     }
@@ -608,46 +555,10 @@ return Ok(new { success = true, message = "Da tu choi doi tac." });
 
         profile.VerificationStatus = PartnerVerificationStatus.NeedMoreInfo;
         profile.ReviewNote = request.ReviewNote.Trim();
-        profile.ReviewedAt = DateTimeHelper.Now;
+        profile.ReviewedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
         return Ok(new { success = true, message = "Da yeu cau doi tac bo sung thong tin." });
-    }
-
-    // New endpoints using userId instead of profileId
-    [HttpGet("partners/{userId}/profile")]
-    public async Task<IActionResult> GetPartnerProfileByUserId(int userId)
-{
-        var profile = await _context.PartnerProfiles
-            .AsNoTracking()
-            .Include(p => p.User)
-            .FirstOrDefaultAsync(p => p.UserId == userId);
-
-        if (profile == null)
-        {
-            return NotFound(new { message = "Khong tim thay ho so doi tac." });
-        }
-
-        var dto = new AdminPartnerReviewDto
-        {
-            ProfileId = profile.ProfileId,
-            UserId = profile.UserId,
-            FullName = profile.User.FullName,
-            Email = profile.User.Email,
-            BusinessName = profile.BusinessName,
-            TaxCode = profile.TaxCode,
-            ContactPhone = profile.ContactPhone,
-            BankAccount = profile.BankAccount,
-            Address = profile.Address,
-            Description = profile.Description,
-            BusinessLicenseUrl = profile.BusinessLicenseUrl,
-            VerificationStatus = profile.VerificationStatus.ToString(),
-            ReviewNote = profile.ReviewNote,
-            SubmittedAt = profile.SubmittedAt,
-            ReviewedAt = profile.ReviewedAt
-        };
-
-        return Ok(dto);
     }
 
     // ──────────────────────────────────────────────

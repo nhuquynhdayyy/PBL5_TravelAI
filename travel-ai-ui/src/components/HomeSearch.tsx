@@ -160,7 +160,7 @@ const HomeSearch: React.FC = () => {
                     {/* Filter dropdown */}
                     {isFilterOpen && (
                         <div className="absolute left-0 top-full mt-2 w-60 bg-white rounded-2xl border border-slate-200 shadow-2xl z-50 overflow-hidden">
-                            <div className="p-2 max-h-72 overflow-y-auto custom-scrollbar">
+                            <div className="p-2 max-h-72 overflow-y-auto">
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-3 py-1.5">Lọc theo tỉnh/thành</p>
                                 <button
                                     onClick={() => { setSelectedDestId('all'); setIsFilterOpen(false); }}
@@ -227,7 +227,7 @@ const HomeSearch: React.FC = () => {
                             <span className="text-sm font-medium">Không tìm thấy kết quả cho "{query}"</span>
                         </div>
                     ) : (
-                        <div className="py-2 max-h-[420px] overflow-y-auto custom-scrollbar">
+                        <div className="py-2 max-h-[420px] overflow-y-auto">
                             {/* Destinations group */}
                             {destResults.length > 0 && (
                                 <div>

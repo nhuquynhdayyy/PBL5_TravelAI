@@ -139,12 +139,9 @@ Yeu cau:
             };
         }
 
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-        int? userId = userIdClaim != null && int.TryParse(userIdClaim.Value, CultureInfo.InvariantCulture, out var parsedId)
-            ? parsedId
-            : null; // Anonymous — vẫn generate nhưng không log vào DB
-
         var days = Math.Clamp(intent.Days ?? 3, 1, 14);
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        var userId = userIdClaim != null ? int.Parse(userIdClaim.Value, CultureInfo.InvariantCulture) : 0;
         var genReq = new GenerateItineraryRequest(destination.DestinationId, days, DateTime.Today);
         var itinerary = await _itineraryService.GenerateAndLogItineraryAsync(userId, genReq);
 
@@ -470,7 +467,6 @@ Yeu cau:
         return new ChatServiceItem
         {
             Id = service.ServiceId,
-            ServiceId = service.ServiceId,
             Name = service.Name,
             Price = ResolveDisplayPrice(service),
             Location = ResolvePrimarySpot(service)?.Name,

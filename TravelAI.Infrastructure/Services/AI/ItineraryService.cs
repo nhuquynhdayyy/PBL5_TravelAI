@@ -1,8 +1,6 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using TravelAI.Application.DTOs.AI;
-using TravelAI.Application.Helpers;
-using TravelAI.Application.DTOs.Service;
 using TravelAI.Application.Interfaces;
 using TravelAI.Application.Services.AI;
 using TravelAI.Domain.Entities;
@@ -20,7 +18,6 @@ public class ItineraryService : IItineraryService
     private readonly ISpotScoringService _spotScoringService;
     private readonly PromptBuilder _promptBuilder;
     private readonly WeatherService _weatherService;
-    private readonly IRealtimeNotificationService _notificationService;
 
     public ItineraryService(
         ApplicationDbContext db, 
@@ -28,8 +25,7 @@ public class ItineraryService : IItineraryService
         AIParserService parserService,
         ISpotScoringService spotScoringService,
         PromptBuilder promptBuilder,
-        WeatherService weatherService,
-        IRealtimeNotificationService notificationService)
+        WeatherService weatherService)
     {
         _db = db;
         _gemini = gemini;
@@ -37,10 +33,9 @@ public class ItineraryService : IItineraryService
         _spotScoringService = spotScoringService;
         _promptBuilder = promptBuilder;
         _weatherService = weatherService;
-        _notificationService = notificationService;
     }
 
-    public async Task<ItineraryResponseDto?> GenerateAndLogItineraryAsync(int? userId, GenerateItineraryRequest request)
+    public async Task<ItineraryResponseDto?> GenerateAndLogItineraryAsync(int userId, GenerateItineraryRequest request)
     {
         if (request.DestinationId <= 0)
         {
@@ -52,34 +47,14 @@ public class ItineraryService : IItineraryService
             throw new InvalidOperationException("So ngay phai lon hon 0.");
         }
 
-        // Chỉ gửi notification khi user đã đăng nhập
-        if (userId.HasValue)
-        {
-            await _notificationService.NotifyUserAsync(userId.Value, "itinerary_processing", new
-            {
-                status = "started",
-                destinationId = request.DestinationId,
-                days = request.NumberOfDays,
-                message = "AI dang phan tich so thich, thoi tiet va dich vu phu hop."
-            });
-        }
-
         var dest = await _db.Destinations.FindAsync(request.DestinationId);
         if (dest == null)
         {
             throw new InvalidOperationException("Khong tim thay diem den de tao lich trinh.");
         }
 
-        var pref = userId.HasValue
-            ? await _db.UserPreferences.FirstOrDefaultAsync(u => u.UserId == userId.Value)
-                ?? new UserPreference
-                {
-                    TravelStyle = "Kham pha tong hop",
-                    BudgetLevel = BudgetLevel.Medium,
-                    TravelPace = TravelPace.Balanced,
-                    CuisinePref = "Khong co yeu cau dac biet"
-                }
-            : new UserPreference
+        var pref = await _db.UserPreferences.FirstOrDefaultAsync(u => u.UserId == userId)
+            ?? new UserPreference
             {
                 TravelStyle = "Kham pha tong hop",
                 BudgetLevel = BudgetLevel.Medium,
@@ -115,16 +90,14 @@ public class ItineraryService : IItineraryService
             centerLat, 
             centerLng);
         
-        var promptServices = await GetAvailableServicesForPromptAsync(dest, tripStartDate, request.NumberOfDays, request.ServiceFilters);
-        var availableServiceEntities = await GetAvailableServiceEntitiesForPromptAsync(dest, tripStartDate, request.NumberOfDays, request.ServiceFilters);
-        var historyLogs = userId.HasValue
-            ? await _db.AISuggestionLogs
-                .AsNoTracking()
-                .Where(log => log.UserId == userId.Value)
-                .OrderByDescending(log => log.CreatedAt)
-                .Take(3)
-                .ToListAsync()
-            : new List<AISuggestionLog>();
+        var promptServices = await GetAvailableServicesForPromptAsync(dest, tripStartDate, request.NumberOfDays);
+        var availableServiceEntities = await GetAvailableServiceEntitiesForPromptAsync(dest, tripStartDate, request.NumberOfDays);
+        var historyLogs = await _db.AISuggestionLogs
+            .AsNoTracking()
+            .Where(log => log.UserId == userId)
+            .OrderByDescending(log => log.CreatedAt)
+            .Take(3)
+            .ToListAsync();
         var weatherData = centerLat.HasValue && centerLng.HasValue
             ? await _weatherService.GetWeatherAsync(centerLat.Value, centerLng.Value)
             : null;
@@ -146,26 +119,23 @@ public class ItineraryService : IItineraryService
             spotReviews,
             historyLogs,
             weatherData,
-            availableServiceEntities,
-            request.ServiceFilters);
+            availableServiceEntities);
         var rawAiResponse = await _gemini.CallApiAsync(
             prompt,
             systemPrompt: AIPrompts.ItinerarySystemPrompt,
             requireJsonResponse: true);
 
-        var aiLog = userId.HasValue ? new AISuggestionLog
+        var aiLog = new AISuggestionLog
         {
-            UserId = userId.Value,
+            UserId = userId,
             UserPrompt = prompt,
             AiResponseJson = rawAiResponse,
-            CreatedAt = DateTimeHelper.Now
-        } : null;
+            CreatedAt = DateTime.UtcNow
+        };
 
-        if (aiLog != null)
-        {
-            _db.AISuggestionLogs.Add(aiLog);
-            await _db.SaveChangesAsync();
-        }
+        _db.AISuggestionLogs.Add(aiLog);
+
+        await _db.SaveChangesAsync();
 
         if (GeminiService.TryExtractErrorMessage(rawAiResponse, out var aiError))
         {
@@ -179,11 +149,8 @@ public class ItineraryService : IItineraryService
 
             if (!string.IsNullOrWhiteSpace(repairedResponse))
             {
-                if (aiLog != null)
-                {
-                    aiLog.AiResponseJson = $"ORIGINAL RESPONSE:{Environment.NewLine}{rawAiResponse}{Environment.NewLine}{Environment.NewLine}REPAIRED RESPONSE:{Environment.NewLine}{repairedResponse}";
-                    await _db.SaveChangesAsync();
-                }
+                aiLog.AiResponseJson = $"ORIGINAL RESPONSE:{Environment.NewLine}{rawAiResponse}{Environment.NewLine}{Environment.NewLine}REPAIRED RESPONSE:{Environment.NewLine}{repairedResponse}";
+                await _db.SaveChangesAsync();
 
                 if (GeminiService.TryExtractErrorMessage(repairedResponse, out var repairError))
                 {
@@ -196,40 +163,11 @@ public class ItineraryService : IItineraryService
 
         if (parsed == null)
         {
-            if (userId.HasValue)
-            {
-                await _notificationService.NotifyUserAsync(userId.Value, "itinerary_processing", new
-                {
-                    status = "failed",
-                    destinationId = request.DestinationId,
-                    message = "AI chua tra ve lich trinh hop le."
-                });
-            }
-
             throw new InvalidOperationException(BuildInvalidJsonMessage(rawAiResponse));
         }
 
         parsed.StartDate = tripStartDate;
         parsed.EndDate = tripStartDate.AddDays(parsed.Days.Count);
-
-        // Lưu metadata vào log để analytics query thẳng DB — chỉ khi user đã đăng nhập
-        if (aiLog != null)
-        {
-            aiLog.DestinationName = dest.Name;
-            aiLog.EstimatedCost = parsed.TotalEstimatedCost > 0 ? parsed.TotalEstimatedCost : null;
-            await _db.SaveChangesAsync();
-        }
-
-        if (userId.HasValue)
-        {
-            await _notificationService.NotifyUserAsync(userId.Value, "itinerary_processing", new
-            {
-                status = "completed",
-                destination = dest.Name,
-                days = parsed.Days.Count,
-                message = "AI da tao xong lich trinh."
-            });
-        }
 
         return parsed;
     }
@@ -283,9 +221,6 @@ public class ItineraryService : IItineraryService
             foreach (var day in dto.Days.OrderBy(d => d.Day))
             {
                 var activities = day.Activities.ToList();
-                var dayStartDate = tripStartDate.AddDays(Math.Max(day.Day - 1, 0)).Date;
-                var currentTime = dayStartDate.AddHours(8); // Bắt đầu ngày lúc 8h sáng
-                TouristSpot? previousSpot = null;
 
                 for (var index = 0; index < activities.Count; index++)
                 {
@@ -295,22 +230,11 @@ public class ItineraryService : IItineraryService
                     var spot = ResolvePrimarySpot(service)
                         ?? spotCandidates.FirstOrDefault(candidate => IsPotentialSpotMatch(candidate, activity));
 
-                    // Nếu có activity trước đó, tính travel time
-                    if (previousSpot != null && spot != null)
-                    {
-                        var travelMinutes = EstimateTravelMinutes(previousSpot, spot);
-                        currentTime = currentTime.AddMinutes(travelMinutes);
-                    }
-
-                    var startTime = currentTime;
-
-                    // Parse duration từ AI response trước, fallback về service/spot duration
-                    var durationMinutes = ParseDurationFromActivity(activity.Duration);
-                    if (durationMinutes <= 0)
-                    {
-                        durationMinutes = ResolveDurationMinutes(service, spot);
-                    }
-
+                    var durationMinutes = ResolveDurationMinutes(service, spot);
+                    var startTime = tripStartDate
+                        .AddDays(Math.Max(day.Day - 1, 0))
+                        .Date
+                        .AddHours(8 + index * 3);
                     var endTime = startTime.AddMinutes(durationMinutes);
 
                     _db.ItineraryItems.Add(new ItineraryItem
@@ -322,10 +246,6 @@ public class ItineraryService : IItineraryService
                         EndTime = endTime,
                         ActivityOrder = order++
                     });
-
-                    // Cập nhật thời gian hiện tại và địa điểm trước đó
-                    currentTime = endTime;
-                    previousSpot = spot;
                 }
             }
 
@@ -462,11 +382,7 @@ public class ItineraryService : IItineraryService
         return await GetByIdAsync(id, userId);
     }
 
-    private async Task<List<PromptServiceOption>> GetAvailableServicesForPromptAsync(
-        Destination destination,
-        DateTime tripStartDate,
-        int totalDays,
-        ServiceFilterRequest? filters)
+    private async Task<List<PromptServiceOption>> GetAvailableServicesForPromptAsync(Destination destination, DateTime tripStartDate, int totalDays)
     {
         var tripDates = Enumerable.Range(0, Math.Max(totalDays, 1))
             .Select(offset => tripStartDate.Date.AddDays(offset))
@@ -478,18 +394,11 @@ public class ItineraryService : IItineraryService
             .Include(service => service.ServiceSpots)
                 .ThenInclude(serviceSpot => serviceSpot.TouristSpot)
             .Include(service => service.Availabilities)
-            .Include(service => service.Attributes)
             .Where(service => service.IsActive
-                && (service.ServiceType == ServiceType.Hotel 
-                    || service.ServiceType == ServiceType.Tour
-                    || service.ServiceType == ServiceType.Transport)  // Thêm Transport vào danh sách
+                && (service.ServiceType == ServiceType.Hotel || service.ServiceType == ServiceType.Tour)
                 && ((service.TouristSpot != null && service.TouristSpot.DestinationId == destination.DestinationId)
                     || service.ServiceSpots.Any(serviceSpot => serviceSpot.TouristSpot.DestinationId == destination.DestinationId)))
             .ToListAsync();
-
-        candidateServices = candidateServices
-            .Where(service => MatchesPromptServiceFilters(service, filters))
-            .ToList();
 
         var promptServices = candidateServices
             .Select(service =>
@@ -508,14 +417,6 @@ public class ItineraryService : IItineraryService
                 var price = matchingAvailabilities.FirstOrDefault(availability => availability.Price > 0)?.Price
                     ?? service.BasePrice;
 
-                // Xác định đơn vị giá dựa trên loại dịch vụ
-                string priceUnit = service.ServiceType switch
-                {
-                    ServiceType.Hotel => "dem",
-                    ServiceType.Transport => "ngay",  // Giá thuê xe theo ngày
-                    _ => "nguoi"
-                };
-
                 return new PromptServiceOption
                 {
                     ServiceId = service.ServiceId,
@@ -524,7 +425,7 @@ public class ItineraryService : IItineraryService
                     Location = primarySpot?.Name ?? destination.Name,
                     Description = service.Description,
                     Price = price,
-                    PriceUnit = priceUnit,
+                    PriceUnit = service.ServiceType == ServiceType.Hotel ? "dem" : "nguoi",
                     AvailableDates = matchingAvailabilities
                         .Select(availability => availability.Date.Date)
                         .Distinct()
@@ -537,18 +438,13 @@ public class ItineraryService : IItineraryService
             .SelectMany(group => group
                 .OrderBy(service => service.Price)
                 .ThenBy(service => service.Name)
-                .Take(group.Key == ServiceType.Hotel ? 6 : 
-                      group.Key == ServiceType.Transport ? 5 : 10))  // Giới hạn 5 xe cho Transport
+                .Take(group.Key == ServiceType.Hotel ? 6 : 10))
             .ToList();
 
         return promptServices;
     }
 
-    private async Task<List<Service>> GetAvailableServiceEntitiesForPromptAsync(
-        Destination destination,
-        DateTime tripStartDate,
-        int totalDays,
-        ServiceFilterRequest? filters)
+    private async Task<List<Service>> GetAvailableServiceEntitiesForPromptAsync(Destination destination, DateTime tripStartDate, int totalDays)
     {
         var tripDates = Enumerable.Range(0, Math.Max(totalDays, 1))
             .Select(offset => tripStartDate.Date.AddDays(offset))
@@ -560,7 +456,6 @@ public class ItineraryService : IItineraryService
             .Include(service => service.ServiceSpots)
                 .ThenInclude(serviceSpot => serviceSpot.TouristSpot)
             .Include(service => service.Availabilities)
-            .Include(service => service.Attributes)
             .Where(service => service.IsActive
                 && ((service.TouristSpot != null && service.TouristSpot.DestinationId == destination.DestinationId)
                     || service.ServiceSpots.Any(serviceSpot => serviceSpot.TouristSpot.DestinationId == destination.DestinationId)))
@@ -568,127 +463,9 @@ public class ItineraryService : IItineraryService
 
         // Chi dua cac service co availability dung lich trinh vao context combo.
         return services
-            .Where(service => MatchesPromptServiceFilters(service, filters))
             .Where(service => service.Availabilities.Any(availability =>
                 IsAvailabilityUsable(service.ServiceType, availability, tripStartDate.Date, tripDates)))
             .ToList();
-    }
-
-    private static bool MatchesPromptServiceFilters(Service service, ServiceFilterRequest? filters)
-    {
-        if (filters == null)
-        {
-            return true;
-        }
-
-        if (!string.IsNullOrWhiteSpace(filters.ServiceType)
-            && Enum.TryParse<ServiceType>(filters.ServiceType, true, out var serviceType)
-            && service.ServiceType != serviceType)
-        {
-            return false;
-        }
-
-        if (filters.MinPrice.HasValue && service.BasePrice < filters.MinPrice.Value)
-        {
-            return false;
-        }
-
-        if (filters.MaxPrice.HasValue && service.BasePrice > filters.MaxPrice.Value)
-        {
-            return false;
-        }
-
-        var rating = filters.MinRating ?? filters.Rating;
-        if (rating.HasValue && service.RatingAvg < rating.Value)
-        {
-            return false;
-        }
-
-        if (filters.HotelStars.HasValue
-            && !HasAttribute(service, "star", filters.HotelStars.Value.ToString(CultureInfo.InvariantCulture)))
-        {
-            return false;
-        }
-
-        if (filters.HotelAmenities?.Any() == true
-            && filters.HotelAmenities.Any(amenity => !HasAttribute(service, amenity, amenity)))
-        {
-            return false;
-        }
-
-        if (filters.TourThemes?.Any() == true
-            && !filters.TourThemes.Any(theme => HasAttribute(service, "theme", theme) || HasAttribute(service, "chu de", theme)))
-        {
-            return false;
-        }
-
-        if (!string.IsNullOrWhiteSpace(filters.TourDuration)
-            && !HasAttribute(service, "thoi", NormalizePromptDuration(filters.TourDuration)))
-        {
-            return false;
-        }
-
-        if (!string.IsNullOrWhiteSpace(filters.TransportType)
-            && !HasAttribute(service, "loai xe", filters.TransportType)
-            && !HasAttribute(service, "transporttype", filters.TransportType))
-        {
-            return false;
-        }
-
-        return filters.Attributes == null
-            || filters.Attributes.All(attribute => HasAttribute(service, attribute.Key, attribute.Value));
-    }
-
-    private static bool HasAttribute(Service service, string key, string value)
-    {
-        var normalizedKey = NormalizeFilterText(key);
-        var normalizedValue = NormalizeFilterText(value);
-
-        return service.Attributes.Any(attribute =>
-            NormalizeFilterText(attribute.AttrKey).Contains(normalizedKey, StringComparison.Ordinal)
-            && (string.IsNullOrWhiteSpace(normalizedValue)
-                || NormalizeFilterText(attribute.AttrValue).Contains(normalizedValue, StringComparison.Ordinal)))
-            || service.Attributes.Any(attribute =>
-                NormalizeFilterText(attribute.AttrValue).Contains(normalizedValue, StringComparison.Ordinal));
-    }
-
-    private static string NormalizePromptDuration(string duration)
-    {
-        return duration.ToLowerInvariant() switch
-        {
-            "1day" => "1 ngay",
-            "2days1night" => "2 ngay",
-            "3days2nights" => "3 ngay",
-            _ => duration
-        };
-    }
-
-    private static string NormalizeFilterText(string value)
-    {
-        return value
-            .Trim()
-            .ToLowerInvariant()
-            .Replace("ờ", "o", StringComparison.Ordinal)
-            .Replace("ở", "o", StringComparison.Ordinal)
-            .Replace("ồ", "o", StringComparison.Ordinal)
-            .Replace("ố", "o", StringComparison.Ordinal)
-            .Replace("ơ", "o", StringComparison.Ordinal)
-            .Replace("á", "a", StringComparison.Ordinal)
-            .Replace("à", "a", StringComparison.Ordinal)
-            .Replace("ạ", "a", StringComparison.Ordinal)
-            .Replace("ả", "a", StringComparison.Ordinal)
-            .Replace("ã", "a", StringComparison.Ordinal)
-            .Replace("â", "a", StringComparison.Ordinal)
-            .Replace("ă", "a", StringComparison.Ordinal)
-            .Replace("ê", "e", StringComparison.Ordinal)
-            .Replace("é", "e", StringComparison.Ordinal)
-            .Replace("è", "e", StringComparison.Ordinal)
-            .Replace("í", "i", StringComparison.Ordinal)
-            .Replace("ì", "i", StringComparison.Ordinal)
-            .Replace("ú", "u", StringComparison.Ordinal)
-            .Replace("ù", "u", StringComparison.Ordinal)
-            .Replace("ư", "u", StringComparison.Ordinal)
-            .Replace("đ", "d", StringComparison.Ordinal);
     }
 
     private static List<DayPlanDto> BuildDayPlans(Itinerary itinerary, List<ItineraryItem> orderedItems)
@@ -765,32 +542,6 @@ public class ItineraryService : IItineraryService
             durationMinutes = ResolveDurationMinutes(service, spot);
         }
 
-        // Get coordinates from service or spot
-        double? latitude = null;
-        double? longitude = null;
-        
-        if (service != null && service.Latitude != 0 && service.Longitude != 0)
-        {
-            latitude = service.Latitude;
-            longitude = service.Longitude;
-        }
-        else if (spot != null && spot.Latitude != 0 && spot.Longitude != 0)
-        {
-            latitude = spot.Latitude;
-            longitude = spot.Longitude;
-        }
-
-        // Get image URL
-        string? imageUrl = null;
-        if (service?.Images?.Any() == true)
-        {
-            imageUrl = service.Images.FirstOrDefault()?.ImageUrl;
-        }
-        else if (!string.IsNullOrEmpty(spot?.ImageUrl))
-        {
-            imageUrl = spot.ImageUrl;
-        }
-
         return new ActivityDto
         {
             Title = service?.Name ?? spot?.Name ?? $"Activity {item.ActivityOrder.ToString(CultureInfo.InvariantCulture)}",
@@ -798,12 +549,7 @@ public class ItineraryService : IItineraryService
             Description = service?.Description ?? spot?.Description ?? "No description available.",
             Duration = FormatDuration(durationMinutes, service?.ServiceType),
             EstimatedCost = service?.BasePrice ?? 0,
-            ServiceId = service?.ServiceId,
-            Latitude = latitude,
-            Longitude = longitude,
-            ImageUrl = imageUrl,
-            StartTime = item.StartTime.ToString("HH:mm"),
-            EndTime = item.EndTime.ToString("HH:mm")
+            ServiceId = service?.ServiceId
         };
     }
 
@@ -889,106 +635,6 @@ public class ItineraryService : IItineraryService
         }
 
         return source.Contains(target, StringComparison.OrdinalIgnoreCase);
-    }
-
-    /// <summary>
-    /// Parse duration string từ AI response (ví dụ: "2 giờ", "90 phút", "1.5 hours", "2h30m")
-    /// Trả về số phút. Nếu không parse được, trả về 0.
-    /// </summary>
-    private static int ParseDurationFromActivity(string? duration)
-    {
-        if (string.IsNullOrWhiteSpace(duration))
-        {
-            return 0;
-        }
-
-        var normalized = duration.Trim().ToLowerInvariant();
-        var totalMinutes = 0;
-
-        // Pattern 1: "X giờ" hoặc "X gio"
-        var hoursVietnameseMatch = System.Text.RegularExpressions.Regex.Match(
-            normalized, 
-            @"(\d+(?:[.,]\d+)?)\s*(?:giờ|gio|tiếng|tieng)"
-        );
-        if (hoursVietnameseMatch.Success)
-        {
-            if (double.TryParse(
-                hoursVietnameseMatch.Groups[1].Value.Replace(',', '.'), 
-                System.Globalization.NumberStyles.Float,
-                System.Globalization.CultureInfo.InvariantCulture,
-                out var hours))
-            {
-                totalMinutes += (int)(hours * 60);
-            }
-        }
-
-        // Pattern 2: "X phút" hoặc "X phut"
-        var minutesVietnameseMatch = System.Text.RegularExpressions.Regex.Match(
-            normalized, 
-            @"(\d+)\s*(?:phút|phut)"
-        );
-        if (minutesVietnameseMatch.Success)
-        {
-            if (int.TryParse(minutesVietnameseMatch.Groups[1].Value, out var minutes))
-            {
-                totalMinutes += minutes;
-            }
-        }
-
-        // Pattern 3: "X hours" hoặc "X hour" hoặc "X hrs" hoặc "X hr"
-        var hoursEnglishMatch = System.Text.RegularExpressions.Regex.Match(
-            normalized, 
-            @"(\d+(?:[.,]\d+)?)\s*(?:hours?|hrs?)"
-        );
-        if (hoursEnglishMatch.Success)
-        {
-            if (double.TryParse(
-                hoursEnglishMatch.Groups[1].Value.Replace(',', '.'), 
-                System.Globalization.NumberStyles.Float,
-                System.Globalization.CultureInfo.InvariantCulture,
-                out var hours))
-            {
-                totalMinutes += (int)(hours * 60);
-            }
-        }
-
-        // Pattern 4: "X minutes" hoặc "X minute" hoặc "X mins" hoặc "X min"
-        var minutesEnglishMatch = System.Text.RegularExpressions.Regex.Match(
-            normalized, 
-            @"(\d+)\s*(?:minutes?|mins?)"
-        );
-        if (minutesEnglishMatch.Success)
-        {
-            if (int.TryParse(minutesEnglishMatch.Groups[1].Value, out var minutes))
-            {
-                totalMinutes += minutes;
-            }
-        }
-
-        // Pattern 5: "Xh Ym" hoặc "XhYm" (ví dụ: "2h30m", "1h 45m")
-        var compactMatch = System.Text.RegularExpressions.Regex.Match(
-            normalized, 
-            @"(\d+)\s*h(?:ours?)?\s*(\d+)?\s*m(?:in(?:ute)?s?)?"
-        );
-        if (compactMatch.Success)
-        {
-            if (int.TryParse(compactMatch.Groups[1].Value, out var hours))
-            {
-                totalMinutes += hours * 60;
-            }
-            if (compactMatch.Groups[2].Success && int.TryParse(compactMatch.Groups[2].Value, out var minutes))
-            {
-                totalMinutes += minutes;
-            }
-        }
-
-        // Pattern 6: Chỉ có số (giả định là phút nếu < 24, giờ nếu >= 24)
-        if (totalMinutes == 0 && int.TryParse(normalized, out var numericValue))
-        {
-            totalMinutes = numericValue < 24 ? numericValue * 60 : numericValue;
-        }
-
-        return totalMinutes;
     }
 
     private static string FormatDuration(int totalMinutes, ServiceType? serviceType = null)
@@ -1118,200 +764,10 @@ Yeu cau:
             AppendOverflowItems(remaining, scheduledItems, itineraryStartDate, dayCount);
         }
 
-        // Áp dụng 2-opt để cải thiện thứ tự trong từng ngày, giảm tổng quãng đường đi lại.
-        scheduledItems = Apply2OptPerDay(scheduledItems, itineraryStartDate, dayCount);
-
         return scheduledItems
             .OrderBy(item => item.StartTime)
             .ThenBy(item => item.Candidate.Item.ItemId)
             .ToList();
-    }
-
-    /// <summary>
-    /// Áp dụng thuật toán 2-opt cho từng ngày riêng biệt.
-    /// Với mỗi ngày, thử đảo ngược mọi đoạn con [i..j] trong chuỗi điểm tham quan.
-    /// Nếu tổng khoảng cách giảm, giữ lại hoán vị đó và lặp lại cho đến khi không còn cải thiện.
-    /// Sau khi tìm được thứ tự tốt hơn, tính lại StartTime/EndTime theo thứ tự mới.
-    /// </summary>
-    private static List<ScheduledOptimizeItem> Apply2OptPerDay(
-        List<ScheduledOptimizeItem> scheduledItems,
-        DateTime itineraryStartDate,
-        int dayCount)
-    {
-        var result = new List<ScheduledOptimizeItem>(scheduledItems);
-
-        for (var dayIndex = 0; dayIndex < dayCount; dayIndex++)
-        {
-            var day = itineraryStartDate.Date.AddDays(dayIndex);
-            var dayItems = result
-                .Where(item => item.StartTime.Date == day)
-                .OrderBy(item => item.StartTime)
-                .ToList();
-
-            if (dayItems.Count < 3)
-            {
-                continue; // 2-opt cần ít nhất 3 điểm để có ý nghĩa
-            }
-
-            var improved = true;
-            while (improved)
-            {
-                improved = false;
-                for (var i = 0; i < dayItems.Count - 1; i++)
-                {
-                    for (var j = i + 1; j < dayItems.Count; j++)
-                    {
-                        var currentDistance = TwoOptSegmentDistance(dayItems, i, j);
-                        var reversedDistance = TwoOptReversedDistance(dayItems, i, j);
-
-                        if (reversedDistance < currentDistance - 0.01) // ngưỡng 10m để tránh float noise
-                        {
-                            // Đảo ngược đoạn [i..j]
-                            dayItems.Reverse(i, j - i + 1);
-                            improved = true;
-                        }
-                    }
-                }
-            }
-
-            // Tính lại thời gian theo thứ tự mới, giữ nguyên session boundaries
-            var rescheduled = RescheduleDay(dayItems, day);
-
-            // Thay thế các item của ngày này trong result
-            foreach (var old in dayItems)
-            {
-                result.Remove(old);
-            }
-
-            result.AddRange(rescheduled);
-        }
-
-        return result;
-    }
-
-    /// <summary>
-    /// Tổng khoảng cách của chuỗi hiện tại trong đoạn [i-1 → i → ... → j → j+1].
-    /// </summary>
-    private static double TwoOptSegmentDistance(List<ScheduledOptimizeItem> items, int i, int j)
-    {
-        var dist = 0.0;
-        if (i > 0)
-        {
-            dist += CalculateHaversineDistance(
-                items[i - 1].Candidate.Spot.Latitude, items[i - 1].Candidate.Spot.Longitude,
-                items[i].Candidate.Spot.Latitude, items[i].Candidate.Spot.Longitude);
-        }
-
-        for (var k = i; k < j; k++)
-        {
-            dist += CalculateHaversineDistance(
-                items[k].Candidate.Spot.Latitude, items[k].Candidate.Spot.Longitude,
-                items[k + 1].Candidate.Spot.Latitude, items[k + 1].Candidate.Spot.Longitude);
-        }
-
-        if (j < items.Count - 1)
-        {
-            dist += CalculateHaversineDistance(
-                items[j].Candidate.Spot.Latitude, items[j].Candidate.Spot.Longitude,
-                items[j + 1].Candidate.Spot.Latitude, items[j + 1].Candidate.Spot.Longitude);
-        }
-
-        return dist;
-    }
-
-    /// <summary>
-    /// Tổng khoảng cách nếu đảo ngược đoạn [i..j].
-    /// Chỉ cần tính lại 2 cạnh nối vào đoạn, phần bên trong không đổi tổng.
-    /// </summary>
-    private static double TwoOptReversedDistance(List<ScheduledOptimizeItem> items, int i, int j)
-    {
-        var dist = 0.0;
-        if (i > 0)
-        {
-            // Cạnh mới: [i-1] → [j] (thay vì [i-1] → [i])
-            dist += CalculateHaversineDistance(
-                items[i - 1].Candidate.Spot.Latitude, items[i - 1].Candidate.Spot.Longitude,
-                items[j].Candidate.Spot.Latitude, items[j].Candidate.Spot.Longitude);
-        }
-
-        // Phần bên trong đoạn [i..j] đi ngược lại — tổng khoảng cách không đổi
-        for (var k = i; k < j; k++)
-        {
-            dist += CalculateHaversineDistance(
-                items[k].Candidate.Spot.Latitude, items[k].Candidate.Spot.Longitude,
-                items[k + 1].Candidate.Spot.Latitude, items[k + 1].Candidate.Spot.Longitude);
-        }
-
-        if (j < items.Count - 1)
-        {
-            // Cạnh mới: [i] → [j+1] (thay vì [j] → [j+1])
-            dist += CalculateHaversineDistance(
-                items[i].Candidate.Spot.Latitude, items[i].Candidate.Spot.Longitude,
-                items[j + 1].Candidate.Spot.Latitude, items[j + 1].Candidate.Spot.Longitude);
-        }
-
-        return dist;
-    }
-
-    /// <summary>
-    /// Tính lại StartTime/EndTime cho các item trong một ngày theo thứ tự mới từ 2-opt.
-    /// Giữ nguyên session boundaries (sáng 8-12, chiều 13-17, tối 18-22).
-    /// </summary>
-    private static List<ScheduledOptimizeItem> RescheduleDay(
-        List<ScheduledOptimizeItem> dayItems,
-        DateTime day)
-    {
-        var sessions = new List<DaySession>
-        {
-            new(DaySessionKind.Morning,   day.AddHours(8),  day.AddHours(12)),
-            new(DaySessionKind.Afternoon, day.AddHours(13), day.AddHours(17)),
-            new(DaySessionKind.Evening,   day.AddHours(18), day.AddHours(22))
-        };
-
-        var rescheduled = new List<ScheduledOptimizeItem>();
-        var queue = new Queue<ScheduledOptimizeItem>(dayItems);
-        TouristSpot? previousSpot = null;
-
-        foreach (var session in sessions)
-        {
-            var currentTime = session.Kind == DaySessionKind.Afternoon
-                ? MaxDateTime(session.Start, day.AddHours(13))
-                : session.Start;
-
-            while (queue.Count > 0 && currentTime < session.End)
-            {
-                var item = queue.Peek();
-                var travelMinutes = previousSpot == null
-                    ? 0
-                    : EstimateTravelMinutes(previousSpot, item.Candidate.Spot);
-                var proposedStart = currentTime.AddMinutes(travelMinutes);
-
-                if (!TryAdjustStartToOpeningHours(
-                    item.Candidate.Spot,
-                    proposedStart,
-                    item.Candidate.DurationMinutes,
-                    session.End,
-                    out var adjustedStart))
-                {
-                    break; // Không vừa session này, để session sau xử lý
-                }
-
-                queue.Dequeue();
-                var endTime = adjustedStart.AddMinutes(item.Candidate.DurationMinutes);
-                rescheduled.Add(new ScheduledOptimizeItem(item.Candidate, adjustedStart, endTime));
-                previousSpot = item.Candidate.Spot;
-                currentTime = endTime;
-            }
-        }
-
-        // Các item không vừa session nào — giữ nguyên thời gian gốc để không mất dữ liệu
-        while (queue.Count > 0)
-        {
-            var item = queue.Dequeue();
-            rescheduled.Add(item);
-        }
-
-        return rescheduled;
     }
 
     private static OptimizeCandidate? SelectBestCandidate(

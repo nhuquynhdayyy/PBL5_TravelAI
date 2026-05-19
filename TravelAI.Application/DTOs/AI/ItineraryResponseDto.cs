@@ -84,19 +84,4 @@ public class ActivityDto {
 
     [JsonPropertyName("service_id")]
     public int? ServiceIdAlias { get => ServiceId; set => ServiceId = value; }
-
-    [JsonPropertyName("latitude")]
-    public double? Latitude { get; set; }
-
-    [JsonPropertyName("longitude")]
-    public double? Longitude { get; set; }
-
-    [JsonPropertyName("imageUrl")]
-    public string? ImageUrl { get; set; }
-
-    [JsonPropertyName("startTime")]
-    public string? StartTime { get; set; }
-
-    [JsonPropertyName("endTime")]
-    public string? EndTime { get; set; }
 }

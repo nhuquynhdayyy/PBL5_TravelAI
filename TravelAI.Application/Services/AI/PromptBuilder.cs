@@ -3,7 +3,6 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using TravelAI.Application.DTOs.AI;
-using TravelAI.Application.DTOs.Service;
 using TravelAI.Application.Interfaces;
 using TravelAI.Domain.Entities;
 using TravelAI.Domain.Enums;
@@ -55,8 +54,7 @@ public class PromptBuilder
         List<Review>? reviews = null,
         List<AISuggestionLog>? historyLogs = null,
         dynamic? weatherData = null,
-        List<Service>? availableServiceEntities = null,
-        ServiceFilterRequest? serviceFilters = null)
+        List<Service>? availableServiceEntities = null)
     {
         var openSpots = spots
             .Where(spot => IsSpotOpenForTrip(spot, startDate, days))
@@ -91,23 +89,13 @@ public class PromptBuilder
         var serviceOptions = availableServices?.ToList() ?? new List<PromptServiceOption>();
         var hotelLines = BuildServiceLines(serviceOptions.Where(service => service.ServiceType == ServiceType.Hotel));
         var tourLines = BuildServiceLines(serviceOptions.Where(service => service.ServiceType == ServiceType.Tour));
-        var transportLines = BuildServiceLines(serviceOptions.Where(service => service.ServiceType == ServiceType.Transport));
         var travelStyle = FormatTravelStyle(pref.TravelStyle);
         var budgetLevel = FormatBudgetLevel(pref.BudgetLevel);
         var travelPace = FormatTravelPace(pref.TravelPace);
         var cuisinePreference = FormatCuisinePreference(pref.CuisinePref);
         var historyLines = BuildHistoryContext(historyLogs);
         var weatherLines = BuildWeatherContext(weatherData);
-        var holidayLines = BuildHolidayContext(startDate, days);
         var comboLines = BuildServiceComboLines(availableServiceEntities);
-        var filterLines = BuildServiceFilterContext(serviceFilters);
-        
-        // Kiểm tra TravelStyle để ưu tiên gợi ý xe
-        var normalizedTravelStyle = RemoveDiacritics(travelStyle).ToLowerInvariant();
-        var shouldPrioritizeTransport = pref.BudgetLevel == BudgetLevel.High
-                                      || normalizedTravelStyle.Contains("phuot", StringComparison.Ordinal)
-                                      || normalizedTravelStyle.Contains("tu tuc", StringComparison.Ordinal)
-                                      || normalizedTravelStyle.Contains("backpacker", StringComparison.Ordinal);
 
         var prompt = new StringBuilder();
         prompt.AppendLine($"Ban la chuyen gia lap ke hoach du lich. Hay lap lich trinh {days} ngay tai {dest.Name}.");
@@ -122,7 +110,6 @@ public class PromptBuilder
         prompt.AppendLine("5. Tuyet doi khong tu suy doan service_id. Neu activity khong phai mot dich vu co trong danh sach he thong, service_id phai la null.");
         prompt.AppendLine("6. Chi duoc gan service_id cho mot activity vao dung ngay co availability duoc liet ke ben duoi.");
         prompt.AppendLine("7. Chi su dung cac dia danh co gio mo cua phu hop voi lich trinh du kien.");
-        prompt.AppendLine("8. Neu tra ve bat ky danh sach dich vu goi y nao trong JSON, moi object dich vu BAT BUOC co field \"service_id\" bang ID that tu danh sach DICH VU HE THONG; neu khong tim thay ID hop le thi de \"service_id\": null va khong bia ID.");
         prompt.AppendLine();
         prompt.AppendLine("### NGU CANH LICH SU:");
         prompt.AppendLine(historyLines);
@@ -130,30 +117,17 @@ public class PromptBuilder
         prompt.AppendLine("### THOI TIET DU KIEN:");
         prompt.AppendLine(weatherLines);
         prompt.AppendLine();
-        prompt.AppendLine("### SU KIEN DAC BIET VA NGAY NGHI LE:");
-        prompt.AppendLine(holidayLines);
-        prompt.AppendLine();
         prompt.AppendLine("### DIA DANH HE THONG:");
         prompt.AppendLine(destinationSpots.Count > 0
             ? string.Join("\n", destinationSpots)
             : "Khong co dia danh nao trong he thong cho diem den nay hoac khong co dia danh phu hop gio mo cua.");
         prompt.AppendLine();
         prompt.AppendLine("### CAC DICH VU CO SAN TRONG HE THONG:");
-        prompt.AppendLine("Bo loc dich vu dang ap dung:");
-        prompt.AppendLine(filterLines);
-        prompt.AppendLine();
         prompt.AppendLine("Khach san:");
         prompt.AppendLine(hotelLines);
         prompt.AppendLine();
         prompt.AppendLine("Tour:");
         prompt.AppendLine(tourLines);
-        prompt.AppendLine();
-        prompt.AppendLine("Thue xe (Oto/Xe may tu lai):");
-        prompt.AppendLine(transportLines);
-        if (shouldPrioritizeTransport)
-        {
-            prompt.AppendLine("*** LUU Y: Nguoi dung co ngan sach cao hoac phong cach Phuot/Tu tuc. Hay UU TIEN chen dich vu THUE XE (ServiceType = 2, xe may hoac o to tu lai) vao lich trinh thay vi goi y taxi, bus hoac xe khach khi co service_id kha dung. ***");
-        }
         prompt.AppendLine();
         prompt.AppendLine("### GOI Y COMBO DICH VU - DIA DANH:");
         prompt.AppendLine(comboLines);
@@ -171,29 +145,7 @@ public class PromptBuilder
         prompt.AppendLine("- Nhip do moi ngay phai phu hop voi so thich ve toc do chuyen di.");
         prompt.AppendLine("- Goi y an uong va diem dung chan phai phu hop voi so thich am thuc neu co.");
         prompt.AppendLine();
-        prompt.Append("YEU CAU DAU RA: Tra ve JSON theo dung schema sau, KHONG them bat ky text nao ngoai JSON:\n");
-        prompt.AppendLine("{");
-        prompt.AppendLine("  \"tripTitle\": \"string\",");
-        prompt.AppendLine("  \"destination\": \"string\",");
-        prompt.AppendLine("  \"totalEstimatedCost\": number,");
-        prompt.AppendLine("  \"days\": [");
-        prompt.AppendLine("    {");
-        prompt.AppendLine("      \"day\": number,");
-        prompt.AppendLine("      \"date\": \"dd/MM/yyyy\",");
-        prompt.AppendLine("      \"activities\": [");
-        prompt.AppendLine("        {");
-        prompt.AppendLine("          \"title\": \"string\",");
-        prompt.AppendLine("          \"location\": \"string\",");
-        prompt.AppendLine("          \"description\": \"string\",");
-        prompt.AppendLine("          \"duration\": \"X gio Y phut (vi du: 2 gio, 90 phut, 1 gio 30 phut)\",");
-        prompt.AppendLine("          \"estimatedCost\": number,");
-        prompt.AppendLine("          \"service_id\": number_or_null");
-        prompt.AppendLine("        }");
-        prompt.AppendLine("      ]");
-        prompt.AppendLine("    }");
-        prompt.AppendLine("  ]");
-        prompt.AppendLine("}");
-        prompt.AppendLine("Luu y quan trong: field 'duration' BAT BUOC phai co va phai la thoi gian thuc te cua hoat dong do (vi du: tham quan bao tang 2 gio, an trua 1 gio, check-in khach san 30 phut). Tinh toan 'estimatedCost' la 0 cho cac diem tu do va dung gia he thong cho cac diem chinh thuc. Moi activity phai co field service_id. Lich trinh phai khop voi ngay bat dau da cung cap.");
+        prompt.Append("YEU CAU DAU RA: Tra ve JSON theo dung schema, tinh toan 'estimatedCost' la 0 cho cac diem tu do va dung gia he thong cho cac diem chinh thuc. Moi activity phai co field service_id. Lich trinh phai khop voi ngay bat dau da cung cap.");
 
         return prompt.ToString();
     }
@@ -241,86 +193,6 @@ public class PromptBuilder
             + "\n- Hay tranh lap lai cac goi y nguoi dung co the da tu choi va bam sat phong cach da the hien trong cac phan hoi truoc.";
     }
 
-    /// <summary>
-    /// Lịch nghỉ lễ Việt Nam cố định theo năm (ngày/tháng).
-    /// Tết Nguyên Đán dùng ngày dương lịch xấp xỉ — thay đổi mỗi năm nên hardcode ±3 ngày quanh mốc phổ biến.
-    /// </summary>
-    private static readonly IReadOnlyList<(int Month, int Day, string Name, int SpreadDays)> VietnameseHolidays =
-        new List<(int, int, string, int)>
-        {
-            // Tết Dương lịch
-            (1,  1,  "Tết Dương lịch",          1),
-            // Tết Nguyên Đán (xấp xỉ — thường rơi vào cuối Jan đến giữa Feb)
-            (1,  29, "Tết Nguyên Đán",           7),
-            // Giỗ Tổ Hùng Vương (10/3 âm lịch ≈ tháng 4 dương)
-            (4,  18, "Giỗ Tổ Hùng Vương",        1),
-            // Ngày Giải phóng miền Nam
-            (4,  30, "Ngày Giải phóng miền Nam", 1),
-            // Ngày Quốc tế Lao động
-            (5,  1,  "Ngày Quốc tế Lao động",    1),
-            // Ngày Quốc khánh
-            (9,  2,  "Ngày Quốc khánh",          2),
-            // Lễ Vu Lan (15/7 âm lịch ≈ tháng 8 dương)
-            (8,  18, "Lễ Vu Lan",                1),
-            // Tết Trung Thu (15/8 âm lịch ≈ tháng 9-10 dương)
-            (9,  29, "Tết Trung Thu",             1),
-        };
-
-    /// <summary>
-    /// Trả về danh sách lễ hội/ngày nghỉ lễ trùng hoặc gần với khoảng thời gian chuyến đi.
-    /// </summary>
-    private static List<string> GetHolidaysInRange(DateTime startDate, int days)
-    {
-        var endDate = startDate.AddDays(days - 1);
-        var result = new List<string>();
-
-        foreach (var (month, day, name, spreadDays) in VietnameseHolidays)
-        {
-            // Thử cả năm hiện tại và năm kế tiếp (chuyến đi có thể vắt qua năm mới)
-            foreach (var year in new[] { startDate.Year, startDate.Year + 1 })
-            {
-                DateTime holidayDate;
-                try
-                {
-                    holidayDate = new DateTime(year, month, day);
-                }
-                catch
-                {
-                    continue;
-                }
-
-                // Mở rộng window theo spreadDays (ví dụ Tết kéo dài 7 ngày)
-                var holidayStart = holidayDate;
-                var holidayEnd = holidayDate.AddDays(spreadDays - 1);
-
-                // Kiểm tra overlap giữa [startDate, endDate] và [holidayStart, holidayEnd]
-                if (holidayStart <= endDate && holidayEnd >= startDate)
-                {
-                    var dateLabel = spreadDays > 1
-                        ? $"{holidayStart:dd/MM} – {holidayEnd:dd/MM/yyyy}"
-                        : holidayStart.ToString("dd/MM/yyyy");
-                    result.Add($"{name} ({dateLabel})");
-                    break; // Đã match năm này, không cần thử năm kế
-                }
-            }
-        }
-
-        return result;
-    }
-
-    private static string BuildHolidayContext(DateTime startDate, int days)
-    {
-        var holidays = GetHolidaysInRange(startDate, days);
-        if (holidays.Count == 0)
-        {
-            return "- Khong co ngay le hoac le hoi lon trong khoang thoi gian nay.";
-        }
-
-        var lines = holidays.Select(h => $"- {h}");
-        return string.Join("\n", lines)
-            + "\n- Luu y: cac diem tham quan co the dong cua hoac tang gia vao ngay le. Uu tien goi y cac hoat dong phu hop voi khong khi le hoi.";
-    }
-
     private static string BuildWeatherContext(dynamic? weatherData)
     {
         var status = ReadWeatherValue(weatherData, "Status");
@@ -362,44 +234,6 @@ public class PromptBuilder
         return combos.Count == 0
             ? "- Khong co combo dich vu - dia danh phu hop."
             : string.Join("\n", combos);
-    }
-
-    private static string BuildServiceFilterContext(ServiceFilterRequest? filters)
-    {
-        if (filters == null)
-        {
-            return "- Khong co bo loc dich vu bo sung.";
-        }
-
-        var lines = new List<string>();
-        AddLine(lines, "Loai dich vu", filters.ServiceType);
-        AddLine(lines, "Gia tu", filters.MinPrice?.ToString("0.##", CultureInfo.InvariantCulture));
-        AddLine(lines, "Gia den", filters.MaxPrice?.ToString("0.##", CultureInfo.InvariantCulture));
-        AddLine(lines, "Danh gia toi thieu", (filters.MinRating ?? filters.Rating)?.ToString("0.#", CultureInfo.InvariantCulture));
-        AddLine(lines, "DestinationId", filters.DestinationId?.ToString(CultureInfo.InvariantCulture));
-        AddLine(lines, "Hang sao khach san", filters.HotelStars?.ToString(CultureInfo.InvariantCulture));
-        AddLine(lines, "Tien ich khach san", filters.HotelAmenities == null ? null : string.Join(", ", filters.HotelAmenities));
-        AddLine(lines, "Chu de tour", filters.TourThemes == null ? null : string.Join(", ", filters.TourThemes));
-        AddLine(lines, "Thoi luong tour", filters.TourDuration);
-        AddLine(lines, "Loai xe", filters.TransportType);
-        AddLine(lines, "Buoi khoi hanh", filters.DepartureTime);
-
-        if (filters.Attributes?.Count > 0)
-        {
-            lines.Add("- Thuoc tinh dong: " + string.Join("; ", filters.Attributes.Select(item => $"{item.Key}={item.Value}")));
-        }
-
-        return lines.Count == 0
-            ? "- Khong co bo loc dich vu bo sung."
-            : string.Join("\n", lines);
-    }
-
-    private static void AddLine(List<string> lines, string label, string? value)
-    {
-        if (!string.IsNullOrWhiteSpace(value))
-        {
-            lines.Add($"- {label}: {value}");
-        }
     }
 
     private static IEnumerable<TouristSpot> ResolveLinkedSpots(Service service)
@@ -551,27 +385,6 @@ public class PromptBuilder
         return string.IsNullOrWhiteSpace(travelStyle)
             ? "Khong co yeu cau dac biet"
             : travelStyle.Trim();
-    }
-
-    private static string RemoveDiacritics(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return string.Empty;
-        }
-
-        var normalized = value.Normalize(NormalizationForm.FormD);
-        var builder = new StringBuilder(normalized.Length);
-
-        foreach (var character in normalized)
-        {
-            if (CharUnicodeInfo.GetUnicodeCategory(character) != UnicodeCategory.NonSpacingMark)
-            {
-                builder.Append(character);
-            }
-        }
-
-        return builder.ToString().Normalize(NormalizationForm.FormC);
     }
 
     private static string FormatBudgetLevel(BudgetLevel budgetLevel)

@@ -5,7 +5,6 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using TravelAI.Application.DTOs.Auth;
-using TravelAI.Application.Helpers;
 using TravelAI.Domain.Entities;
 using TravelAI.Infrastructure.Persistence;
 
@@ -39,7 +38,7 @@ public class AuthService
                 FullName = request.FullName,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
                 RoleId = request.IsPartner ? 2 : 3,
-                CreatedAt = DateTimeHelper.Now
+                CreatedAt = DateTime.UtcNow
             };
 
             _context.Users.Add(user);
@@ -103,7 +102,7 @@ public class AuthService
             _config["Jwt:Issuer"],
             _config["Jwt:Audience"],
             claims,
-            expires: DateTimeHelper.Now.AddDays(7),
+            expires: DateTime.Now.AddDays(7),
             signingCredentials: creds
         );
 
