@@ -480,7 +480,9 @@ public class ItineraryService : IItineraryService
             .Include(service => service.Availabilities)
             .Include(service => service.Attributes)
             .Where(service => service.IsActive
-                && (service.ServiceType == ServiceType.Hotel || service.ServiceType == ServiceType.Tour)
+                && (service.ServiceType == ServiceType.Hotel 
+                    || service.ServiceType == ServiceType.Tour
+                    || service.ServiceType == ServiceType.Transport)  // Thêm Transport vào danh sách
                 && ((service.TouristSpot != null && service.TouristSpot.DestinationId == destination.DestinationId)
                     || service.ServiceSpots.Any(serviceSpot => serviceSpot.TouristSpot.DestinationId == destination.DestinationId)))
             .ToListAsync();
@@ -506,6 +508,14 @@ public class ItineraryService : IItineraryService
                 var price = matchingAvailabilities.FirstOrDefault(availability => availability.Price > 0)?.Price
                     ?? service.BasePrice;
 
+                // Xác định đơn vị giá dựa trên loại dịch vụ
+                string priceUnit = service.ServiceType switch
+                {
+                    ServiceType.Hotel => "dem",
+                    ServiceType.Transport => "ngay",  // Giá thuê xe theo ngày
+                    _ => "nguoi"
+                };
+
                 return new PromptServiceOption
                 {
                     ServiceId = service.ServiceId,
@@ -514,7 +524,7 @@ public class ItineraryService : IItineraryService
                     Location = primarySpot?.Name ?? destination.Name,
                     Description = service.Description,
                     Price = price,
-                    PriceUnit = service.ServiceType == ServiceType.Hotel ? "dem" : "nguoi",
+                    PriceUnit = priceUnit,
                     AvailableDates = matchingAvailabilities
                         .Select(availability => availability.Date.Date)
                         .Distinct()
@@ -527,7 +537,8 @@ public class ItineraryService : IItineraryService
             .SelectMany(group => group
                 .OrderBy(service => service.Price)
                 .ThenBy(service => service.Name)
-                .Take(group.Key == ServiceType.Hotel ? 6 : 10))
+                .Take(group.Key == ServiceType.Hotel ? 6 : 
+                      group.Key == ServiceType.Transport ? 5 : 10))  // Giới hạn 5 xe cho Transport
             .ToList();
 
         return promptServices;

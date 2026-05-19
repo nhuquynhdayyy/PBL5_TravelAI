@@ -5,6 +5,7 @@ export interface CartItem {
   serviceId: number;
   serviceName: string;
   checkInDate: Date;
+  checkOutDate?: Date;  // Thêm ngày trả cho dịch vụ Transport
   quantity: number;
   price: number;
 }
@@ -41,11 +42,12 @@ const parseCartItems = (value: string | null): CartItem[] => {
   if (!value) return [];
 
   try {
-    const parsed = JSON.parse(value) as Array<Omit<CartItem, 'checkInDate'> & { checkInDate: string }>;
+    const parsed = JSON.parse(value) as Array<Omit<CartItem, 'checkInDate' | 'checkOutDate'> & { checkInDate: string; checkOutDate?: string }>;
     return parsed
       .map((item) => ({
         ...item,
         checkInDate: new Date(item.checkInDate),
+        checkOutDate: item.checkOutDate ? new Date(item.checkOutDate) : undefined,
         quantity: Number(item.quantity) || 1,
         price: Number(item.price) || 0
       }))

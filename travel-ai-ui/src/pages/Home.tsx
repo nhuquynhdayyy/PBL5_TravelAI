@@ -139,7 +139,7 @@ const ServicesStripSection = () => {
       icon: Hotel,
       label: 'Thuê xe',
       description: 'Tự do khám phá',
-      path: '/services',
+      path: '/services?type=transport',  // Redirect đến trang dịch vụ với filter Transport
       color: 'orange',
       bgColor: 'bg-orange-50',
       hoverBg: 'hover:bg-orange-100',

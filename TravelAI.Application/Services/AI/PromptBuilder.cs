@@ -91,6 +91,7 @@ public class PromptBuilder
         var serviceOptions = availableServices?.ToList() ?? new List<PromptServiceOption>();
         var hotelLines = BuildServiceLines(serviceOptions.Where(service => service.ServiceType == ServiceType.Hotel));
         var tourLines = BuildServiceLines(serviceOptions.Where(service => service.ServiceType == ServiceType.Tour));
+        var transportLines = BuildServiceLines(serviceOptions.Where(service => service.ServiceType == ServiceType.Transport));
         var travelStyle = FormatTravelStyle(pref.TravelStyle);
         var budgetLevel = FormatBudgetLevel(pref.BudgetLevel);
         var travelPace = FormatTravelPace(pref.TravelPace);
@@ -100,6 +101,11 @@ public class PromptBuilder
         var holidayLines = BuildHolidayContext(startDate, days);
         var comboLines = BuildServiceComboLines(availableServiceEntities);
         var filterLines = BuildServiceFilterContext(serviceFilters);
+        
+        // Kiểm tra TravelStyle để ưu tiên gợi ý xe
+        var shouldPrioritizeTransport = travelStyle.Contains("Phượt", StringComparison.OrdinalIgnoreCase) 
+                                      || travelStyle.Contains("Tự túc", StringComparison.OrdinalIgnoreCase)
+                                      || travelStyle.Contains("Backpacker", StringComparison.OrdinalIgnoreCase);
 
         var prompt = new StringBuilder();
         prompt.AppendLine($"Ban la chuyen gia lap ke hoach du lich. Hay lap lich trinh {days} ngay tai {dest.Name}.");
@@ -139,6 +145,13 @@ public class PromptBuilder
         prompt.AppendLine();
         prompt.AppendLine("Tour:");
         prompt.AppendLine(tourLines);
+        prompt.AppendLine();
+        prompt.AppendLine("Thue xe (Oto/Xe may tu lai):");
+        prompt.AppendLine(transportLines);
+        if (shouldPrioritizeTransport)
+        {
+            prompt.AppendLine("*** LUU Y: Nguoi dung co phong cach du lich Phuot/Tu tuc, hay UU TIEN GOI Y THUE XE TU LAI (xe may hoac o to) thay vi di taxi hoac xe khach. Dich vu thue xe giup nguoi dung tu do kham pha va phu hop voi phong cach phuot. ***");
+        }
         prompt.AppendLine();
         prompt.AppendLine("### GOI Y COMBO DICH VU - DIA DANH:");
         prompt.AppendLine(comboLines);

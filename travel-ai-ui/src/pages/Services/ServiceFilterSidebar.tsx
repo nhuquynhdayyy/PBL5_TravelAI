@@ -70,9 +70,10 @@ const tourDurations = [
 ];
 
 const transportTypes = [
+  { value: 'Car', label: 'Ô tô' },
+  { value: 'Motorbike', label: 'Xe máy' },
   { value: 'Limousine', label: 'Limousine' },
   { value: 'Bus', label: 'Xe khách' },
-  { value: 'Train', label: 'Tàu hỏa' },
 ];
 
 const departureTimes = [
@@ -284,7 +285,7 @@ const ServiceFilterSidebar: React.FC<ServiceFilterSidebarProps> = ({ value, onCh
           <section className="space-y-4 border-t border-dashed border-slate-200 pt-5">
             <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-500">
               <Bus size={15} className="text-teal-600" />
-              Vé xe
+              Thuê xe
             </div>
             <select
               value={value.transportType}
@@ -298,27 +299,13 @@ const ServiceFilterSidebar: React.FC<ServiceFilterSidebarProps> = ({ value, onCh
                 </option>
               ))}
             </select>
-            <div>
-              <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-500">
-                <Clock3 size={15} className="text-teal-600" />
-                Buổi khởi hành
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                {departureTimes.map((time) => (
-                  <button
-                    key={time.value}
-                    type="button"
-                    onClick={() => patch({ departureTime: value.departureTime === time.value ? '' : time.value })}
-                    className={`rounded-xl border py-2 text-sm font-black transition ${
-                      value.departureTime === time.value
-                        ? 'border-teal-500 bg-teal-600 text-white'
-                        : 'border-slate-200 bg-white text-slate-600 hover:bg-teal-50'
-                    }`}
-                  >
-                    {time.label}
-                  </button>
-                ))}
-              </div>
+            <div className="text-xs text-slate-500 bg-blue-50 border border-blue-200 rounded-xl p-3">
+              <p className="font-bold text-blue-700 mb-1">💡 Lưu ý khi thuê xe:</p>
+              <ul className="space-y-1 text-blue-600">
+                <li>• Giá hiển thị là giá thuê theo ngày</li>
+                <li>• Chọn ngày nhận và ngày trả khi đặt xe</li>
+                <li>• Tổng tiền = Giá × Số ngày thuê</li>
+              </ul>
             </div>
           </section>
         )}

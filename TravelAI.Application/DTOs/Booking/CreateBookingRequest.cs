@@ -3,7 +3,8 @@ namespace TravelAI.Application.DTOs.Booking;
 public record CreateBookingRequest(
     int ServiceId, 
     int Quantity, 
-    DateTime CheckInDate
+    DateTime CheckInDate,
+    DateTime? CheckOutDate = null  // Thêm ngày trả xe cho dịch vụ Transport
 );
 
 public sealed class CreateCartBookingRequest

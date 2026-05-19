@@ -40,6 +40,7 @@ import PartnerOrderDetail from './pages/partner/PartnerOrderDetail';
 import PartnerReviews from './pages/partner/PartnerReviews';
 import ServiceConsole from './pages/partner/ServiceConsole';
 import ServiceDetail from './pages/ServiceDetail';
+import TransportDetail from './pages/TransportDetail';
 import Services from './pages/Services';
 import SpotDetail from './pages/SpotDetail';
 import Transportation from './pages/Transportation';
@@ -59,6 +60,7 @@ function App() {
         <Route path="/tours" element={<MainLayout><ToursPage /></MainLayout>} />
         <Route path="/transportation" element={<MainLayout><Transportation /></MainLayout>} />
         <Route path="/services/:id" element={<MainLayout><ServiceDetail /></MainLayout>} />
+        <Route path="/transport/:id" element={<MainLayout><TransportDetail /></MainLayout>} />
         <Route path="/cart" element={<MainLayout><Cart /></MainLayout>} />
         <Route path="/checkout/:bookingId" element={<MainLayout><Checkout /></MainLayout>} />
         <Route path="/checkout/failed/:bookingId" element={<MainLayout><CheckoutFailed /></MainLayout>} />
