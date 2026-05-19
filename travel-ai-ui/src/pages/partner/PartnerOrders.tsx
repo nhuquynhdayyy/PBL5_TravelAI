@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
     AlertTriangle,
@@ -11,10 +11,10 @@ import {
     Filter,
     Loader2,
     Package,
-    RefreshCw,
     Store,
     XCircle
 } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axiosClient from '../../api/axiosClient';
 import { 
     formatVietnameseDate, 
@@ -61,8 +61,7 @@ const stringStatusMap: Record<string, number> = {
 type FilterType = 'all' | 'pending-approval' | 'urgent' | 'approved' | 'cancelled';
 
 const PartnerOrders = () => {
-    const [orders, setOrders] = useState<PartnerOrder[]>([]);
-    const [loading, setLoading] = useState(true);
+    const queryClient = useQueryClient();
     const [actionLoading, setActionLoading] = useState<number | null>(null);
     const [activeFilter, setActiveFilter] = useState<FilterType>('all');
     
@@ -74,18 +73,31 @@ const PartnerOrders = () => {
     const [rejectReason, setRejectReason] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
 
-    const fetchOrders = async () => {
-        try {
-            setLoading(true);
+    const { data: orders = [], isLoading: loading } = useQuery<PartnerOrder[]>({
+        queryKey: ['partner-orders'],
+        queryFn: async () => {
             const res = await axiosClient.get('/partner/orders');
-            setOrders(res.data ?? []);
-        } catch (error) {
-            console.error('Loi lay danh sach don hang cua partner:', error);
-            alert('Khong the tai danh sach don hang luc nay.');
-        } finally {
-            setLoading(false);
-        }
-    };
+            return res.data ?? [];
+        },
+    });
+
+    const approveMutation = useMutation({
+        mutationFn: (bookingId: number) =>
+            axiosClient.post(`/partner/orders/${bookingId}/approve`),
+        onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: ['partner-orders'] });
+            void queryClient.invalidateQueries({ queryKey: ['partner-pending-count'] });
+        },
+    });
+
+    const rejectMutation = useMutation({
+        mutationFn: ({ bookingId, reason }: { bookingId: number; reason: string }) =>
+            axiosClient.post(`/partner/orders/${bookingId}/reject`, { reason }),
+        onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: ['partner-orders'] });
+            void queryClient.invalidateQueries({ queryKey: ['partner-pending-count'] });
+        },
+    });
 
     const openApproveModal = (bookingId: number) => {
         setSelectedBookingId(bookingId);
@@ -103,11 +115,10 @@ const PartnerOrders = () => {
 
         try {
             setActionLoading(selectedBookingId);
-            await axiosClient.post(`/partner/orders/${selectedBookingId}/approve`);
+            await approveMutation.mutateAsync(selectedBookingId);
             setShowApproveModal(false);
             setSuccessMessage('✅ Da duyet don hang thanh cong! Khach hang se nhan duoc email thong bao.');
             setShowSuccessModal(true);
-            await fetchOrders();
         } catch (error: any) {
             console.error('Loi duyet don hang:', error);
             alert(error.response?.data?.message || 'Khong the duyet don hang.');
@@ -124,14 +135,11 @@ const PartnerOrders = () => {
 
         try {
             setActionLoading(selectedBookingId);
-            await axiosClient.post(`/partner/orders/${selectedBookingId}/reject`, { 
-                reason: rejectReason 
-            });
+            await rejectMutation.mutateAsync({ bookingId: selectedBookingId, reason: rejectReason });
             setShowRejectModal(false);
             setRejectReason('');
             setSuccessMessage('✅ Da tu choi don hang va hoan tien cho khach hang. Email thong bao da duoc gui.');
             setShowSuccessModal(true);
-            await fetchOrders();
         } catch (error: any) {
             console.error('Loi tu choi don hang:', error);
             alert(error.response?.data?.message || 'Khong the tu choi don hang.');
@@ -139,10 +147,6 @@ const PartnerOrders = () => {
             setActionLoading(null);
         }
     };
-
-    useEffect(() => {
-        fetchOrders();
-    }, []);
 
     // Lock body scroll when any modal is open
     useEffect(() => {
@@ -284,13 +288,6 @@ const PartnerOrders = () => {
                         Theo doi cac booking khach da dat tren nhung dich vu do ban so huu.
                     </p>
                 </div>
-
-                <button
-                    onClick={fetchOrders}
-                    className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-slate-900 text-white font-black text-sm shadow-lg hover:bg-blue-600 transition-all active:scale-95"
-                >
-                    <RefreshCw size={18} /> Tai lai
-                </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">

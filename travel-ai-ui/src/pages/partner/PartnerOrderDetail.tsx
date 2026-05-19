@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     ArrowLeft,
@@ -12,6 +12,7 @@ import {
     XCircle,
     AlertCircle
 } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axiosClient from '../../api/axiosClient';
 import { formatVietnameseDate, formatVietnameseDateTime } from '../../utils/dateTimeUtils';
 
@@ -53,81 +54,62 @@ const currencyFormatter = new Intl.NumberFormat('vi-VN');
 const PartnerOrderDetail = () => {
     const { bookingId } = useParams<{ bookingId: string }>();
     const navigate = useNavigate();
-    const [order, setOrder] = useState<OrderDetail | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [actionLoading, setActionLoading] = useState(false);
+    const queryClient = useQueryClient();
     const [rejectReason, setRejectReason] = useState('');
     const [showRejectModal, setShowRejectModal] = useState(false);
 
-    useEffect(() => {
-        fetchOrderDetail();
-    }, [bookingId]);
+    const { data: order, isLoading: loading } = useQuery<OrderDetail>({
+        queryKey: ['partner-order-detail', bookingId],
+        queryFn: async () => {
+            const res = await axiosClient.get(`/partner/orders/${bookingId}`);
+            return res.data;
+        },
+        enabled: !!bookingId,
+    });
+
+    const approveMutation = useMutation({
+        mutationFn: () => axiosClient.post(`/partner/orders/${bookingId}/approve`),
+        onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: ['partner-order-detail', bookingId] });
+            void queryClient.invalidateQueries({ queryKey: ['partner-orders'] });
+            void queryClient.invalidateQueries({ queryKey: ['partner-pending-count'] });
+        },
+        onError: (error: any) => {
+            alert(error.response?.data?.message || 'Khong the duyet don hang.');
+        },
+    });
+
+    const rejectMutation = useMutation({
+        mutationFn: (reason: string) =>
+            axiosClient.post(`/partner/orders/${bookingId}/reject`, { reason }),
+        onSuccess: () => {
+            setShowRejectModal(false);
+            setRejectReason('');
+            void queryClient.invalidateQueries({ queryKey: ['partner-order-detail', bookingId] });
+            void queryClient.invalidateQueries({ queryKey: ['partner-orders'] });
+            void queryClient.invalidateQueries({ queryKey: ['partner-pending-count'] });
+        },
+        onError: (error: any) => {
+            alert(error.response?.data?.message || 'Khong the tu choi don hang.');
+        },
+    });
+
+    const actionLoading = approveMutation.isPending || rejectMutation.isPending;
 
     // Lock body scroll when modal is open
-    useEffect(() => {
-        if (showRejectModal) {
-            document.body.style.overflow = 'hidden';
-        } else {
-            document.body.style.overflow = 'unset';
-        }
+    // (kept as side-effect via inline style in JSX)
 
-        return () => {
-            document.body.style.overflow = 'unset';
-        };
-    }, [showRejectModal]);
-
-    const fetchOrderDetail = async () => {
-        try {
-            setLoading(true);
-            const res = await axiosClient.get(`/partner/orders/${bookingId}`);
-            setOrder(res.data);
-        } catch (error) {
-            console.error('Loi lay chi tiet don hang:', error);
-            alert('Khong the tai chi tiet don hang.');
-        } finally {
-            setLoading(false);
-        }
+    const handleApprove = () => {
+        if (!window.confirm('Ban co chac chan muon duyet don hang nay?')) return;
+        approveMutation.mutate();
     };
 
-    const handleApprove = async () => {
-        if (!window.confirm('Ban co chac chan muon duyet don hang nay?')) {
-            return;
-        }
-
-        try {
-            setActionLoading(true);
-            await axiosClient.post(`/partner/orders/${bookingId}/approve`);
-            alert('Da duyet don hang thanh cong!');
-            fetchOrderDetail();
-        } catch (error: any) {
-            console.error('Loi duyet don hang:', error);
-            alert(error.response?.data?.message || 'Khong the duyet don hang.');
-        } finally {
-            setActionLoading(false);
-        }
-    };
-
-    const handleReject = async () => {
+    const handleReject = () => {
         if (!rejectReason.trim()) {
             alert('Vui long nhap ly do tu choi.');
             return;
         }
-
-        try {
-            setActionLoading(true);
-            await axiosClient.post(`/partner/orders/${bookingId}/reject`, {
-                reason: rejectReason
-            });
-            alert('Da tu choi don hang va hoan tien cho khach hang.');
-            setShowRejectModal(false);
-            setRejectReason('');
-            fetchOrderDetail();
-        } catch (error: any) {
-            console.error('Loi tu choi don hang:', error);
-            alert(error.response?.data?.message || 'Khong the tu choi don hang.');
-        } finally {
-            setActionLoading(false);
-        }
+        rejectMutation.mutate(rejectReason);
     };
 
     if (loading) {

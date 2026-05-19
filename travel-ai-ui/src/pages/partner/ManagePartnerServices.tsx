@@ -10,7 +10,8 @@ import {
   Trash2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { refreshPartnerStatus, getUser } from '../../utils/userUtils';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { refreshPartnerStatus } from '../../utils/userUtils';
 
 type PartnerProfileGate = {
   verificationStatus?: string;
@@ -19,68 +20,59 @@ type PartnerProfileGate = {
 };
 
 const ManagePartnerServices = () => {
-  const [myServices, setMyServices] = useState<any[]>([]);
-  const [profile, setProfile] = useState<PartnerProfileGate | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      
-      // Refresh partner status và cập nhật localStorage
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ['partner-services-page'],
+    queryFn: async () => {
       await refreshPartnerStatus();
-      
       const [servicesResponse, profileResponse] = await Promise.all([
         axiosClient.get('/services/my-services'),
-        axiosClient.get('/partner/profile')
+        axiosClient.get('/partner/profile'),
       ]);
-      setMyServices(servicesResponse.data || []);
-      setProfile(profileResponse.data || null);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  };
+      return {
+        services: servicesResponse.data ?? [],
+        profile: profileResponse.data ?? null,
+      };
+    },
+  });
 
+  const myServices: any[] = data?.services ?? [];
+  const profile: PartnerProfileGate | null = data?.profile ?? null;
+
+  // Auto-refresh profile every 10s if not approved yet
   useEffect(() => {
-    void fetchData();
-  }, []);
+    if (profile?.canCreateServices) return;
 
-  useEffect(() => {
-    // Auto-refresh profile status every 10 seconds if not approved yet
-    if (!profile?.canCreateServices) {
-      const intervalId = setInterval(async () => {
-        // Refresh partner status và cập nhật localStorage
-        const updatedUser = await refreshPartnerStatus();
-        
-        // Cũng cập nhật state local
-        const profileResponse = await axiosClient.get('/partner/profile');
-        setProfile(profileResponse.data || null);
-        
-        // Nếu đã được duyệt, trigger re-render toàn bộ app
-        if (updatedUser?.canCreateServices) {
-          window.dispatchEvent(new Event('userUpdated'));
-        }
-      }, 10000); // 10 seconds
+    const intervalId = setInterval(async () => {
+      const updatedUser = await refreshPartnerStatus();
+      await queryClient.invalidateQueries({ queryKey: ['partner-services-page'] });
+      if (updatedUser?.canCreateServices) {
+        window.dispatchEvent(new Event('userUpdated'));
+      }
+    }, 10_000);
 
-      return () => clearInterval(intervalId);
-    }
-  }, [profile?.canCreateServices]);
+    return () => clearInterval(intervalId);
+  }, [profile?.canCreateServices, queryClient]);
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => axiosClient.delete(`/services/${id}`),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['partner-services-page'] });
+    },
+    onError: () => {
+      alert('Loi khi xoa!');
+    },
+  });
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const canCreateServices = Boolean(profile?.canCreateServices);
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = (id: number) => {
     if (window.confirm('Ban co chac chan muon xoa dich vu nay?')) {
-      try {
-        await axiosClient.delete(`/services/${id}`);
-        setMyServices((previous) => previous.filter((service) => service.serviceId !== id));
-        alert('Da xoa thanh cong!');
-      } catch {
-        alert('Loi khi xoa!');
-      }
+      deleteMutation.mutate(id);
     }
   };
 
@@ -91,24 +83,18 @@ const ManagePartnerServices = () => {
 
   const handleRefreshProfile = async () => {
     try {
-      setRefreshing(true);
-      
-      // Refresh partner status và cập nhật localStorage
+      setIsRefreshing(true);
       const updatedUser = await refreshPartnerStatus();
-      
-      const profileResponse = await axiosClient.get('/partner/profile');
-      setProfile(profileResponse.data || null);
-      
-      if (profileResponse.data?.canCreateServices) {
+      await queryClient.invalidateQueries({ queryKey: ['partner-services-page'] });
+      if (updatedUser?.canCreateServices) {
         alert('Ho so cua ban da duoc duyet! Ban co the dang dich vu ngay bay gio.');
-        // Trigger re-render toàn bộ app
         window.dispatchEvent(new Event('userUpdated'));
       }
     } catch (error) {
       console.error('Failed to refresh profile:', error);
       alert('Khong the cap nhat trang thai. Vui long thu lai.');
     } finally {
-      setRefreshing(false);
+      setIsRefreshing(false);
     }
   };
 
@@ -152,12 +138,12 @@ const ManagePartnerServices = () => {
             </div>
             <button
               onClick={handleRefreshProfile}
-              disabled={refreshing}
+              disabled={isRefreshing}
               className="flex items-center gap-2 rounded-xl bg-amber-600 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-amber-700 disabled:opacity-50"
               title="Kiem tra lai trang thai duyet"
             >
-              <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
-              {refreshing ? 'Dang kiem tra...' : 'Kiem tra lai'}
+              <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
+              {isRefreshing ? 'Dang kiem tra...' : 'Kiem tra lai'}
             </button>
           </div>
         </div>

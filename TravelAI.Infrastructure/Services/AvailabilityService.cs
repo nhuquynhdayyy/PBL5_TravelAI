@@ -25,19 +25,33 @@ public class AvailabilityService : IAvailabilityService
             .Where(a => a.ServiceId == serviceId && a.Date >= startDate.Date && a.Date <= endDate.Date)
             .ToListAsync();
 
-        var availabilityDtos = await Task.WhenAll(data.Select(async a => {
-            // CÔNG THỨC CHÍNH: Còn lại = Tổng - (Đã thanh toán + Đang giữ chỗ tạm thời)
+        if (data.Count == 0)
+            return Enumerable.Empty<ServiceAvailabilityDto>();
+
+        // Load tất cả pricing rules cho service trong khoảng ngày — một lần duy nhất
+        var rules = await _context.PricingRules
+            .Where(r => r.ServiceId == serviceId
+                     && r.StartDate <= endDate.Date
+                     && r.EndDate   >= startDate.Date)
+            .ToListAsync();
+
+        var result = data.Select(a =>
+        {
             int remaining = a.TotalStock - (a.BookedCount + a.HeldCount);
-            
+
+            // Áp dụng pricing rules in-memory (không query DB trong vòng lặp)
+            var applicableRules = rules.Where(r => r.StartDate <= a.Date && r.EndDate >= a.Date);
+            var finalPrice = applicableRules.Aggregate(a.Price, (price, rule) => price * rule.PriceMultiplier);
+
             return new ServiceAvailabilityDto(
                 a.Date,
-                await _pricingService.CalculateFinalPriceAsync(serviceId, a.Date, a.Price),
-                remaining < 0 ? 0 : remaining, // Đảm bảo không bị số âm
-                remaining > 0                  // Còn chỗ thì là true
+                finalPrice,
+                remaining < 0 ? 0 : remaining,
+                remaining > 0
             );
-        }));
+        });
 
-        return availabilityDtos.OrderBy(x => x.Date);
+        return result.OrderBy(x => x.Date);
     }
 
     // 2. Kiểm tra chặt chẽ số lượng ngay lúc khách bấm nút "Đặt"
@@ -163,32 +177,45 @@ Price = price,
 
         var services = await _context.Services
             .Where(s => s.PartnerId == partnerId)
-.Include(s => s.Availabilities.Where(a => a.Date >= start && a.Date <= end))
+            .Include(s => s.Availabilities.Where(a => a.Date >= start && a.Date <= end))
+            .ToListAsync();
+
+        if (services.Count == 0)
+            return Enumerable.Empty<MyServicesAvailabilityDto>();
+
+        var serviceIds = services.Select(s => s.ServiceId).ToList();
+
+        // Load tất cả pricing rules cho tất cả services — một lần duy nhất
+        var allRules = await _context.PricingRules
+            .Where(r => serviceIds.Contains(r.ServiceId)
+                     && r.StartDate <= end
+                     && r.EndDate   >= start)
             .ToListAsync();
 
         var result = new List<MyServicesAvailabilityDto>();
 
         foreach (var s in services)
         {
-            var availabilities = new List<ServiceAvailabilityDetailDto>();
+            var serviceRules = allRules.Where(r => r.ServiceId == s.ServiceId).ToList();
 
-            foreach (var a in s.Availabilities.OrderBy(x => x.Date))
+            var availabilities = s.Availabilities.OrderBy(x => x.Date).Select(a =>
             {
-                // Áp dụng pricing rules để tính giá cuối cùng
-                var finalPrice = await _pricingService.CalculateFinalPriceAsync(s.ServiceId, a.Date, a.Price);
+                // Áp dụng pricing rules in-memory
+                var applicableRules = serviceRules.Where(r => r.StartDate <= a.Date && r.EndDate >= a.Date);
+                var finalPrice = applicableRules.Aggregate(a.Price, (price, rule) => price * rule.PriceMultiplier);
 
-                availabilities.Add(new ServiceAvailabilityDetailDto
+                return new ServiceAvailabilityDetailDto
                 {
                     AvailId = a.AvailId,
                     Date = a.Date,
-                    Price = finalPrice,  // Giá đã áp dụng pricing rules
-                    BasePrice = a.Price,  // Giá gốc
+                    Price = finalPrice,
+                    BasePrice = a.Price,
                     TotalStock = a.TotalStock,
                     BookedCount = a.BookedCount,
                     HeldCount = a.HeldCount,
                     Remaining = a.TotalStock - (a.BookedCount + a.HeldCount)
-                });
-            }
+                };
+            }).ToList();
 
             result.Add(new MyServicesAvailabilityDto
             {
