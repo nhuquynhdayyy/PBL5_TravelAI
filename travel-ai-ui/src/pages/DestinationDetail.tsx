@@ -18,7 +18,12 @@ import {
 } from 'lucide-react';
 import axiosClient from '../api/axiosClient';
 import SpotCard from '../components/SpotCard';
-import { getTodayVietnam } from '../utils/dateUtils';
+
+const getTodayInputValue = () => {
+    const now = new Date();
+    const timezoneOffset = now.getTimezoneOffset() * 60000;
+    return new Date(now.getTime() - timezoneOffset).toISOString().split('T')[0];
+};
 
 type BudgetBreakdownItem = {
     category: string;
@@ -48,7 +53,7 @@ const DestinationDetail: React.FC = () => {
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [aiLoading, setAiLoading] = useState(false);
     const [days, setDays] = useState<number>(1);
-    const [startDate, setStartDate] = useState<string>(getTodayVietnam());
+    const [startDate, setStartDate] = useState<string>(getTodayInputValue());
     const [budgetPeople, setBudgetPeople] = useState<number>(2);
     const [budgetStyle, setBudgetStyle] = useState<string>('Trung binh');
     const [budgetLoading, setBudgetLoading] = useState(false);
@@ -304,7 +309,7 @@ const DestinationDetail: React.FC = () => {
 
                                 {isFilterOpen && (
                                     <div className="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-                                        <div className="max-h-72 overflow-y-auto custom-scrollbar p-2">
+                                        <div className="max-h-72 overflow-y-auto p-2">
                                             <button
                                                 onClick={() => {
                                                     setFilterDestId('all');
@@ -456,7 +461,7 @@ const DestinationDetail: React.FC = () => {
                                 <input
                                     type="date"
                                     value={startDate}
-                                    min={getTodayVietnam()}
+                                    min={getTodayInputValue()}
                                     onChange={(event) => setStartDate(event.target.value)}
                                     className="w-full bg-transparent font-semibold text-white outline-none [color-scheme:dark]"
                                 />
@@ -602,7 +607,7 @@ const DestinationDetail: React.FC = () => {
                         <h4 className="mb-4 flex items-center gap-2 font-black text-slate-800">
                             <MapPin size={16} className="text-red-400" /> Khám phá tỉnh/thành khác
                         </h4>
-                        <div className="flex max-h-64 flex-col gap-2 overflow-y-auto custom-scrollbar pr-1">
+                        <div className="flex max-h-64 flex-col gap-2 overflow-y-auto pr-1">
                             {allDestinations
                                 .filter((item) => String(item.id || item.destinationId) !== String(id))
                                 .slice(0, 8)

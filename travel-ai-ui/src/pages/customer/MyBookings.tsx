@@ -11,8 +11,6 @@ import {
   X,
 } from 'lucide-react';
 import axiosClient from '../../api/axiosClient';
-import { formatVietnameseDate } from '../../utils/dateTimeUtils';
-import { toVietnamTime } from '../../utils/dateUtils';
 
 type BookingStatus = number | string;
 
@@ -29,14 +27,13 @@ type CustomerBooking = {
   estimatedRefundAmount: number;
   canCancel: boolean;
   cancelPolicy: string;
-  cancellationReason?: string; // Lý do hủy đơn
 };
 
 const statusMap: Record<number, { label: string; className: string }> = {
-  1: { label: 'Chờ thanh toán', className: 'bg-amber-100 text-amber-700 border border-amber-200' },
-  2: { label: 'Đã thanh toán', className: 'bg-emerald-100 text-emerald-700 border border-emerald-200' },
-  3: { label: 'Đã hoàn tiền', className: 'bg-sky-100 text-sky-700 border border-sky-200' },
-  4: { label: 'Đã hủy', className: 'bg-rose-100 text-rose-700 border border-rose-200' },
+  1: { label: 'Cho thanh toan', className: 'bg-amber-100 text-amber-700 border border-amber-200' },
+  2: { label: 'Da thanh toan', className: 'bg-emerald-100 text-emerald-700 border border-emerald-200' },
+  3: { label: 'Da hoan tien', className: 'bg-sky-100 text-sky-700 border border-sky-200' },
+  4: { label: 'Da huy', className: 'bg-rose-100 text-rose-700 border border-rose-200' },
 };
 
 const stringStatusMap: Record<string, number> = {
@@ -67,7 +64,7 @@ function getStatusMeta(status: BookingStatus) {
 
 function formatPaymentMethod(paymentMethod: string | null) {
   if (!paymentMethod) {
-    return 'Chưa thanh toán';
+    return 'Chua thanh toan';
   }
 
   if (paymentMethod.toLowerCase() === 'mock') {
@@ -92,11 +89,7 @@ function canCancelBooking(booking: CustomerBooking) {
     return false;
   }
 
-  // Chuyển sang giờ Việt Nam để so sánh
-  const checkInVN = toVietnamTime(booking.checkInDate);
-  const nowVN = new Date(Date.now() + 7 * 60 * 60 * 1000);
-  
-  return checkInVN ? checkInVN.getTime() > nowVN.getTime() + 24 * 60 * 60 * 1000 : false;
+  return new Date(booking.checkInDate).getTime() > Date.now() + 24 * 60 * 60 * 1000;
 }
 
 function getCancelPolicy(booking: CustomerBooking) {
@@ -107,16 +100,16 @@ function getCancelPolicy(booking: CustomerBooking) {
   const statusKey = resolveStatusKey(booking.status);
 
   if (statusKey === 1) {
-    return 'Booking đang chờ thanh toán, hệ thống sẽ giải phóng chỗ đã giữ.';
+    return 'Booking dang cho thanh toan, he thong se giai phong cho da giu.';
   }
 
   if (statusKey === 2) {
     return canCancelBooking(booking)
-      ? 'Hủy trước 24 giờ: hoàn 100% giá trị thanh toán.'
-      : 'Chỉ được hủy booking đã thanh toán khi check-in còn hơn 24 giờ.';
+      ? 'Huy truoc 24 gio: hoan 100% gia tri thanh toan.'
+      : 'Chi duoc huy booking da thanh toan khi check-in con hon 24 gio.';
   }
 
-  return 'Booking hiện tại không hỗ trợ hủy.';
+  return 'Booking hien tai khong ho tro huy.';
 }
 
 function getEstimatedRefundAmount(booking: CustomerBooking) {
@@ -142,8 +135,8 @@ const MyBookings = () => {
       const res = await axiosClient.get('/bookings/my-bookings');
       setBookings(res.data ?? []);
     } catch (error) {
-      console.error('Lỗi lấy lịch sử đặt dịch vụ:', error);
-      alert('Không thể tải lịch sử đặt dịch vụ lúc này.');
+      console.error('Loi lay lich su dat dich vu:', error);
+      alert('Khong the tai lich su dat dich vu luc nay.');
     } finally {
       setLoading(false);
     }
@@ -152,20 +145,6 @@ const MyBookings = () => {
   useEffect(() => {
     fetchBookings();
   }, []);
-
-  // Lock body scroll when modal is open
-  useEffect(() => {
-    if (selectedBooking) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-
-    // Cleanup on unmount
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [selectedBooking]);
 
   const pendingBookings = bookings.filter((booking) => resolveStatusKey(booking.status) === 1).length;
   const paidBookings = bookings.filter((booking) => resolveStatusKey(booking.status) === 2).length;
@@ -187,11 +166,11 @@ const MyBookings = () => {
     const cancelPolicy = getCancelPolicy(booking);
 
     const refundMessage = estimatedRefundAmount > 0
-      ? `Số tiền hoàn dự kiến: ${currencyFormatter.format(estimatedRefundAmount)}đ`
-      : 'Booking chưa thanh toán, hệ thống sẽ giải phóng chỗ đã giữ.';
+      ? `So tien hoan du kien: ${currencyFormatter.format(estimatedRefundAmount)}d`
+      : 'Booking chua thanh toan, he thong se giai phong cho da giu.';
 
     const confirmed = window.confirm(
-      `Bạn có chắc muốn hủy booking này không?\n${refundMessage}\n${cancelPolicy}`,
+      `Ban co chac muon huy booking nay khong?\n${refundMessage}\n${cancelPolicy}`,
     );
 
     if (!confirmed) {
@@ -208,13 +187,13 @@ const MyBookings = () => {
         canCancel: false,
         refundedAmount: refundAmount,
         estimatedRefundAmount: 0,
-        cancelPolicy: String(res.data?.refundPolicy ?? 'Booking đã được hủy.'),
+        cancelPolicy: String(res.data?.refundPolicy ?? 'Booking da duoc huy.'),
       });
 
-      alert(`Đã hủy booking thành công. Số tiền hoàn lại: ${currencyFormatter.format(refundAmount)}đ`);
+      alert(`Da huy booking thanh cong. So tien hoan lai: ${currencyFormatter.format(refundAmount)}d`);
     } catch (error) {
-      console.error('Lỗi hủy booking:', error);
-      alert('Không thể hủy booking lúc này.');
+      console.error('Loi huy booking:', error);
+      alert('Khong the huy booking luc nay.');
     } finally {
       setCancellingId(null);
     }
@@ -227,12 +206,12 @@ const MyBookings = () => {
           onClick={() => navigate('/profile')}
           className="rounded-full border border-slate-200 px-5 py-2 text-sm font-black text-slate-500 transition-all hover:border-slate-300 hover:text-slate-700"
         >
-          Lịch trình đã lưu
+          Lich trinh da luu
         </button>
         <button
           className="rounded-full bg-slate-900 px-5 py-2 text-sm font-black text-white shadow-lg"
         >
-          Dịch vụ đã đặt
+          Dich vu da dat
         </button>
       </div>
 
@@ -241,9 +220,9 @@ const MyBookings = () => {
           <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-xs font-black uppercase tracking-[0.2em] text-blue-600">
             <Receipt size={14} /> My bookings
           </div>
-          <h1 className="text-4xl font-black tracking-tight text-slate-900">DỊCH VỤ ĐÃ ĐẶT</h1>
+          <h1 className="text-4xl font-black tracking-tight text-slate-900">DICH VU DA DAT</h1>
           <p className="mt-3 max-w-2xl font-medium text-slate-500">
-            Xem lại các booking đã tạo, mở chi tiết nhanh và hủy booking đang chờ thanh toán.
+            Xem lai cac booking da tao, mo chi tiet nhanh va huy booking dang cho thanh toan.
           </p>
         </div>
 
@@ -251,14 +230,14 @@ const MyBookings = () => {
           onClick={fetchBookings}
           className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900 px-6 py-3 text-sm font-black text-white shadow-lg transition-all hover:bg-blue-600 active:scale-95"
         >
-          <RefreshCw size={18} /> Tải lại
+          <RefreshCw size={18} /> Tai lai
         </button>
       </div>
 
       <div className="mb-10 grid grid-cols-1 gap-5 md:grid-cols-3">
         <div className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Tổng booking</span>
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Tong booking</span>
             <ClipboardList className="text-blue-500" size={22} />
           </div>
           <div className="text-3xl font-black text-slate-900">{bookings.length}</div>
@@ -266,7 +245,7 @@ const MyBookings = () => {
 
         <div className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Chờ thanh toán</span>
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Cho thanh toan</span>
             <Package className="text-amber-500" size={22} />
           </div>
           <div className="text-3xl font-black text-slate-900">{pendingBookings}</div>
@@ -274,7 +253,7 @@ const MyBookings = () => {
 
         <div className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Đã thanh toán</span>
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Da thanh toan</span>
             <CreditCard className="text-emerald-500" size={22} />
           </div>
           <div className="text-3xl font-black text-slate-900">{paidBookings}</div>
@@ -315,35 +294,35 @@ const MyBookings = () => {
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div className="rounded-2xl bg-slate-50 p-4">
                     <p className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-                      Ngày sử dụng
+                      Ngay su dung
                     </p>
                     <p className="flex items-center gap-2 font-bold text-slate-800">
                       <CalendarDays size={16} className="text-blue-500" />
-                      {formatVietnameseDate(booking.checkInDate)}
+                      {new Date(booking.checkInDate).toLocaleDateString('vi-VN')}
                     </p>
                   </div>
 
                   <div className="rounded-2xl bg-slate-50 p-4">
                     <p className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-                      Tổng tiền
+                      Tong tien
                     </p>
                     <p className="font-black text-emerald-600">
-                      {currencyFormatter.format(booking.totalAmount)}đ
+                      {currencyFormatter.format(booking.totalAmount)}d
                     </p>
                   </div>
 
                   <div className="rounded-2xl bg-slate-50 p-4">
                     <p className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-                      Ngày đặt
+                      Ngay dat
                     </p>
                     <p className="font-bold text-slate-800">
-                      {formatVietnameseDate(booking.createdAt)}
+                      {new Date(booking.createdAt).toLocaleDateString('vi-VN')}
                     </p>
                   </div>
 
                   <div className="rounded-2xl bg-slate-50 p-4">
                     <p className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-                      Thanh toán
+                      Thanh toan
                     </p>
                     <p className="font-bold text-slate-800">{formatPaymentMethod(booking.paymentMethod)}</p>
                   </div>
@@ -351,9 +330,9 @@ const MyBookings = () => {
 
                 {booking.refundedAmount > 0 && (
                   <div className="mt-4 rounded-2xl bg-sky-50 p-4 text-sm text-sky-700">
-                    <span className="font-black uppercase tracking-[0.18em] text-[10px]">Đã hoàn tiền</span>
+                    <span className="font-black uppercase tracking-[0.18em] text-[10px]">Da hoan tien</span>
                     <div className="mt-1 text-lg font-black">
-                      {currencyFormatter.format(booking.refundedAmount)}đ
+                      {currencyFormatter.format(booking.refundedAmount)}d
                     </div>
                   </div>
                 )}
@@ -398,14 +377,8 @@ const MyBookings = () => {
       )}
 
       {selectedBooking && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 px-4 py-8 overflow-y-auto custom-scrollbar"
-          onClick={() => setSelectedBooking(null)}
-        >
-          <div 
-            className="w-full max-w-2xl rounded-[2rem] bg-white p-8 shadow-2xl my-8 max-h-[90vh] overflow-y-auto custom-scrollbar"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 px-4 py-8">
+          <div className="w-full max-w-2xl rounded-[2rem] bg-white p-8 shadow-2xl">
             <div className="mb-6 flex items-start justify-between gap-4">
               <div>
                 <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-400">
@@ -445,7 +418,7 @@ const MyBookings = () => {
                   Ngay su dung
                 </p>
                 <p className="font-bold text-slate-800">
-                  {formatVietnameseDate(selectedBooking.checkInDate)}
+                  {new Date(selectedBooking.checkInDate).toLocaleDateString('vi-VN')}
                 </p>
               </div>
 
@@ -461,7 +434,7 @@ const MyBookings = () => {
                   Ngay dat
                 </p>
                 <p className="font-bold text-slate-800">
-                  {formatVietnameseDate(selectedBooking.createdAt)}
+                  {new Date(selectedBooking.createdAt).toLocaleDateString('vi-VN')}
                 </p>
               </div>
 
@@ -487,17 +460,6 @@ const MyBookings = () => {
                 <p className="text-[10px] font-black uppercase tracking-[0.18em]">Tien da hoan</p>
                 <p className="mt-2 text-2xl font-black">
                   {currencyFormatter.format(selectedBooking.refundedAmount)}d
-                </p>
-              </div>
-            )}
-
-            {/* Hiển thị lý do hủy trong modal chi tiết - CHỈ nếu có lý do từ customer */}
-            {resolveStatusKey(selectedBooking.status) === 4 && selectedBooking.cancellationReason && 
-             selectedBooking.cancellationReason !== "Quá hạn duyệt" && (
-              <div className="mb-6 rounded-2xl bg-rose-50 border border-rose-200 p-5">
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-rose-600">Ly do huy</p>
-                <p className="mt-2 text-sm font-semibold text-rose-700">
-                  {selectedBooking.cancellationReason.replace(/^Partner rejected:\s*/i, '')}
                 </p>
               </div>
             )}

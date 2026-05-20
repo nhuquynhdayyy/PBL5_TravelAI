@@ -2,9 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, Mail, Phone, ShieldCheck, LogOut, Edit3, Loader2, Settings2, Save, X, Camera } from 'lucide-react';
 import axiosClient from '../../api/axiosClient';
+import { clearSessionCart, notifyCartAuthChanged } from '../../contexts/CartContext';
 import MainLayout from '../../layouts/MainLayout';
 import { DollarSign, ChevronRight, Calendar, MapPin } from 'lucide-react';
-import { formatVietnameseDate } from '../../utils/dateTimeUtils';
 
 const Profile: React.FC = () => {
   const [profile, setProfile] = useState<any>(null);
@@ -118,8 +118,10 @@ const Profile: React.FC = () => {
 
 
   const handleLogout = () => {
-    localStorage.clear();
+    clearSessionCart();
+    notifyCartAuthChanged();
     navigate('/login');
+    // reload app to reset auth state
     window.location.reload();
   };
 
@@ -193,7 +195,7 @@ const Profile: React.FC = () => {
                         <ShieldCheck size={12} /> {profile?.roleName || "Customer"}
                     </span>
                     <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
-                        Thành viên từ: {profile?.createdAt ? formatVietnameseDate(profile.createdAt) : '...'}
+                        Thành viên từ: {profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString() : '...'}
                     </span>
                 </div>
               </div>

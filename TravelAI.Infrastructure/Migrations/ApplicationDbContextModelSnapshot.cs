@@ -37,13 +37,6 @@ namespace TravelAI.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("DestinationName")
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<decimal?>("EstimatedCost")
-                        .HasColumnType("decimal(18,2)");
-
                     b.Property<int>("UserId")
                         .HasColumnType("int");
 
@@ -100,17 +93,8 @@ namespace TravelAI.Infrastructure.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("BookingId"));
 
-                    b.Property<DateTime?>("ApprovalDeadline")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("ApprovedAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsApprovedByPartner")
-                        .HasColumnType("bit");
 
                     b.Property<int?>("PromoId")
                         .HasColumnType("int");
@@ -146,9 +130,6 @@ namespace TravelAI.Infrastructure.Migrations
 
                     b.Property<DateTime>("CheckInDate")
                         .HasColumnType("date");
-
-                    b.Property<DateTime?>("CheckOutDate")
-                        .HasColumnType("datetime2");
 
                     b.Property<string>("Notes")
                         .HasMaxLength(255)
@@ -271,6 +252,52 @@ namespace TravelAI.Infrastructure.Migrations
                     b.ToTable("ItineraryItems");
                 });
 
+            modelBuilder.Entity("TravelAI.Domain.Entities.Notification", b =>
+                {
+                    b.Property<int>("NotificationId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("NotificationId"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("MetadataJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("PartnerId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("NotificationId");
+
+                    b.HasIndex("Type", "CreatedAt");
+
+                    b.HasIndex("PartnerId", "IsRead", "CreatedAt");
+
+                    b.HasIndex("UserId", "IsRead", "CreatedAt");
+
+                    b.ToTable("Notifications");
+                });
+
             modelBuilder.Entity("TravelAI.Domain.Entities.PartnerProfile", b =>
                 {
                     b.Property<int>("ProfileId")
@@ -380,44 +407,6 @@ namespace TravelAI.Infrastructure.Migrations
                     b.ToTable("Payments");
                 });
 
-            modelBuilder.Entity("TravelAI.Domain.Entities.PricingRule", b =>
-                {
-                    b.Property<int>("RuleId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("RuleId"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("datetime2")
-                        .HasDefaultValueSql("GETUTCDATE()");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<DateTime>("EndDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<decimal>("PriceMultiplier")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<int>("ServiceId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("StartDate")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("RuleId");
-
-                    b.HasIndex("ServiceId");
-
-                    b.HasIndex("StartDate", "EndDate");
-
-                    b.ToTable("PricingRules");
-                });
-
             modelBuilder.Entity("TravelAI.Domain.Entities.Promotion", b =>
                 {
                     b.Property<int>("PromoId")
@@ -504,9 +493,6 @@ namespace TravelAI.Infrastructure.Migrations
                     b.Property<string>("ReplyText")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
-
-                    b.Property<DateTime?>("ReplyTime")
-                        .HasColumnType("datetime2");
 
                     b.Property<int>("ServiceId")
                         .HasColumnType("int");
@@ -949,17 +935,6 @@ namespace TravelAI.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Booking");
-                });
-
-            modelBuilder.Entity("TravelAI.Domain.Entities.PricingRule", b =>
-                {
-                    b.HasOne("TravelAI.Domain.Entities.Service", "Service")
-                        .WithMany()
-                        .HasForeignKey("ServiceId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Service");
                 });
 
             modelBuilder.Entity("TravelAI.Domain.Entities.Refund", b =>

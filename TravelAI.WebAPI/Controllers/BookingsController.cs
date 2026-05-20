@@ -3,9 +3,11 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using System.Globalization;
+using System.Text.Json;
+using System.Collections.Generic;
+using TravelAI.Application.Common;
 using TravelAI.Application.DTOs.Booking;
 using TravelAI.Application.DTOs.Payment;
-using TravelAI.Application.Helpers;
 using TravelAI.Application.Interfaces;
 using TravelAI.Domain.Entities;
 using TravelAI.Domain.Enums;
@@ -24,7 +26,6 @@ public class BookingsController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly IConfiguration _configuration;
     private readonly ILogger<BookingsController> _logger;
-    private readonly IAuditLogService _auditLogService;
     private readonly IRealtimeNotificationService _notificationService;
 
     public BookingsController(
@@ -34,7 +35,6 @@ public class BookingsController : ControllerBase
         ApplicationDbContext context,
         IConfiguration configuration,
         ILogger<BookingsController> logger,
-        IAuditLogService auditLogService,
         IRealtimeNotificationService notificationService)
     {
         _bookingService = bookingService;
@@ -43,7 +43,6 @@ public class BookingsController : ControllerBase
         _context = context;
         _configuration = configuration;
         _logger = logger;
-        _auditLogService = auditLogService;
         _notificationService = notificationService;
     }
 
@@ -86,15 +85,7 @@ public class BookingsController : ControllerBase
         }
 
         int userId = int.Parse(userIdClaim.Value);
-        int? bookingId;
-        try
-        {
-            bookingId = await _bookingService.CreateDraftBookingAsync(userId, request);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        var bookingId = await _bookingService.CreateDraftBookingAsync(userId, request);
 
         if (bookingId == null)
         {
@@ -103,9 +94,6 @@ public class BookingsController : ControllerBase
                 message = "Xin loi, ngay nay da het cho hoac khong du so luong ban yeu cau!"
             });
         }
-
-        // Log audit
-        await _auditLogService.LogAsync(userId, "CREATE", "Bookings", bookingId.Value);
 
         return Ok(new
         {
@@ -136,68 +124,38 @@ public class BookingsController : ControllerBase
 
         var userId = int.Parse(userIdClaim.Value, CultureInfo.InvariantCulture);
         var requestedItems = request.Items
-            .GroupBy(item => new { item.ServiceId, CheckInDate = item.CheckInDate.Date, CheckOutDate = item.CheckOutDate?.Date })
+            .GroupBy(item => new { item.ServiceId, Date = item.CheckInDate.Date })
             .Select(group => new CreateBookingRequest(
                 group.Key.ServiceId,
                 group.Sum(item => item.Quantity),
-                group.Key.CheckInDate,
-                group.Key.CheckOutDate))
+                group.Key.Date))
             .ToList();
-
-        if (requestedItems.Any(item => item.CheckOutDate.HasValue && item.CheckOutDate.Value.Date < item.CheckInDate.Date))
-        {
-            return BadRequest(new { message = "Ngay tra xe phai lon hon hoac bang ngay nhan xe." });
-        }
 
         await using var transaction = await _context.Database.BeginTransactionAsync();
 
         var serviceIds = requestedItems.Select(item => item.ServiceId).Distinct().ToList();
-        var services = await _context.Services
-            .Where(service => serviceIds.Contains(service.ServiceId))
-            .ToDictionaryAsync(service => service.ServiceId);
-
-        if (services.Count != serviceIds.Count)
-        {
-            return BadRequest(new { message = "Thong tin dich vu trong gio hang khong hop le." });
-        }
-
-        var requestedAvailabilityKeys = requestedItems
-            .SelectMany(item => EnumerateBookingDates(item)
-                .Select(date => new { item.ServiceId, Date = date }))
-            .ToList();
-        var bookingDates = requestedAvailabilityKeys.Select(item => item.Date).Distinct().ToList();
+        var bookingDates = requestedItems.Select(item => item.CheckInDate.Date).Distinct().ToList();
         var availabilities = await _context.ServiceAvailabilities
             .Where(a => serviceIds.Contains(a.ServiceId) && bookingDates.Contains(a.Date))
             .ToListAsync();
 
         foreach (var item in requestedItems)
         {
-            foreach (var bookingDate in EnumerateBookingDates(item))
-            {
-                var availability = availabilities.FirstOrDefault(a =>
-                    a.ServiceId == item.ServiceId && a.Date == bookingDate);
+            var availability = availabilities.FirstOrDefault(a =>
+                a.ServiceId == item.ServiceId && a.Date == item.CheckInDate.Date);
 
-                if (availability == null
-                    || availability.TotalStock - availability.BookedCount - availability.HeldCount < item.Quantity)
+            if (availability == null
+                || availability.TotalStock - availability.BookedCount - availability.HeldCount < item.Quantity)
+            {
+                return BadRequest(new
                 {
-                    return BadRequest(new
-                    {
-                        message = $"Xe da het cho trong ngay {bookingDate:dd/MM/yyyy}"
-                    });
-                }
+                    message = "Xin loi, ngay nay da het cho hoac khong du so luong ban yeu cau!"
+                });
             }
         }
 
         var totalAmount = requestedItems.Sum(item =>
         {
-            var service = services[item.ServiceId];
-            var days = (item.CheckOutDate?.Date - item.CheckInDate.Date)?.Days + 1 ?? 1;
-
-            if (service.ServiceType == ServiceType.Transport && item.CheckOutDate.HasValue)
-            {
-                return service.BasePrice * days * item.Quantity;
-            }
-
             var availability = availabilities.First(a =>
                 a.ServiceId == item.ServiceId && a.Date == item.CheckInDate.Date);
             return availability.Price * item.Quantity;
@@ -216,28 +174,19 @@ public class BookingsController : ControllerBase
 
         foreach (var item in requestedItems)
         {
-            var service = services[item.ServiceId];
-            var days = (item.CheckOutDate?.Date - item.CheckInDate.Date)?.Days + 1 ?? 1;
-            var priceAtBooking = service.ServiceType == ServiceType.Transport && item.CheckOutDate.HasValue
-                ? service.BasePrice * days
-                : availabilities.First(a => a.ServiceId == item.ServiceId && a.Date == item.CheckInDate.Date).Price;
+            var availability = availabilities.First(a =>
+                a.ServiceId == item.ServiceId && a.Date == item.CheckInDate.Date);
 
             _context.BookingItems.Add(new BookingItem
             {
                 BookingId = booking.BookingId,
                 ServiceId = item.ServiceId,
                 Quantity = item.Quantity,
-                PriceAtBooking = priceAtBooking,
-                CheckInDate = item.CheckInDate.Date,
-                CheckOutDate = item.CheckOutDate?.Date
+                PriceAtBooking = availability.Price,
+                CheckInDate = item.CheckInDate.Date
             });
 
-            foreach (var bookingDate in EnumerateBookingDates(item))
-            {
-                var availability = availabilities.First(a =>
-                    a.ServiceId == item.ServiceId && a.Date == bookingDate);
-                availability.HeldCount += item.Quantity;
-            }
+            availability.HeldCount += item.Quantity;
         }
 
         await _context.SaveChangesAsync();
@@ -318,10 +267,7 @@ public class BookingsController : ControllerBase
     [Obsolete("Use POST /api/bookings/{id}/pay and gateway callback/IPN confirmation instead.")]
     public async Task<IActionResult> ConfirmBooking(int id)
     {
-        var booking = await _context.Bookings
-            .Include(b => b.BookingItems)
-                .ThenInclude(item => item.Service)
-            .FirstOrDefaultAsync(b => b.BookingId == id);
+        var booking = await _context.Bookings.FindAsync(id);
         if (booking == null)
         {
             return NotFound(new { message = "Khong tim thay don hang." });
@@ -344,7 +290,6 @@ public class BookingsController : ControllerBase
         }
 
         booking.Status = BookingStatus.Paid;
-        booking.ApprovalDeadline = DateTimeHelper.Now.AddHours(24); // Partner có 24h để duyệt kể từ khi thanh toán
 
         var items = await _context.BookingItems
             .Where(bi => bi.BookingId == id)
@@ -352,21 +297,20 @@ public class BookingsController : ControllerBase
 
         foreach (var item in items)
         {
-            foreach (var bookingDate in EnumerateBookingDates(item))
+            var availability = await _context.ServiceAvailabilities
+                .FirstOrDefaultAsync(a => a.ServiceId == item.ServiceId
+                    && a.Date == item.CheckInDate.Date);
+
+            if (availability == null)
             {
-                var availability = await _context.ServiceAvailabilities
-                    .FirstOrDefaultAsync(a => a.ServiceId == item.ServiceId && a.Date == bookingDate);
-
-                if (availability == null)
-                {
-                    continue;
-                }
-
-                availability.BookedCount += item.Quantity;
-                availability.HeldCount = Math.Max(0, availability.HeldCount - item.Quantity);
+                continue;
             }
+
+            availability.BookedCount += item.Quantity;
+            availability.HeldCount = Math.Max(0, availability.HeldCount - item.Quantity);
         }
 
+        var paidAt = DateTimeHelper.Now;
         _context.Payments.Add(new Payment
         {
             BookingId = id,
@@ -375,45 +319,15 @@ public class BookingsController : ControllerBase
             TransactionRef = Guid.NewGuid().ToString("N")[..12].ToUpper(),
             Amount = booking.TotalAmount,
             Status = PaymentStatus.Paid,
-            CreatedAt = DateTimeHelper.Now,
-            PaidAt = DateTimeHelper.Now,
-            PaymentTime = DateTimeHelper.Now
+            CreatedAt = paidAt,
+            PaidAt = paidAt,
+            PaymentTime = paidAt
         });
 
         var result = await _context.SaveChangesAsync();
 
         if (result > 0)
         {
-            // 1. Phần Log Audit của bạn
-            int userId = int.Parse(userIdClaim.Value);
-            await _auditLogService.LogAsync(userId, "UPDATE", "Bookings", id);
-            
-            // 2. Phần Gửi thông báo của Main
-            var firstItem = items.FirstOrDefault();
-            var partnerId = booking.BookingItems
-                .Select(item => item.Service.PartnerId)
-                .FirstOrDefault();
-
-            await _notificationService.NotifyUserAsync(booking.UserId, "booking_confirmed", new
-            {
-                bookingId = booking.BookingId,
-                status = booking.Status.ToString(),
-                totalAmount = booking.TotalAmount,
-                message = "Don hang cua ban da duoc xac nhan thanh toan."
-            });
-
-            if (partnerId > 0)
-            {
-                await _notificationService.NotifyPartnerAsync(partnerId, "partner_booking_confirmed", new
-                {
-                    bookingId = booking.BookingId,
-                    serviceId = firstItem?.ServiceId,
-                    quantity = firstItem?.Quantity,
-                    checkInDate = firstItem?.CheckInDate,
-                    message = "Co don hang moi da thanh toan cho dich vu cua ban."
-                });
-            }
-
             return Ok(new
             {
                 success = true,
@@ -593,7 +507,7 @@ public class BookingsController : ControllerBase
             return NotFound(new { message = "Khong tim thay don hang." });
         }
 
-        var evaluation = EvaluateCancellationPolicy(booking, DateTimeHelper.Now);
+        var evaluation = EvaluateCancellationPolicy(booking, DateTime.UtcNow);
         if (!evaluation.CanCancel)
         {
             return BadRequest(new { message = evaluation.PolicyMessage });
@@ -608,12 +522,15 @@ public class BookingsController : ControllerBase
             return BadRequest(new { message = "Khong tim thay giao dich thanh toan de tao hoan tien." });
         }
 
-        var requestedAvailabilityKeys = booking.BookingItems
-            .SelectMany(item => EnumerateBookingDates(item)
-                .Select(date => new { item.ServiceId, Date = date }))
+        var serviceIds = booking.BookingItems
+            .Select(item => item.ServiceId)
+            .Distinct()
             .ToList();
-        var serviceIds = requestedAvailabilityKeys.Select(item => item.ServiceId).Distinct().ToList();
-        var bookingDates = requestedAvailabilityKeys.Select(item => item.Date).Distinct().ToList();
+
+        var bookingDates = booking.BookingItems
+            .Select(item => item.CheckInDate.Date)
+            .Distinct()
+            .ToList();
 
         var availabilities = await _context.ServiceAvailabilities
             .Where(a => serviceIds.Contains(a.ServiceId) && bookingDates.Contains(a.Date))
@@ -621,24 +538,21 @@ public class BookingsController : ControllerBase
 
         foreach (var item in booking.BookingItems)
         {
-            foreach (var bookingDate in EnumerateBookingDates(item))
+            var availability = availabilities.FirstOrDefault(a =>
+                a.ServiceId == item.ServiceId && a.Date == item.CheckInDate.Date);
+
+            if (availability == null)
             {
-                var availability = availabilities.FirstOrDefault(a =>
-                    a.ServiceId == item.ServiceId && a.Date == bookingDate);
+                continue;
+            }
 
-                if (availability == null)
-                {
-                    continue;
-                }
-
-                if (booking.Status == BookingStatus.Pending)
-                {
-                    availability.HeldCount = Math.Max(0, availability.HeldCount - item.Quantity);
-                }
-                else
-                {
-                    availability.BookedCount = Math.Max(0, availability.BookedCount - item.Quantity);
-                }
+            if (booking.Status == BookingStatus.Pending)
+            {
+                availability.HeldCount = Math.Max(0, availability.HeldCount - item.Quantity);
+            }
+            else
+            {
+                availability.BookedCount = Math.Max(0, availability.BookedCount - item.Quantity);
             }
         }
 
@@ -652,16 +566,13 @@ public class BookingsController : ControllerBase
                 RefundAmount = refundAmount,
                 RefundRef = Guid.NewGuid().ToString("N")[..12].ToUpper(),
                 Reason = evaluation.PolicyMessage,
-                RefundTime = DateTimeHelper.Now
+                RefundTime = DateTime.UtcNow
             });
         }
 
         booking.Status = BookingStatus.Cancelled;
 
         await _context.SaveChangesAsync();
-        
-        // Log audit
-        await _auditLogService.LogAsync(userId, "DELETE", "Bookings", id);
 
         return Ok(new
         {
@@ -675,10 +586,20 @@ public class BookingsController : ControllerBase
 
     private static BookingDetailResponse MapToBookingDetail(Booking booking)
     {
-        var evaluation = EvaluateCancellationPolicy(booking, DateTimeHelper.Now);
-        var item = booking.BookingItems
+        var evaluation = EvaluateCancellationPolicy(booking, DateTime.UtcNow);
+        var items = booking.BookingItems
             .OrderBy(bi => bi.ItemId)
-            .FirstOrDefault();
+            .Select(bi => new BookingItemDetailResponse
+            {
+                ItemId = bi.ItemId,
+                ServiceId = bi.ServiceId,
+                ServiceName = bi.Service?.Name ?? "Dich vu du lich",
+                CheckInDate = bi.CheckInDate,
+                Quantity = bi.Quantity,
+                PriceAtBooking = bi.PriceAtBooking,
+                LineTotal = bi.PriceAtBooking * bi.Quantity
+            })
+            .ToList();
 
         var latestPayment = booking.Payments
             .OrderByDescending(payment => payment.PaidAt ?? payment.CreatedAt)
@@ -688,27 +609,17 @@ public class BookingsController : ControllerBase
             .OrderByDescending(refund => refund.RefundTime)
             .FirstOrDefault();
 
-        // Xác định lý do hủy
-        string? cancellationReason = null;
-        if (booking.Status == BookingStatus.Cancelled || booking.Status == BookingStatus.Refunded)
-        {
-            // Nếu có refund reason thì dùng
-            cancellationReason = latestRefund?.Reason;
-            
-            // Đối với customer: Ẩn lý do "Quá hạn duyệt", chỉ hiện lý do từ customer hoặc partner
-            // "Quá hạn duyệt" là lý do hệ thống tự động, không cần hiện cho customer
-            if (cancellationReason == "Quá hạn duyệt")
-            {
-                cancellationReason = null; // Không hiển thị lý do này cho customer
-            }
-        }
-
         return new BookingDetailResponse
         {
             BookingId = booking.BookingId,
-            ServiceName = item?.Service?.Name ?? "Dich vu du lich",
-            CheckInDate = item?.CheckInDate ?? booking.CreatedAt,
-            Quantity = item?.Quantity ?? 0,
+            ServiceName = items.Count switch
+            {
+                0 => "Dich vu du lich",
+                1 => items[0].ServiceName,
+                _ => $"{items[0].ServiceName} + {items.Count - 1} dich vu khac"
+            },
+            CheckInDate = items.Count > 0 ? items.Min(itemDetail => itemDetail.CheckInDate) : booking.CreatedAt,
+            Quantity = items.Sum(itemDetail => itemDetail.Quantity),
             TotalAmount = booking.TotalAmount,
             Status = (int)booking.Status,
             PaymentMethod = latestPayment?.Provider ?? latestPayment?.Method,
@@ -717,7 +628,7 @@ public class BookingsController : ControllerBase
             EstimatedRefundAmount = evaluation.EstimatedRefundAmount,
             CanCancel = evaluation.CanCancel,
             CancelPolicy = evaluation.PolicyMessage,
-            CancellationReason = cancellationReason
+            Items = items
         };
     }
 
@@ -738,8 +649,7 @@ public class BookingsController : ControllerBase
             RefundedAmount = detail.RefundedAmount,
             EstimatedRefundAmount = detail.EstimatedRefundAmount,
             CanCancel = detail.CanCancel,
-            CancelPolicy = detail.CancelPolicy,
-            CancellationReason = detail.CancellationReason
+            CancelPolicy = detail.CancelPolicy
         };
     }
 
@@ -761,8 +671,8 @@ public class BookingsController : ControllerBase
             TransactionRef = transactionRef,
             Amount = amount,
             Status = PaymentStatus.Pending,
-            CreatedAt = DateTime.UtcNow,
-            PaymentTime = DateTime.UtcNow
+            CreatedAt = DateTimeHelper.Now,
+            PaymentTime = DateTimeHelper.Now
         };
 
         _context.Payments.Add(payment);
@@ -787,7 +697,9 @@ public class BookingsController : ControllerBase
         await using var transaction = await _context.Database.BeginTransactionAsync();
 
         var booking = await _context.Bookings
+            .Include(b => b.User)
             .Include(b => b.BookingItems)
+                .ThenInclude(bi => bi.Service)
             .Include(b => b.Payments)
             .FirstOrDefaultAsync(b => b.BookingId == bookingId);
 
@@ -806,6 +718,8 @@ public class BookingsController : ControllerBase
 
         if (payment?.Status == PaymentStatus.Paid)
         {
+            await transaction.CommitAsync();
+            await NotifyBookingPaidAsync(booking, provider);
             return (true, "Giao dich da duoc ghi nhan truoc do.");
         }
 
@@ -814,36 +728,31 @@ public class BookingsController : ControllerBase
             return (false, "Don hang da bi huy, khong the ghi nhan thanh toan.");
         }
 
+        var transitionedToPaid = false;
         if (booking.Status == BookingStatus.Pending)
         {
-            var requestedAvailabilityKeys = booking.BookingItems
-                .SelectMany(item => EnumerateBookingDates(item)
-                    .Select(date => new { item.ServiceId, Date = date }))
-                .ToList();
-            var serviceIds = requestedAvailabilityKeys.Select(item => item.ServiceId).Distinct().ToList();
-            var bookingDates = requestedAvailabilityKeys.Select(item => item.Date).Distinct().ToList();
+            var serviceIds = booking.BookingItems.Select(item => item.ServiceId).Distinct().ToList();
+            var bookingDates = booking.BookingItems.Select(item => item.CheckInDate.Date).Distinct().ToList();
             var availabilities = await _context.ServiceAvailabilities
                 .Where(a => serviceIds.Contains(a.ServiceId) && bookingDates.Contains(a.Date))
                 .ToListAsync();
 
             foreach (var item in booking.BookingItems)
             {
-                foreach (var bookingDate in EnumerateBookingDates(item))
+                var availability = availabilities.FirstOrDefault(a =>
+                    a.ServiceId == item.ServiceId && a.Date == item.CheckInDate.Date);
+
+                if (availability == null)
                 {
-                    var availability = availabilities.FirstOrDefault(a =>
-                        a.ServiceId == item.ServiceId && a.Date == bookingDate);
-
-                    if (availability == null)
-                    {
-                        continue;
-                    }
-
-                    availability.BookedCount += item.Quantity;
-                    availability.HeldCount = Math.Max(0, availability.HeldCount - item.Quantity);
+                    continue;
                 }
+
+                availability.BookedCount += item.Quantity;
+                availability.HeldCount = Math.Max(0, availability.HeldCount - item.Quantity);
             }
 
             booking.Status = BookingStatus.Paid;
+            transitionedToPaid = true;
         }
 
         payment ??= new Payment
@@ -854,15 +763,15 @@ public class BookingsController : ControllerBase
             TransactionRef = transactionRef,
             Amount = amount,
             Status = PaymentStatus.Pending,
-            CreatedAt = DateTime.UtcNow,
-            PaymentTime = DateTime.UtcNow
+            CreatedAt = DateTimeHelper.Now,
+            PaymentTime = DateTimeHelper.Now
         };
 
         payment.Method = provider;
         payment.Provider = provider;
         payment.Amount = amount;
         payment.Status = PaymentStatus.Paid;
-        payment.PaidAt = DateTime.UtcNow;
+        payment.PaidAt = DateTimeHelper.Now;
         payment.PaymentTime = payment.PaidAt.Value;
 
         if (payment.PaymentId == 0)
@@ -873,6 +782,11 @@ public class BookingsController : ControllerBase
         await _context.SaveChangesAsync();
         await transaction.CommitAsync();
 
+        if (booking.Status == BookingStatus.Paid)
+        {
+            await NotifyBookingPaidAsync(booking, provider);
+        }
+
         _logger.LogInformation(
             "Payment {Provider} {TransactionRef} marked paid for booking {BookingId}.",
             provider,
@@ -880,6 +794,130 @@ public class BookingsController : ControllerBase
             bookingId);
 
         return (true, $"Da ghi nhan thanh toan {provider}.");
+    }
+
+    private async Task NotifyBookingPaidAsync(Booking booking, string provider)
+    {
+        var createdAt = DateTimeHelper.Now;
+        var userPayload = new
+        {
+            bookingId = booking.BookingId,
+            status = BookingStatus.Paid.ToString(),
+            totalAmount = booking.TotalAmount,
+            provider,
+            message = $"Don hang #{booking.BookingId} da duoc xac nhan thanh toan qua {provider}.",
+            createdAt
+        };
+
+        var userNotification = await FindExistingNotificationAsync(
+            "booking_confirmed",
+            booking.BookingId,
+            userId: booking.UserId,
+            partnerId: null);
+
+        if (userNotification == null)
+        {
+            userNotification = new TravelAI.Domain.Entities.Notification
+            {
+                UserId = booking.UserId,
+                Type = "booking_confirmed",
+                Message = userPayload.message,
+                IsRead = false,
+                CreatedAt = createdAt,
+                MetadataJson = JsonSerializer.Serialize(userPayload)
+            };
+
+            _context.Notifications.Add(userNotification);
+            await _context.SaveChangesAsync();
+            await _notificationService.NotifyUserAsync(booking.UserId, "booking_confirmed", new
+            {
+                id = userNotification.NotificationId,
+                bookingId = userPayload.bookingId,
+                status = userPayload.status,
+                totalAmount = userPayload.totalAmount,
+                provider = userPayload.provider,
+                message = userPayload.message,
+                createdAt = userPayload.createdAt,
+                isRead = false
+            });
+
+            _logger.LogInformation("Persisted and sent customer payment notification for booking {BookingId}.", booking.BookingId);
+        }
+
+        var partnerIds = booking.BookingItems
+            .Where(item => item.Service != null)
+            .Select(item => item.Service.PartnerId)
+            .Distinct()
+            .ToList();
+
+        foreach (var partnerId in partnerIds)
+        {
+            var partnerNotification = await FindExistingNotificationAsync(
+                "partner_booking_confirmed",
+                booking.BookingId,
+                userId: null,
+                partnerId: partnerId);
+
+            if (partnerNotification != null)
+            {
+                continue;
+            }
+
+            var payload = new
+            {
+                bookingId = booking.BookingId,
+                customerName = booking.User?.FullName,
+                totalAmount = booking.TotalAmount,
+                provider,
+                message = $"Co don hang moi #{booking.BookingId} da thanh toan.",
+                createdAt
+            };
+
+            partnerNotification = new TravelAI.Domain.Entities.Notification
+            {
+                PartnerId = partnerId,
+                Type = "partner_booking_confirmed",
+                Message = payload.message,
+                IsRead = false,
+                CreatedAt = createdAt,
+                MetadataJson = JsonSerializer.Serialize(payload)
+            };
+
+            _context.Notifications.Add(partnerNotification);
+            await _context.SaveChangesAsync();
+            await _notificationService.NotifyPartnerAsync(partnerId, "partner_booking_confirmed", new
+            {
+                id = partnerNotification.NotificationId,
+                bookingId = payload.bookingId,
+                customerName = payload.customerName,
+                totalAmount = payload.totalAmount,
+                provider = payload.provider,
+                message = payload.message,
+                createdAt = payload.createdAt,
+                isRead = false
+            });
+
+            _logger.LogInformation(
+                "Persisted and sent partner payment notification for booking {BookingId} to partner {PartnerId}.",
+                booking.BookingId,
+                partnerId);
+        }
+    }
+
+    private Task<TravelAI.Domain.Entities.Notification?> FindExistingNotificationAsync(
+        string type,
+        int bookingId,
+        int? userId,
+        int? partnerId)
+    {
+        var bookingIdJson = $"\"bookingId\":{bookingId}";
+
+        return _context.Notifications.FirstOrDefaultAsync(n =>
+            n.Type == type &&
+            n.UserId == userId &&
+            n.PartnerId == partnerId &&
+            n.MetadataJson != null &&
+            n.MetadataJson.Contains(bookingIdJson));
     }
 
     private async Task MarkPaymentFailedAsync(string transactionRef, string reason)
@@ -915,28 +953,6 @@ public class BookingsController : ControllerBase
         return int.TryParse(bookingPart, NumberStyles.Integer, CultureInfo.InvariantCulture, out var bookingId)
             ? bookingId
             : null;
-    }
-
-    private static IEnumerable<DateTime> EnumerateBookingDates(BookingItem item)
-    {
-        var startDate = item.CheckInDate.Date;
-        var endDate = item.CheckOutDate?.Date ?? startDate;
-
-        for (var date = startDate; date <= endDate; date = date.AddDays(1))
-        {
-            yield return date;
-        }
-    }
-
-    private static IEnumerable<DateTime> EnumerateBookingDates(CreateBookingRequest item)
-    {
-        var startDate = item.CheckInDate.Date;
-        var endDate = item.CheckOutDate?.Date ?? startDate;
-
-        for (var date = startDate; date <= endDate; date = date.AddDays(1))
-        {
-            yield return date;
-        }
     }
 
     private static CancellationEvaluation EvaluateCancellationPolicy(Booking booking, DateTime nowUtc)

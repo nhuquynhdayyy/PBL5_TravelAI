@@ -1,9 +1,11 @@
 using System.Globalization;
 using System.Security.Claims;
 using System.Text.Json;
+using System.Collections.Generic;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using TravelAI.Application.Common;
 using TravelAI.Application.DTOs.Payment;
 using TravelAI.Application.Interfaces;
 using TravelAI.Domain.Entities;
@@ -21,19 +23,22 @@ public sealed class PaymentController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly IConfiguration _configuration;
     private readonly ILogger<PaymentController> _logger;
+    private readonly IRealtimeNotificationService _notificationService;
 
     public PaymentController(
         IPaymentService paymentService,
         IMomoService momoService,
         ApplicationDbContext context,
         IConfiguration configuration,
-        ILogger<PaymentController> logger)
+        ILogger<PaymentController> logger,
+        IRealtimeNotificationService notificationService)
     {
         _paymentService = paymentService;
         _momoService = momoService;
         _context = context;
         _configuration = configuration;
         _logger = logger;
+        _notificationService = notificationService;
     }
 
     [HttpPost("vnpay/create")]
@@ -61,30 +66,25 @@ public sealed class PaymentController : ControllerBase
             return BadRequest(new { message = "Chi co the thanh toan don hang dang cho xu ly." });
         }
 
-        // Dùng amount từ request nếu có (đã áp dụng giảm giá), ngược lại dùng totalAmount của booking
-        var paymentAmount = (request.Amount.HasValue && request.Amount.Value > 0)
-            ? request.Amount.Value
-            : booking.TotalAmount;
-
-        if (paymentAmount > booking.TotalAmount)
+        if (request.Amount.HasValue && request.Amount.Value != booking.TotalAmount)
         {
-            return BadRequest(new { message = "So tien thanh toan khong hop le." });
+            return BadRequest(new { message = "So tien thanh toan khong khop voi don hang." });
         }
 
         if (UseMockGatewayWhenConfigured("VnPay"))
         {
             var mockTransactionRef = CreateTransactionRef(booking.BookingId, "MOCKVNPAY");
-            await CreatePendingPaymentAsync(booking.BookingId, "VNPay", mockTransactionRef, paymentAmount);
+            await CreatePendingPaymentAsync(booking.BookingId, "VNPay", mockTransactionRef, booking.TotalAmount);
             return Ok(new
             {
                 success = true,
                 transactionRef = mockTransactionRef,
-                paymentUrl = BuildMockPaymentUrl("vnpay", booking.BookingId, paymentAmount)
+                paymentUrl = BuildMockPaymentUrl("vnpay", booking.BookingId, booking.TotalAmount)
             });
         }
 
         var transactionRef = CreateTransactionRef(booking.BookingId, "VNPAY");
-        await CreatePendingPaymentAsync(booking.BookingId, "VNPay", transactionRef, paymentAmount);
+        await CreatePendingPaymentAsync(booking.BookingId, "VNPay", transactionRef, booking.TotalAmount);
 
         var returnUrl = request.ReturnUrl
             ?? _configuration["VnPay:ReturnUrl"]
@@ -93,7 +93,7 @@ public sealed class PaymentController : ControllerBase
 
         var paymentUrl = _paymentService.CreatePaymentUrl(
             booking.BookingId,
-            paymentAmount,
+            booking.TotalAmount,
             returnUrl,
             HttpContext.Connection.RemoteIpAddress?.ToString(),
             transactionRef);
@@ -218,22 +218,16 @@ public sealed class PaymentController : ControllerBase
             return BadRequest(new { message = "Chi co the thanh toan don hang dang cho xu ly." });
         }
 
-        // Dùng amount từ request nếu có (đã áp dụng giảm giá), ngược lại dùng totalAmount của booking
-        var paymentAmount = (request.Amount.HasValue && request.Amount.Value > 0)
-            ? request.Amount.Value
-            : booking.TotalAmount;
-
-        // Đảm bảo số tiền không vượt quá giá gốc (tránh gian lận)
-        if (paymentAmount > booking.TotalAmount)
+        if (request.Amount.HasValue && request.Amount.Value != booking.TotalAmount)
         {
-            return BadRequest(new { message = "So tien thanh toan khong hop le." });
+            return BadRequest(new { message = "So tien thanh toan khong khop voi don hang." });
         }
 
         if (UseMockGatewayWhenConfigured("Momo"))
         {
             var mockOrderId = CreateTransactionRef(booking.BookingId, "MOCKMOMO");
-            await CreatePendingPaymentAsync(booking.BookingId, "MoMo", mockOrderId, paymentAmount);
-            var mockPaymentUrl = BuildMockPaymentUrl("momo", booking.BookingId, paymentAmount);
+            await CreatePendingPaymentAsync(booking.BookingId, "MoMo", mockOrderId, booking.TotalAmount);
+            var mockPaymentUrl = BuildMockPaymentUrl("momo", booking.BookingId, booking.TotalAmount);
             return Ok(new
             {
                 isSuccess = true,
@@ -245,8 +239,8 @@ public sealed class PaymentController : ControllerBase
         }
 
         var orderId = CreateTransactionRef(booking.BookingId, "MOMO");
-        await CreatePendingPaymentAsync(booking.BookingId, "MoMo", orderId, paymentAmount);
-        var result = await _momoService.CreatePaymentRequestAsync(booking.BookingId, paymentAmount, orderId);
+        await CreatePendingPaymentAsync(booking.BookingId, "MoMo", orderId, booking.TotalAmount);
+        var result = await _momoService.CreatePaymentRequestAsync(booking.BookingId, booking.TotalAmount, orderId);
         return Ok(result);
     }
 
@@ -275,24 +269,19 @@ public sealed class PaymentController : ControllerBase
             return BadRequest(new { message = "Chi co the thanh toan don hang dang cho xu ly." });
         }
 
-        // Dùng amount từ request nếu có (đã áp dụng giảm giá), ngược lại dùng totalAmount của booking
-        var paymentAmountVietQr = (request.Amount.HasValue && request.Amount.Value > 0)
-            ? request.Amount.Value
-            : booking.TotalAmount;
-
-        if (paymentAmountVietQr > booking.TotalAmount)
+        if (request.Amount.HasValue && request.Amount.Value != booking.TotalAmount)
         {
-            return BadRequest(new { message = "So tien thanh toan khong hop le." });
+            return BadRequest(new { message = "So tien thanh toan khong khop voi don hang." });
         }
 
         var accountNumber = _configuration["VietQr:AccountNumber"] ?? "0888233738";
         var bankCode = _configuration["VietQr:BankCode"] ?? "ICB";
         var bankName = _configuration["VietQr:BankName"] ?? "VietinBank";
         var accountName = _configuration["VietQr:AccountName"] ?? "TRAVELAI";
-        var amount = decimal.ToInt64(decimal.Round(paymentAmountVietQr, 0, MidpointRounding.AwayFromZero));
+        var amount = decimal.ToInt64(decimal.Round(booking.TotalAmount, 0, MidpointRounding.AwayFromZero));
         var transferContent = $"TRAVELAI BK{booking.BookingId}";
         var transactionRef = CreateTransactionRef(booking.BookingId, "VIETQR");
-        await CreatePendingPaymentAsync(booking.BookingId, "VietQR", transactionRef, paymentAmountVietQr);
+        await CreatePendingPaymentAsync(booking.BookingId, "VietQR", transactionRef, booking.TotalAmount);
         var qrImageUrl = string.Concat(
             "https://img.vietqr.io/image/",
             Uri.EscapeDataString(bankCode),
@@ -309,7 +298,7 @@ public sealed class PaymentController : ControllerBase
         {
             IsSuccess = true,
             BookingId = booking.BookingId,
-            Amount = paymentAmountVietQr,
+            Amount = booking.TotalAmount,
             BankCode = bankCode,
             BankName = bankName,
             AccountNumber = accountNumber,
@@ -427,24 +416,19 @@ public sealed class PaymentController : ControllerBase
             return BadRequest(new { message = "Chi co the thanh toan don hang dang cho xu ly." });
         }
 
-        // Dùng amount từ request nếu có (đã áp dụng giảm giá), ngược lại dùng totalAmount của booking
-        var paymentAmountCounter = (request.Amount.HasValue && request.Amount.Value > 0)
-            ? request.Amount.Value
-            : booking.TotalAmount;
-
-        if (paymentAmountCounter > booking.TotalAmount)
+        if (request.Amount.HasValue && request.Amount.Value != booking.TotalAmount)
         {
-            return BadRequest(new { message = "So tien thanh toan khong hop le." });
+            return BadRequest(new { message = "So tien thanh toan khong khop voi don hang." });
         }
 
         var transactionRef = CreateTransactionRef(booking.BookingId, "COUNTER");
-        await CreatePendingPaymentAsync(booking.BookingId, "Counter", transactionRef, paymentAmountCounter);
+        await CreatePendingPaymentAsync(booking.BookingId, "Counter", transactionRef, booking.TotalAmount);
 
         return Ok(new CounterPaymentResponse
         {
             IsSuccess = true,
             BookingId = booking.BookingId,
-            Amount = paymentAmountCounter,
+            Amount = booking.TotalAmount,
             TransactionRef = transactionRef,
             PaymentCode = $"BK{booking.BookingId:000000}",
             PaymentLocation = _configuration["CounterPayment:Location"] ?? "TravelAI - Quay thanh toan",
@@ -655,7 +639,9 @@ public sealed class PaymentController : ControllerBase
         await using var transaction = await _context.Database.BeginTransactionAsync();
 
         var booking = await _context.Bookings
+            .Include(b => b.User)
             .Include(b => b.BookingItems)
+                .ThenInclude(bi => bi.Service)
             .Include(b => b.Payments)
             .FirstOrDefaultAsync(b => b.BookingId == bookingId);
 
@@ -674,6 +660,8 @@ public sealed class PaymentController : ControllerBase
 
         if (payment?.Status == PaymentStatus.Paid)
         {
+            await transaction.CommitAsync();
+            await NotifyBookingPaidAsync(booking, method);
             return (true, "Giao dich da duoc ghi nhan truoc do.");
         }
 
@@ -682,36 +670,31 @@ public sealed class PaymentController : ControllerBase
             return (false, "Don hang da bi huy, khong the ghi nhan thanh toan.");
         }
 
+        var transitionedToPaid = false;
         if (booking.Status == BookingStatus.Pending)
         {
-            var requestedAvailabilityKeys = booking.BookingItems
-                .SelectMany(item => EnumerateBookingDates(item)
-                    .Select(date => new { item.ServiceId, Date = date }))
-                .ToList();
-            var serviceIds = requestedAvailabilityKeys.Select(item => item.ServiceId).Distinct().ToList();
-            var bookingDates = requestedAvailabilityKeys.Select(item => item.Date).Distinct().ToList();
+            var serviceIds = booking.BookingItems.Select(item => item.ServiceId).Distinct().ToList();
+            var bookingDates = booking.BookingItems.Select(item => item.CheckInDate.Date).Distinct().ToList();
             var availabilities = await _context.ServiceAvailabilities
                 .Where(a => serviceIds.Contains(a.ServiceId) && bookingDates.Contains(a.Date))
                 .ToListAsync();
 
             foreach (var item in booking.BookingItems)
             {
-                foreach (var bookingDate in EnumerateBookingDates(item))
+                var availability = availabilities.FirstOrDefault(a =>
+                    a.ServiceId == item.ServiceId && a.Date == item.CheckInDate.Date);
+
+                if (availability == null)
                 {
-                    var availability = availabilities.FirstOrDefault(a =>
-                        a.ServiceId == item.ServiceId && a.Date == bookingDate);
-
-                    if (availability == null)
-                    {
-                        continue;
-                    }
-
-                    availability.BookedCount += item.Quantity;
-                    availability.HeldCount = Math.Max(0, availability.HeldCount - item.Quantity);
+                    continue;
                 }
+
+                availability.BookedCount += item.Quantity;
+                availability.HeldCount = Math.Max(0, availability.HeldCount - item.Quantity);
             }
 
             booking.Status = BookingStatus.Paid;
+            transitionedToPaid = true;
         }
 
         payment ??= new Payment
@@ -722,15 +705,15 @@ public sealed class PaymentController : ControllerBase
             TransactionRef = transactionRef,
             Amount = amount,
             Status = PaymentStatus.Pending,
-            CreatedAt = DateTime.UtcNow,
-            PaymentTime = DateTime.UtcNow
+            CreatedAt = DateTimeHelper.Now,
+            PaymentTime = DateTimeHelper.Now
         };
 
         payment.Method = method;
         payment.Provider = method;
         payment.Amount = amount;
         payment.Status = PaymentStatus.Paid;
-        payment.PaidAt = DateTime.UtcNow;
+        payment.PaidAt = DateTimeHelper.Now;
         payment.PaymentTime = payment.PaidAt.Value;
 
         if (payment.PaymentId == 0)
@@ -741,6 +724,11 @@ public sealed class PaymentController : ControllerBase
         await _context.SaveChangesAsync();
         await transaction.CommitAsync();
 
+        if (booking.Status == BookingStatus.Paid)
+        {
+            await NotifyBookingPaidAsync(booking, method);
+        }
+
         _logger.LogInformation(
             "Payment {Provider} {TransactionRef} marked paid for booking {BookingId}.",
             method,
@@ -748,6 +736,130 @@ public sealed class PaymentController : ControllerBase
             bookingId);
 
         return (true, $"Da ghi nhan thanh toan {method}.");
+    }
+
+    private async Task NotifyBookingPaidAsync(Booking booking, string provider)
+    {
+        var createdAt = DateTimeHelper.Now;
+        var userPayload = new
+        {
+            bookingId = booking.BookingId,
+            status = BookingStatus.Paid.ToString(),
+            totalAmount = booking.TotalAmount,
+            provider,
+            message = $"Don hang #{booking.BookingId} da duoc xac nhan thanh toan qua {provider}.",
+            createdAt
+        };
+
+        var userNotification = await FindExistingNotificationAsync(
+            "booking_confirmed",
+            booking.BookingId,
+            userId: booking.UserId,
+            partnerId: null);
+
+        if (userNotification == null)
+        {
+            userNotification = new TravelAI.Domain.Entities.Notification
+            {
+                UserId = booking.UserId,
+                Type = "booking_confirmed",
+                Message = userPayload.message,
+                IsRead = false,
+                CreatedAt = createdAt,
+                MetadataJson = JsonSerializer.Serialize(userPayload)
+            };
+
+            _context.Notifications.Add(userNotification);
+            await _context.SaveChangesAsync();
+            await _notificationService.NotifyUserAsync(booking.UserId, "booking_confirmed", new
+            {
+                id = userNotification.NotificationId,
+                bookingId = userPayload.bookingId,
+                status = userPayload.status,
+                totalAmount = userPayload.totalAmount,
+                provider = userPayload.provider,
+                message = userPayload.message,
+                createdAt = userPayload.createdAt,
+                isRead = false
+            });
+
+            _logger.LogInformation("Persisted and sent customer payment notification for booking {BookingId}.", booking.BookingId);
+        }
+
+        var partnerIds = booking.BookingItems
+            .Where(item => item.Service != null)
+            .Select(item => item.Service.PartnerId)
+            .Distinct()
+            .ToList();
+
+        foreach (var partnerId in partnerIds)
+        {
+            var partnerNotification = await FindExistingNotificationAsync(
+                "partner_booking_confirmed",
+                booking.BookingId,
+                userId: null,
+                partnerId: partnerId);
+
+            if (partnerNotification != null)
+            {
+                continue;
+            }
+
+            var payload = new
+            {
+                bookingId = booking.BookingId,
+                customerName = booking.User?.FullName,
+                totalAmount = booking.TotalAmount,
+                provider,
+                message = $"Co don hang moi #{booking.BookingId} da thanh toan.",
+                createdAt
+            };
+
+            partnerNotification = new TravelAI.Domain.Entities.Notification
+            {
+                PartnerId = partnerId,
+                Type = "partner_booking_confirmed",
+                Message = payload.message,
+                IsRead = false,
+                CreatedAt = createdAt,
+                MetadataJson = JsonSerializer.Serialize(payload)
+            };
+
+            _context.Notifications.Add(partnerNotification);
+            await _context.SaveChangesAsync();
+            await _notificationService.NotifyPartnerAsync(partnerId, "partner_booking_confirmed", new
+            {
+                id = partnerNotification.NotificationId,
+                bookingId = payload.bookingId,
+                customerName = payload.customerName,
+                totalAmount = payload.totalAmount,
+                provider = payload.provider,
+                message = payload.message,
+                createdAt = payload.createdAt,
+                isRead = false
+            });
+
+            _logger.LogInformation(
+                "Persisted and sent partner payment notification for booking {BookingId} to partner {PartnerId}.",
+                booking.BookingId,
+                partnerId);
+        }
+    }
+
+    private Task<TravelAI.Domain.Entities.Notification?> FindExistingNotificationAsync(
+        string type,
+        int bookingId,
+        int? userId,
+        int? partnerId)
+    {
+        var bookingIdJson = $"\"bookingId\":{bookingId}";
+
+        return _context.Notifications.FirstOrDefaultAsync(n =>
+            n.Type == type &&
+            n.UserId == userId &&
+            n.PartnerId == partnerId &&
+            n.MetadataJson != null &&
+            n.MetadataJson.Contains(bookingIdJson));
     }
 
     private IActionResult BuildCallbackResponse(PaymentResult result, int? bookingId, string message)
@@ -801,8 +913,8 @@ public sealed class PaymentController : ControllerBase
             TransactionRef = transactionRef,
             Amount = amount,
             Status = PaymentStatus.Pending,
-            CreatedAt = DateTime.UtcNow,
-            PaymentTime = DateTime.UtcNow
+            CreatedAt = DateTimeHelper.Now,
+            PaymentTime = DateTimeHelper.Now
         };
 
         _context.Payments.Add(payment);
@@ -859,17 +971,6 @@ public sealed class PaymentController : ControllerBase
             && DateTime.TryParseExact(parts[1], "yyyyMMddHHmmss", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
             ? date
             : null;
-    }
-
-    private static IEnumerable<DateTime> EnumerateBookingDates(BookingItem item)
-    {
-        var startDate = item.CheckInDate.Date;
-        var endDate = item.CheckOutDate?.Date ?? startDate;
-
-        for (var date = startDate; date <= endDate; date = date.AddDays(1))
-        {
-            yield return date;
-        }
     }
 
     private bool UseMockGatewayWhenConfigured(string provider)

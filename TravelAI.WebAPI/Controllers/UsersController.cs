@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using TravelAI.Application.DTOs.User;
-using TravelAI.Application.Interfaces;
 using TravelAI.Infrastructure.Persistence;
 using TravelAI.Infrastructure.Services; // Đảm bảo trỏ đúng vào Infrastructure
 
@@ -17,14 +16,12 @@ public class UsersController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly IWebHostEnvironment _webHostEnvironment;
     private readonly UserService _userService;
-    private readonly IAuditLogService _auditLogService;
 
-    public UsersController(ApplicationDbContext context, IWebHostEnvironment webHostEnvironment, UserService userService, IAuditLogService auditLogService)
+    public UsersController(ApplicationDbContext context, IWebHostEnvironment webHostEnvironment, UserService userService)
     {
         _context = context;
         _webHostEnvironment = webHostEnvironment;
         _userService = userService;
-        _auditLogService = auditLogService;
     }
 
     // 1. LẤY THÔNG TIN CÁ NHÂN (GET)
@@ -69,12 +66,8 @@ public class UsersController : ControllerBase
             // Gọi Service xử lý logic lưu file và DB
             var success = await _userService.UpdateProfileAsync(userId, request, webRootPath);
             
-            if (success)
-            {
-                // Log audit
-                await _auditLogService.LogAsync(userId, "UPDATE", "Users", userId);
+            if (success) 
                 return Ok(new { success = true, message = "Cập nhật thành công!" });
-            }
             
             return BadRequest(new { success = false, message = "Không thể cập nhật thông tin." });
         }

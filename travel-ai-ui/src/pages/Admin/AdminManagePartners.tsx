@@ -43,7 +43,6 @@ const AdminManagePartners = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [reviewNote, setReviewNote] = useState('');
   const [activeTab, setActiveTab] = useState<'pending' | 'all'>('pending');
-  const [statusFilter, setStatusFilter] = useState<string>('all'); // all, Pending, Approved, Rejected, NeedMoreInfo
 
   const fetchPartners = async () => {
     try {
@@ -80,26 +79,18 @@ const AdminManagePartners = () => {
     const source = activeTab === 'pending' ? pendingPartners : allPartners;
     const keyword = searchQuery.trim().toLowerCase();
 
-    let result = source;
-
-    // Filter by status
-    if (statusFilter !== 'all') {
-      result = result.filter((partner) => partner.verificationStatus === statusFilter);
+    if (!keyword) {
+      return source;
     }
 
-    // Filter by search keyword
-    if (keyword) {
-      result = result.filter((partner) =>
-        [partner.fullName, partner.businessName, partner.email, partner.taxCode ?? '']
-          .some((value) => value.toLowerCase().includes(keyword))
-      );
-    }
-
-    return result;
-  }, [activeTab, allPartners, pendingPartners, searchQuery, statusFilter]);
+    return source.filter((partner) =>
+      [partner.fullName, partner.businessName, partner.email, partner.taxCode ?? '']
+        .some((value) => value.toLowerCase().includes(keyword))
+    );
+  }, [activeTab, allPartners, pendingPartners, searchQuery]);
 
   useEffect(() => {
-if (!selectedPartner && filteredPartners.length > 0) {
+    if (!selectedPartner && filteredPartners.length > 0) {
       setSelectedPartner(filteredPartners[0]);
       return;
     }
@@ -111,11 +102,6 @@ if (!selectedPartner && filteredPartners.length > 0) {
 
   const handleAction = async (type: 'approve' | 'reject' | 'need-more-info') => {
     if (!selectedPartner) {
-      return;
-    }
-
-    if (selectedPartner.verificationStatus.toLowerCase() === 'approved') {
-      alert('Partner da duoc duyet. Vui long dung action rieng neu can thu hoi phe duyet.');
       return;
     }
 
@@ -131,21 +117,9 @@ if (!selectedPartner && filteredPartners.length > 0) {
       });
       setReviewNote('');
       await fetchPartners();
-    } catch (error: unknown) {
+    } catch (error: any) {
       console.error(error);
-      const message = typeof error === 'object'
-        && error !== null
-        && 'response' in error
-        && typeof error.response === 'object'
-        && error.response !== null
-        && 'data' in error.response
-        && typeof error.response.data === 'object'
-        && error.response.data !== null
-        && 'message' in error.response.data
-        && typeof error.response.data.message === 'string'
-          ? error.response.data.message
-          : 'Khong the cap nhat ho so doi tac luc nay.';
-      alert(message);
+      alert(error.response?.data?.message ?? 'Khong the cap nhat ho so doi tac luc nay.');
     } finally {
       setActionLoading(null);
     }
@@ -164,8 +138,6 @@ if (!selectedPartner && filteredPartners.length > 0) {
     }
   };
 
-  const isSelectedPartnerApproved = selectedPartner?.verificationStatus.toLowerCase() === 'approved';
-
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <div className="mb-8 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
@@ -180,16 +152,40 @@ if (!selectedPartner && filteredPartners.length > 0) {
         </div>
 
         <button
-onClick={() => void fetchPartners()}
+          onClick={() => void fetchPartners()}
           className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900 px-6 py-3 text-sm font-black text-white shadow-lg transition-all hover:bg-red-600 active:scale-95"
         >
           <RefreshCw size={18} /> Tai lai
         </button>
       </div>
 
-      <div className="mb-6 flex flex-col gap-4">
-        {/* Search Bar */}
-        <div className="relative w-full">
+      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => setActiveTab('pending')}
+            className={`rounded-full px-5 py-3 text-sm font-black transition ${
+              activeTab === 'pending'
+                ? 'bg-slate-900 text-white shadow-lg'
+                : 'bg-white text-slate-500 shadow-sm ring-1 ring-slate-200 hover:text-slate-900'
+            }`}
+          >
+            Cho duyet ({pendingPartners.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('all')}
+            className={`rounded-full px-5 py-3 text-sm font-black transition ${
+              activeTab === 'all'
+                ? 'bg-slate-900 text-white shadow-lg'
+                : 'bg-white text-slate-500 shadow-sm ring-1 ring-slate-200 hover:text-slate-900'
+            }`}
+          >
+            Tat ca partner ({allPartners.length})
+          </button>
+        </div>
+
+        <div className="relative w-full max-w-xl">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input
             type="text"
@@ -198,81 +194,6 @@ onClick={() => void fetchPartners()}
             placeholder="Tim theo ten, email, doanh nghiep, ma so thue..."
             className="w-full rounded-full border-2 border-slate-100 bg-white py-3 pl-11 pr-5 font-semibold text-slate-700 outline-none transition focus:border-red-400"
           />
-        </div>
-
-        {/* Status Filter Tabs */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="mr-2 text-sm font-black text-slate-600">Lọc:</span>
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('all');
-              setStatusFilter('all');
-            }}
-            className={`rounded-full px-4 py-2 text-sm font-bold transition ${
-              activeTab === 'all' && statusFilter === 'all'
-                ? 'bg-slate-900 text-white shadow-md'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            Tất cả ({allPartners.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('all');
-              setStatusFilter('Pending');
-            }}
-            className={`rounded-full px-4 py-2 text-sm font-bold transition ${
-              statusFilter === 'Pending'
-                ? 'bg-blue-600 text-white shadow-md'
-                : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-            }`}
-          >
-            Chờ duyệt ({pendingPartners.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('all');
-              setStatusFilter('Approved');
-            }}
-            className={`rounded-full px-4 py-2 text-sm font-bold transition ${
-              statusFilter === 'Approved'
-                ? 'bg-emerald-600 text-white shadow-md'
-                : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-            }`}
-          >
-            Đã duyệt
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('all');
-              setStatusFilter('Rejected');
-            }}
-            className={`rounded-full px-4 py-2 text-sm font-bold transition ${
-              statusFilter === 'Rejected'
-                ? 'bg-red-600 text-white shadow-md'
-: 'bg-red-100 text-red-700 hover:bg-red-200'
-            }`}
-          >
-            Từ chối
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('all');
-              setStatusFilter('NeedMoreInfo');
-            }}
-            className={`rounded-full px-4 py-2 text-sm font-bold transition ${
-              statusFilter === 'NeedMoreInfo'
-                ? 'bg-amber-600 text-white shadow-md'
-                : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-            }`}
-          >
-            Cần bổ sung
-          </button>
         </div>
       </div>
 
@@ -285,18 +206,10 @@ onClick={() => void fetchPartners()}
           <div className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white shadow-xl">
             <div className="border-b border-slate-100 px-6 py-5 text-left">
               <h2 className="text-lg font-black text-slate-900">
-                {statusFilter === 'all' 
-                  ? 'Tất cả partners' 
-                  : statusFilter === 'Pending' 
-                  ? 'Partners chờ duyệt'
-                  : statusFilter === 'Approved'
-                  ? 'Partners đã duyệt'
-                  : statusFilter === 'Rejected'
-                  ? 'Partners bị từ chối'
-                  : 'Partners cần bổ sung thông tin'}
+                {activeTab === 'pending' ? 'Danh sach partner cho duyet' : 'Danh sach tat ca partner'}
               </h2>
             </div>
-            <div className="max-h-[70vh] overflow-y-auto custom-scrollbar p-4">
+            <div className="max-h-[70vh] overflow-y-auto p-4">
               {filteredPartners.length === 0 ? (
                 <div className="rounded-[1.5rem] border border-dashed border-slate-200 bg-slate-50 px-6 py-14 text-center">
                   <p className="font-bold text-slate-400">Khong co partner nao phu hop bo loc hien tai.</p>
@@ -317,7 +230,7 @@ onClick={() => void fetchPartners()}
                       <div className="mb-2 flex items-center justify-between gap-3">
                         <p className="font-black text-slate-900">{partner.businessName}</p>
                         <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${getStatusClassName(partner.verificationStatus)}`}>
-{partner.verificationStatus}
+                          {partner.verificationStatus}
                         </span>
                       </div>
                       <p className="text-sm font-semibold text-slate-600">{partner.fullName}</p>
@@ -368,7 +281,8 @@ onClick={() => void fetchPartners()}
                     <p className="font-bold text-slate-800">{selectedPartner.bankAccount || 'Chua cap nhat'}</p>
                   </div>
                 </div>
-<div className="mt-5 rounded-[1.5rem] border border-slate-100 bg-slate-50 p-5">
+
+                <div className="mt-5 rounded-[1.5rem] border border-slate-100 bg-slate-50 p-5">
                   <p className="mb-3 text-xs font-black uppercase tracking-widest text-slate-400">Dia chi</p>
                   <p className="text-sm leading-7 text-slate-600">{selectedPartner.address || 'Chua cap nhat dia chi doanh nghiep.'}</p>
                 </div>
@@ -399,47 +313,45 @@ onClick={() => void fetchPartners()}
                   <p className="text-sm leading-7 text-slate-600">{selectedPartner.reviewNote || 'Chua co ghi chu review.'}</p>
                 </div>
 
-                {!isSelectedPartnerApproved && (
-                  <div className="mt-6 rounded-[1.5rem] border border-amber-200 bg-amber-50 p-5">
-                    <p className="mb-3 text-xs font-black uppercase tracking-widest text-amber-700">Nhan xet kiem duyet</p>
-                    <textarea
-                      value={reviewNote}
-                      onChange={(event) => setReviewNote(event.target.value)}
-                      placeholder="Nhap ghi chu cho partner..."
-                      className="h-28 w-full rounded-2xl border border-amber-200 bg-white p-4 text-sm font-medium text-slate-700 outline-none transition focus:border-amber-400"
-                    />
+                <div className="mt-6 rounded-[1.5rem] border border-amber-200 bg-amber-50 p-5">
+                  <p className="mb-3 text-xs font-black uppercase tracking-widest text-amber-700">Nhan xet kiem duyet</p>
+                  <textarea
+                    value={reviewNote}
+                    onChange={(event) => setReviewNote(event.target.value)}
+                    placeholder="Nhap ghi chu cho partner..."
+                    className="h-28 w-full rounded-2xl border border-amber-200 bg-white p-4 text-sm font-medium text-slate-700 outline-none transition focus:border-amber-400"
+                  />
 
-                    <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-                      <button
-                        type="button"
-                        onClick={() => void handleAction('approve')}
-                        disabled={actionLoading === selectedPartner.profileId}
-className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3.5 text-sm font-black text-white shadow-lg transition hover:bg-emerald-700 disabled:opacity-70"
-                      >
-                        {actionLoading === selectedPartner.profileId ? <Loader2 size={16} className="animate-spin" /> : <BadgeCheck size={16} />}
-                        Approve
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleAction('need-more-info')}
-                        disabled={actionLoading === selectedPartner.profileId}
-                        className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-amber-500 px-5 py-3.5 text-sm font-black text-white shadow-lg transition hover:bg-amber-600 disabled:opacity-70"
-                      >
-                        {actionLoading === selectedPartner.profileId ? <Loader2 size={16} className="animate-spin" /> : <AlertCircle size={16} />}
-                        Need more info
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleAction('reject')}
-                        disabled={actionLoading === selectedPartner.profileId}
-                        className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-red-600 px-5 py-3.5 text-sm font-black text-white shadow-lg transition hover:bg-red-700 disabled:opacity-70"
-                      >
-                        {actionLoading === selectedPartner.profileId ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
-                        Reject
-                      </button>
-                    </div>
+                  <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                    <button
+                      type="button"
+                      onClick={() => void handleAction('approve')}
+                      disabled={actionLoading === selectedPartner.profileId}
+                      className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3.5 text-sm font-black text-white shadow-lg transition hover:bg-emerald-700 disabled:opacity-70"
+                    >
+                      {actionLoading === selectedPartner.profileId ? <Loader2 size={16} className="animate-spin" /> : <BadgeCheck size={16} />}
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleAction('need-more-info')}
+                      disabled={actionLoading === selectedPartner.profileId}
+                      className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-amber-500 px-5 py-3.5 text-sm font-black text-white shadow-lg transition hover:bg-amber-600 disabled:opacity-70"
+                    >
+                      {actionLoading === selectedPartner.profileId ? <Loader2 size={16} className="animate-spin" /> : <AlertCircle size={16} />}
+                      Need more info
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleAction('reject')}
+                      disabled={actionLoading === selectedPartner.profileId}
+                      className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-red-600 px-5 py-3.5 text-sm font-black text-white shadow-lg transition hover:bg-red-700 disabled:opacity-70"
+                    >
+                      {actionLoading === selectedPartner.profileId ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
+                      Reject
+                    </button>
                   </div>
-                )}
+                </div>
               </div>
             ) : (
               <div className="flex min-h-[30rem] items-center justify-center rounded-[1.5rem] border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
