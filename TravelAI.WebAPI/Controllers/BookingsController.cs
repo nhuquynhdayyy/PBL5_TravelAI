@@ -3,6 +3,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using System.Globalization;
+using System.Text.Json;
+using System.Collections.Generic;
+using TravelAI.Application.Common;
 using TravelAI.Application.DTOs.Booking;
 using TravelAI.Application.DTOs.Payment;
 using TravelAI.Application.Interfaces;
@@ -23,6 +26,7 @@ public class BookingsController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly IConfiguration _configuration;
     private readonly ILogger<BookingsController> _logger;
+    private readonly IRealtimeNotificationService _notificationService;
 
     public BookingsController(
         IBookingService bookingService,
@@ -30,7 +34,8 @@ public class BookingsController : ControllerBase
         IMomoService momoService,
         ApplicationDbContext context,
         IConfiguration configuration,
-        ILogger<BookingsController> logger)
+        ILogger<BookingsController> logger,
+        IRealtimeNotificationService notificationService)
     {
         _bookingService = bookingService;
         _paymentService = paymentService;
@@ -38,6 +43,7 @@ public class BookingsController : ControllerBase
         _context = context;
         _configuration = configuration;
         _logger = logger;
+        _notificationService = notificationService;
     }
 
     [HttpGet("my-bookings")]
@@ -160,7 +166,7 @@ public class BookingsController : ControllerBase
             UserId = userId,
             TotalAmount = totalAmount,
             Status = BookingStatus.Pending,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTimeHelper.Now
         };
 
         _context.Bookings.Add(booking);
@@ -304,6 +310,7 @@ public class BookingsController : ControllerBase
             availability.HeldCount = Math.Max(0, availability.HeldCount - item.Quantity);
         }
 
+        var paidAt = DateTimeHelper.Now;
         _context.Payments.Add(new Payment
         {
             BookingId = id,
@@ -312,9 +319,9 @@ public class BookingsController : ControllerBase
             TransactionRef = Guid.NewGuid().ToString("N")[..12].ToUpper(),
             Amount = booking.TotalAmount,
             Status = PaymentStatus.Paid,
-            CreatedAt = DateTime.UtcNow,
-            PaidAt = DateTime.UtcNow,
-            PaymentTime = DateTime.UtcNow
+            CreatedAt = paidAt,
+            PaidAt = paidAt,
+            PaymentTime = paidAt
         });
 
         var result = await _context.SaveChangesAsync();
@@ -580,9 +587,19 @@ public class BookingsController : ControllerBase
     private static BookingDetailResponse MapToBookingDetail(Booking booking)
     {
         var evaluation = EvaluateCancellationPolicy(booking, DateTime.UtcNow);
-        var item = booking.BookingItems
+        var items = booking.BookingItems
             .OrderBy(bi => bi.ItemId)
-            .FirstOrDefault();
+            .Select(bi => new BookingItemDetailResponse
+            {
+                ItemId = bi.ItemId,
+                ServiceId = bi.ServiceId,
+                ServiceName = bi.Service?.Name ?? "Dich vu du lich",
+                CheckInDate = bi.CheckInDate,
+                Quantity = bi.Quantity,
+                PriceAtBooking = bi.PriceAtBooking,
+                LineTotal = bi.PriceAtBooking * bi.Quantity
+            })
+            .ToList();
 
         var latestPayment = booking.Payments
             .OrderByDescending(payment => payment.PaidAt ?? payment.CreatedAt)
@@ -595,9 +612,14 @@ public class BookingsController : ControllerBase
         return new BookingDetailResponse
         {
             BookingId = booking.BookingId,
-            ServiceName = item?.Service?.Name ?? "Dich vu du lich",
-            CheckInDate = item?.CheckInDate ?? booking.CreatedAt,
-            Quantity = item?.Quantity ?? 0,
+            ServiceName = items.Count switch
+            {
+                0 => "Dich vu du lich",
+                1 => items[0].ServiceName,
+                _ => $"{items[0].ServiceName} + {items.Count - 1} dich vu khac"
+            },
+            CheckInDate = items.Count > 0 ? items.Min(itemDetail => itemDetail.CheckInDate) : booking.CreatedAt,
+            Quantity = items.Sum(itemDetail => itemDetail.Quantity),
             TotalAmount = booking.TotalAmount,
             Status = (int)booking.Status,
             PaymentMethod = latestPayment?.Provider ?? latestPayment?.Method,
@@ -605,7 +627,8 @@ public class BookingsController : ControllerBase
             RefundedAmount = latestRefund?.RefundAmount ?? 0,
             EstimatedRefundAmount = evaluation.EstimatedRefundAmount,
             CanCancel = evaluation.CanCancel,
-            CancelPolicy = evaluation.PolicyMessage
+            CancelPolicy = evaluation.PolicyMessage,
+            Items = items
         };
     }
 
@@ -648,8 +671,8 @@ public class BookingsController : ControllerBase
             TransactionRef = transactionRef,
             Amount = amount,
             Status = PaymentStatus.Pending,
-            CreatedAt = DateTime.UtcNow,
-            PaymentTime = DateTime.UtcNow
+            CreatedAt = DateTimeHelper.Now,
+            PaymentTime = DateTimeHelper.Now
         };
 
         _context.Payments.Add(payment);
@@ -674,7 +697,9 @@ public class BookingsController : ControllerBase
         await using var transaction = await _context.Database.BeginTransactionAsync();
 
         var booking = await _context.Bookings
+            .Include(b => b.User)
             .Include(b => b.BookingItems)
+                .ThenInclude(bi => bi.Service)
             .Include(b => b.Payments)
             .FirstOrDefaultAsync(b => b.BookingId == bookingId);
 
@@ -693,6 +718,8 @@ public class BookingsController : ControllerBase
 
         if (payment?.Status == PaymentStatus.Paid)
         {
+            await transaction.CommitAsync();
+            await NotifyBookingPaidAsync(booking, provider);
             return (true, "Giao dich da duoc ghi nhan truoc do.");
         }
 
@@ -701,6 +728,7 @@ public class BookingsController : ControllerBase
             return (false, "Don hang da bi huy, khong the ghi nhan thanh toan.");
         }
 
+        var transitionedToPaid = false;
         if (booking.Status == BookingStatus.Pending)
         {
             var serviceIds = booking.BookingItems.Select(item => item.ServiceId).Distinct().ToList();
@@ -724,6 +752,7 @@ public class BookingsController : ControllerBase
             }
 
             booking.Status = BookingStatus.Paid;
+            transitionedToPaid = true;
         }
 
         payment ??= new Payment
@@ -734,15 +763,15 @@ public class BookingsController : ControllerBase
             TransactionRef = transactionRef,
             Amount = amount,
             Status = PaymentStatus.Pending,
-            CreatedAt = DateTime.UtcNow,
-            PaymentTime = DateTime.UtcNow
+            CreatedAt = DateTimeHelper.Now,
+            PaymentTime = DateTimeHelper.Now
         };
 
         payment.Method = provider;
         payment.Provider = provider;
         payment.Amount = amount;
         payment.Status = PaymentStatus.Paid;
-        payment.PaidAt = DateTime.UtcNow;
+        payment.PaidAt = DateTimeHelper.Now;
         payment.PaymentTime = payment.PaidAt.Value;
 
         if (payment.PaymentId == 0)
@@ -753,6 +782,11 @@ public class BookingsController : ControllerBase
         await _context.SaveChangesAsync();
         await transaction.CommitAsync();
 
+        if (booking.Status == BookingStatus.Paid)
+        {
+            await NotifyBookingPaidAsync(booking, provider);
+        }
+
         _logger.LogInformation(
             "Payment {Provider} {TransactionRef} marked paid for booking {BookingId}.",
             provider,
@@ -760,6 +794,132 @@ public class BookingsController : ControllerBase
             bookingId);
 
         return (true, $"Da ghi nhan thanh toan {provider}.");
+    }
+
+    private async Task NotifyBookingPaidAsync(Booking booking, string provider)
+    {
+        var createdAt = DateTimeHelper.Now;
+        var userPayload = new
+        {
+            bookingId = booking.BookingId,
+            status = BookingStatus.Paid.ToString(),
+            totalAmount = booking.TotalAmount,
+            provider,
+            message = $"Don hang #{booking.BookingId} da duoc xac nhan thanh toan qua {provider}.",
+            createdAt
+        };
+
+        var userNotification = await FindExistingNotificationAsync(
+            "booking_confirmed",
+            booking.BookingId,
+            userId: booking.UserId,
+            partnerId: null);
+
+        if (userNotification == null)
+        {
+            userNotification = new TravelAI.Domain.Entities.Notification
+            {
+                UserId = booking.UserId,
+                Title = "Thanh toan da xac nhan",
+                Type = "booking_confirmed",
+                Message = userPayload.message,
+                IsRead = false,
+                CreatedAt = createdAt,
+                MetadataJson = JsonSerializer.Serialize(userPayload)
+            };
+
+            _context.Notifications.Add(userNotification);
+            await _context.SaveChangesAsync();
+            await _notificationService.NotifyUserAsync(booking.UserId, "booking_confirmed", new
+            {
+                id = userNotification.NotificationId,
+                bookingId = userPayload.bookingId,
+                status = userPayload.status,
+                totalAmount = userPayload.totalAmount,
+                provider = userPayload.provider,
+                message = userPayload.message,
+                createdAt = userPayload.createdAt,
+                isRead = false
+            });
+
+            _logger.LogInformation("Persisted and sent customer payment notification for booking {BookingId}.", booking.BookingId);
+        }
+
+        var partnerIds = booking.BookingItems
+            .Where(item => item.Service != null)
+            .Select(item => item.Service.PartnerId)
+            .Distinct()
+            .ToList();
+
+        foreach (var partnerId in partnerIds)
+        {
+            var partnerNotification = await FindExistingNotificationAsync(
+                "partner_booking_confirmed",
+                booking.BookingId,
+                userId: null,
+                partnerId: partnerId);
+
+            if (partnerNotification != null)
+            {
+                continue;
+            }
+
+            var payload = new
+            {
+                bookingId = booking.BookingId,
+                customerName = booking.User?.FullName,
+                totalAmount = booking.TotalAmount,
+                provider,
+                message = $"Co don hang moi #{booking.BookingId} da thanh toan.",
+                createdAt
+            };
+
+            partnerNotification = new TravelAI.Domain.Entities.Notification
+            {
+                PartnerId = partnerId,
+                Title = "Don hang moi",
+                Type = "partner_booking_confirmed",
+                Message = payload.message,
+                IsRead = false,
+                CreatedAt = createdAt,
+                MetadataJson = JsonSerializer.Serialize(payload)
+            };
+
+            _context.Notifications.Add(partnerNotification);
+            await _context.SaveChangesAsync();
+            await _notificationService.NotifyPartnerAsync(partnerId, "partner_booking_confirmed", new
+            {
+                id = partnerNotification.NotificationId,
+                bookingId = payload.bookingId,
+                customerName = payload.customerName,
+                totalAmount = payload.totalAmount,
+                provider = payload.provider,
+                message = payload.message,
+                createdAt = payload.createdAt,
+                isRead = false
+            });
+
+            _logger.LogInformation(
+                "Persisted and sent partner payment notification for booking {BookingId} to partner {PartnerId}.",
+                booking.BookingId,
+                partnerId);
+        }
+    }
+
+    private Task<TravelAI.Domain.Entities.Notification?> FindExistingNotificationAsync(
+        string type,
+        int bookingId,
+        int? userId,
+        int? partnerId)
+    {
+        var bookingIdJson = $"\"bookingId\":{bookingId}";
+
+        return _context.Notifications.FirstOrDefaultAsync(n =>
+            n.Type == type &&
+            n.UserId == userId &&
+            n.PartnerId == partnerId &&
+            n.MetadataJson != null &&
+            n.MetadataJson.Contains(bookingIdJson));
     }
 
     private async Task MarkPaymentFailedAsync(string transactionRef, string reason)

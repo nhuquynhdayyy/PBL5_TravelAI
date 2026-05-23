@@ -26,6 +26,7 @@ public class ApplicationDbContext : DbContext {
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<Refund> Refunds => Set<Refund>();
     public DbSet<Review> Reviews => Set<Review>();
+    public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder) {

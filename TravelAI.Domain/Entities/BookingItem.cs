@@ -8,6 +8,7 @@ public class BookingItem {
     public decimal PriceAtBooking { get; set; }
     public DateTime CheckInDate { get; set; }
     public string? Notes { get; set; }
+    public DateTime? CheckOutDate { get; set; }
 
     public Booking Booking { get; set; } = null!;
     public Service Service { get; set; } = null!;

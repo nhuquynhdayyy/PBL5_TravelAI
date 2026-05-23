@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
+using TravelAI.Application.Common;
 using TravelAI.Application.DTOs.Payment;
 using TravelAI.Application.Interfaces;
 
@@ -46,7 +47,7 @@ public sealed class VnPayService : IPaymentService
 
         EnsurePaymentConfig();
 
-        var now = DateTime.UtcNow.AddHours(7);
+        var now = DateTimeHelper.Now;
         transactionRef ??= $"{bookingId}-{now:yyyyMMddHHmmss}";
         var parameters = new SortedDictionary<string, string>(StringComparer.Ordinal)
         {
@@ -129,7 +130,7 @@ public sealed class VnPayService : IPaymentService
 
         EnsureQueryConfig();
 
-        var now = DateTime.UtcNow.AddHours(7);
+        var now = DateTimeHelper.Now;
         var requestId = Guid.NewGuid().ToString("N");
         var createDate = now.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
         var orderInfo = $"Truy van giao dich {transactionRef}";

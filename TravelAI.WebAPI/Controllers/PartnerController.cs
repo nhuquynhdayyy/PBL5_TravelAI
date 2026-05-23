@@ -1,8 +1,11 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using TravelAI.Application.Common;
 using TravelAI.Application.DTOs.Partner;
+using TravelAI.Application.Interfaces;
 using TravelAI.Domain.Entities;
 using TravelAI.Domain.Enums;
 using TravelAI.Infrastructure.Persistence;
@@ -16,11 +19,16 @@ public class PartnerController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly IWebHostEnvironment _environment;
+    private readonly IRealtimeNotificationService _notificationService;
 
-    public PartnerController(ApplicationDbContext context, IWebHostEnvironment environment)
+    public PartnerController(
+        ApplicationDbContext context,
+        IWebHostEnvironment environment,
+        IRealtimeNotificationService notificationService)
     {
         _context = context;
         _environment = environment;
+        _notificationService = notificationService;
     }
 
     [HttpGet("profile")]
@@ -99,10 +107,43 @@ public class PartnerController : ControllerBase
 
         profile.VerificationStatus = PartnerVerificationStatus.Pending;
         profile.ReviewNote = null;
-        profile.SubmittedAt = DateTime.UtcNow;
+        profile.SubmittedAt = DateTimeHelper.Now;
         profile.ReviewedAt = null;
 
         await _context.SaveChangesAsync();
+
+        var payload = new
+        {
+            partnerId,
+            businessName = profile.BusinessName,
+            submittedAt = profile.SubmittedAt,
+            message = $"Partner '{profile.BusinessName}' vua nop ho so cho duyet."
+        };
+
+        var adminIds = await _context.Users
+            .Where(user => user.Role.RoleName == "Admin")
+            .Select(user => user.UserId)
+            .ToListAsync();
+
+        foreach (var adminId in adminIds)
+        {
+            _context.Notifications.Add(new Notification
+            {
+                UserId = adminId,
+                Type = "admin_new_partner_pending",
+                Message = payload.message,
+                IsRead = false,
+                CreatedAt = DateTimeHelper.Now,
+                MetadataJson = JsonSerializer.Serialize(payload)
+            });
+        }
+
+        if (adminIds.Count > 0)
+        {
+            await _context.SaveChangesAsync();
+        }
+
+        await _notificationService.NotifyAdminAsync("admin_new_partner_pending", payload);
 
         return Ok(MapToPartnerProfileDto(profile));
     }

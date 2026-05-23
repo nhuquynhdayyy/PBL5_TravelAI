@@ -35,6 +35,20 @@ public class AvailabilityService : IAvailabilityService
         }).OrderBy(x => x.Date);
     }
 
+    public async Task<IEnumerable<DateTime>> GetAvailableDatesAsync(int serviceId)
+    {
+        var today = DateTime.UtcNow.Date;
+
+        return await _context.ServiceAvailabilities
+            .Where(a =>
+                a.ServiceId == serviceId &&
+                a.Date >= today &&
+                a.TotalStock - (a.BookedCount + a.HeldCount) > 0)
+            .OrderBy(a => a.Date)
+            .Select(a => a.Date)
+            .ToListAsync();
+    }
+
     // 2. Kiểm tra chặt chẽ số lượng ngay lúc khách bấm nút "Đặt"
     public async Task<bool> CheckStockAsync(int serviceId, DateTime date, int requestedQuantity)
     {

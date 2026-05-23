@@ -3,13 +3,18 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { CartProvider } from './contexts/CartContext';
+import { NotificationProvider } from './contexts/NotificationContext';
+import NotificationToaster from './components/notifications/NotificationToaster';
 import './index.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
       <CartProvider>
-        <App />
+        <NotificationProvider>
+          <App />
+          <NotificationToaster />
+        </NotificationProvider>
       </CartProvider>
     </BrowserRouter>
   </React.StrictMode>

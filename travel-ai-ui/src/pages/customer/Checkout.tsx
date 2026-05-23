@@ -23,6 +23,16 @@ const promotions: Record<string, { percent: number; maxAmount: number }> = {
   WELCOME5: { percent: 5, maxAmount: 50000 },
 };
 
+type BookingItem = {
+  itemId: number;
+  serviceId: number;
+  serviceName: string;
+  checkInDate: string;
+  quantity: number;
+  priceAtBooking: number;
+  lineTotal: number;
+};
+
 const Checkout = () => {
   const { bookingId } = useParams();
   const navigate = useNavigate();
@@ -65,6 +75,24 @@ const Checkout = () => {
   const finalAmount = useMemo(() => {
     if (!booking) return 0;
     return booking.totalAmount;
+  }, [booking]);
+
+  const bookingItems: BookingItem[] = useMemo(() => {
+    if (!booking?.items?.length) {
+      return booking
+        ? [{
+            itemId: booking.bookingId,
+            serviceId: 0,
+            serviceName: booking.serviceName || 'Dich vu du lich',
+            checkInDate: booking.checkInDate,
+            quantity: booking.quantity || 0,
+            priceAtBooking: booking.quantity ? booking.totalAmount / booking.quantity : booking.totalAmount,
+            lineTotal: booking.totalAmount,
+          }]
+        : [];
+    }
+
+    return booking.items;
   }, [booking]);
 
   const applyPromotion = () => {
@@ -120,11 +148,16 @@ const Checkout = () => {
         const res = await axiosClient.post('/payment/counter/create', {
           bookingId: Number(bookingId),
           amount: booking.totalAmount,
+          customerName: customerName.trim(),
         });
 
         setOfflinePayment({ type: 'counter', ...res.data });
+        localStorage.setItem(`travelai_counter_payment_${bookingId}`, JSON.stringify({
+          ...res.data,
+          customerName: customerName.trim(),
+        }));
         navigate(
-          `/booking-success/${bookingId}?paymentStatus=offline&message=${encodeURIComponent(
+          `/booking-success/${bookingId}?paymentStatus=offline&method=counter&customerName=${encodeURIComponent(customerName.trim())}&message=${encodeURIComponent(
             res.data.message || 'Da dat cho thanh cong. Vui long thanh toan tai quay de hoan tat.'
           )}`
         );
@@ -374,26 +407,33 @@ const Checkout = () => {
             <div className="mb-8 space-y-4">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Dich vu</p>
-                <p className="line-clamp-2 text-lg font-black text-blue-400">
-                  {booking.serviceName || 'Dich vu du lich'}
+                <p className="text-lg font-black text-blue-400">
+                  {bookingItems.length} muc da chon
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 border-t border-white/10 pt-4">
-                <div>
-                  <p className="text-[10px] font-bold uppercase text-slate-400">Ngay di</p>
-                  <div className="mt-1 flex items-center gap-1.5 font-bold">
-                    <Calendar size={14} className="text-blue-400" />
-                    {new Date(booking.checkInDate).toLocaleDateString('vi-VN')}
+              <div className="space-y-3 border-t border-white/10 pt-4">
+                {bookingItems.map((item) => (
+                  <div key={item.itemId} className="rounded-2xl bg-white/5 p-4">
+                    <p className="line-clamp-2 font-black text-white">{item.serviceName}</p>
+                    <div className="mt-3 grid grid-cols-2 gap-3 text-xs font-bold text-slate-300">
+                      <span className="flex items-center gap-1.5">
+                        <Calendar size={14} className="text-blue-400" />
+                        {new Date(item.checkInDate).toLocaleDateString('vi-VN')}
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <Users size={14} className="text-blue-400" />
+                        {item.quantity} khach
+                      </span>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
+                      <span>{new Intl.NumberFormat('vi-VN').format(item.priceAtBooking)} VND / khach</span>
+                      <span className="font-black text-blue-300">
+                        {new Intl.NumberFormat('vi-VN').format(item.lineTotal)} VND
+                      </span>
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase text-slate-400">So luong</p>
-                  <div className="mt-1 flex items-center gap-1.5 font-bold">
-                    <Users size={14} className="text-blue-400" />
-                    {booking.quantity} khach
-                  </div>
-                </div>
+                ))}
               </div>
             </div>
 

@@ -14,4 +14,16 @@ public class BookingDetailResponse
     public decimal EstimatedRefundAmount { get; set; }
     public bool CanCancel { get; set; }
     public string CancelPolicy { get; set; } = string.Empty;
+    public List<BookingItemDetailResponse> Items { get; set; } = new();
+}
+
+public class BookingItemDetailResponse
+{
+    public int ItemId { get; set; }
+    public int ServiceId { get; set; }
+    public string ServiceName { get; set; } = string.Empty;
+    public DateTime CheckInDate { get; set; }
+    public int Quantity { get; set; }
+    public decimal PriceAtBooking { get; set; }
+    public decimal LineTotal { get; set; }
 }

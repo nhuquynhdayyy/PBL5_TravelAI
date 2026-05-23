@@ -1,9 +1,11 @@
 using System.Globalization;
 using System.Security.Claims;
 using System.Text.Json;
+using System.Collections.Generic;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using TravelAI.Application.Common;
 using TravelAI.Application.DTOs.Payment;
 using TravelAI.Application.Interfaces;
 using TravelAI.Domain.Entities;
@@ -21,19 +23,22 @@ public sealed class PaymentController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly IConfiguration _configuration;
     private readonly ILogger<PaymentController> _logger;
+    private readonly IRealtimeNotificationService _notificationService;
 
     public PaymentController(
         IPaymentService paymentService,
         IMomoService momoService,
         ApplicationDbContext context,
         IConfiguration configuration,
-        ILogger<PaymentController> logger)
+        ILogger<PaymentController> logger,
+        IRealtimeNotificationService notificationService)
     {
         _paymentService = paymentService;
         _momoService = momoService;
         _context = context;
         _configuration = configuration;
         _logger = logger;
+        _notificationService = notificationService;
     }
 
     [HttpPost("vnpay/create")]
@@ -398,7 +403,7 @@ public sealed class PaymentController : ControllerBase
 
         var userId = int.Parse(userIdClaim.Value, CultureInfo.InvariantCulture);
         var booking = await _context.Bookings
-            .AsNoTracking()
+            .Include(b => b.User)
             .FirstOrDefaultAsync(b => b.BookingId == request.BookingId && b.UserId == userId);
 
         if (booking == null)
@@ -418,6 +423,18 @@ public sealed class PaymentController : ControllerBase
 
         var transactionRef = CreateTransactionRef(booking.BookingId, "COUNTER");
         await CreatePendingPaymentAsync(booking.BookingId, "Counter", transactionRef, booking.TotalAmount);
+        var customerName = string.IsNullOrWhiteSpace(request.CustomerName)
+            ? booking.User.FullName
+            : request.CustomerName.Trim();
+        var qrPayload = JsonSerializer.Serialize(new
+        {
+            bookingId = booking.BookingId,
+            customerName,
+            totalPrice = booking.TotalAmount,
+            paymentMethod = "Counter"
+        });
+
+        await NotifyCounterPaymentAsync(booking, customerName, qrPayload);
 
         return Ok(new CounterPaymentResponse
         {
@@ -427,6 +444,7 @@ public sealed class PaymentController : ControllerBase
             TransactionRef = transactionRef,
             PaymentCode = $"BK{booking.BookingId:000000}",
             PaymentLocation = _configuration["CounterPayment:Location"] ?? "TravelAI - Quay thanh toan",
+            QrPayload = qrPayload,
             Message = _configuration["CounterPayment:Message"]
                 ?? "Vui long cung cap ma thanh toan tai quay de nhan vien xac nhan."
         });
@@ -634,7 +652,9 @@ public sealed class PaymentController : ControllerBase
         await using var transaction = await _context.Database.BeginTransactionAsync();
 
         var booking = await _context.Bookings
+            .Include(b => b.User)
             .Include(b => b.BookingItems)
+                .ThenInclude(bi => bi.Service)
             .Include(b => b.Payments)
             .FirstOrDefaultAsync(b => b.BookingId == bookingId);
 
@@ -653,6 +673,8 @@ public sealed class PaymentController : ControllerBase
 
         if (payment?.Status == PaymentStatus.Paid)
         {
+            await transaction.CommitAsync();
+            await NotifyBookingPaidAsync(booking, method);
             return (true, "Giao dich da duoc ghi nhan truoc do.");
         }
 
@@ -661,6 +683,7 @@ public sealed class PaymentController : ControllerBase
             return (false, "Don hang da bi huy, khong the ghi nhan thanh toan.");
         }
 
+        var transitionedToPaid = false;
         if (booking.Status == BookingStatus.Pending)
         {
             var serviceIds = booking.BookingItems.Select(item => item.ServiceId).Distinct().ToList();
@@ -684,6 +707,7 @@ public sealed class PaymentController : ControllerBase
             }
 
             booking.Status = BookingStatus.Paid;
+            transitionedToPaid = true;
         }
 
         payment ??= new Payment
@@ -694,15 +718,15 @@ public sealed class PaymentController : ControllerBase
             TransactionRef = transactionRef,
             Amount = amount,
             Status = PaymentStatus.Pending,
-            CreatedAt = DateTime.UtcNow,
-            PaymentTime = DateTime.UtcNow
+            CreatedAt = DateTimeHelper.Now,
+            PaymentTime = DateTimeHelper.Now
         };
 
         payment.Method = method;
         payment.Provider = method;
         payment.Amount = amount;
         payment.Status = PaymentStatus.Paid;
-        payment.PaidAt = DateTime.UtcNow;
+        payment.PaidAt = DateTimeHelper.Now;
         payment.PaymentTime = payment.PaidAt.Value;
 
         if (payment.PaymentId == 0)
@@ -713,6 +737,11 @@ public sealed class PaymentController : ControllerBase
         await _context.SaveChangesAsync();
         await transaction.CommitAsync();
 
+        if (booking.Status == BookingStatus.Paid)
+        {
+            await NotifyBookingPaidAsync(booking, method);
+        }
+
         _logger.LogInformation(
             "Payment {Provider} {TransactionRef} marked paid for booking {BookingId}.",
             method,
@@ -720,6 +749,192 @@ public sealed class PaymentController : ControllerBase
             bookingId);
 
         return (true, $"Da ghi nhan thanh toan {method}.");
+    }
+
+    private async Task NotifyBookingPaidAsync(Booking booking, string provider)
+    {
+        var createdAt = DateTimeHelper.Now;
+        var userPayload = new
+        {
+            bookingId = booking.BookingId,
+            status = BookingStatus.Paid.ToString(),
+            totalAmount = booking.TotalAmount,
+            provider,
+            message = $"Don hang #{booking.BookingId} da duoc xac nhan thanh toan qua {provider}.",
+            createdAt
+        };
+
+        var userNotification = await FindExistingNotificationAsync(
+            "booking_confirmed",
+            booking.BookingId,
+            userId: booking.UserId,
+            partnerId: null);
+
+        if (userNotification == null)
+        {
+            userNotification = new TravelAI.Domain.Entities.Notification
+            {
+                UserId = booking.UserId,
+                Title = "Thanh toan da xac nhan",
+                Type = "booking_confirmed",
+                Message = userPayload.message,
+                IsRead = false,
+                CreatedAt = createdAt,
+                MetadataJson = JsonSerializer.Serialize(userPayload)
+            };
+
+            _context.Notifications.Add(userNotification);
+            await _context.SaveChangesAsync();
+            await _notificationService.NotifyUserAsync(booking.UserId, "booking_confirmed", new
+            {
+                id = userNotification.NotificationId,
+                bookingId = userPayload.bookingId,
+                status = userPayload.status,
+                totalAmount = userPayload.totalAmount,
+                provider = userPayload.provider,
+                message = userPayload.message,
+                createdAt = userPayload.createdAt,
+                isRead = false
+            });
+
+            _logger.LogInformation("Persisted and sent customer payment notification for booking {BookingId}.", booking.BookingId);
+        }
+
+        var partnerIds = booking.BookingItems
+            .Where(item => item.Service != null)
+            .Select(item => item.Service.PartnerId)
+            .Distinct()
+            .ToList();
+
+        foreach (var partnerId in partnerIds)
+        {
+            var partnerNotification = await FindExistingNotificationAsync(
+                "partner_booking_confirmed",
+                booking.BookingId,
+                userId: null,
+                partnerId: partnerId);
+
+            if (partnerNotification != null)
+            {
+                continue;
+            }
+
+            var payload = new
+            {
+                bookingId = booking.BookingId,
+                customerName = booking.User?.FullName,
+                totalAmount = booking.TotalAmount,
+                provider,
+                message = $"Co don hang moi #{booking.BookingId} da thanh toan.",
+                createdAt
+            };
+
+            partnerNotification = new TravelAI.Domain.Entities.Notification
+            {
+                PartnerId = partnerId,
+                Title = "Don hang moi",
+                Type = "partner_booking_confirmed",
+                Message = payload.message,
+                IsRead = false,
+                CreatedAt = createdAt,
+                MetadataJson = JsonSerializer.Serialize(payload)
+            };
+
+            _context.Notifications.Add(partnerNotification);
+            await _context.SaveChangesAsync();
+            await _notificationService.NotifyPartnerAsync(partnerId, "partner_booking_confirmed", new
+            {
+                id = partnerNotification.NotificationId,
+                bookingId = payload.bookingId,
+                customerName = payload.customerName,
+                totalAmount = payload.totalAmount,
+                provider = payload.provider,
+                message = payload.message,
+                createdAt = payload.createdAt,
+                isRead = false
+            });
+
+            _logger.LogInformation(
+                "Persisted and sent partner payment notification for booking {BookingId} to partner {PartnerId}.",
+                booking.BookingId,
+                partnerId);
+        }
+    }
+
+    private Task<TravelAI.Domain.Entities.Notification?> FindExistingNotificationAsync(
+        string type,
+        int bookingId,
+        int? userId,
+        int? partnerId)
+    {
+        var bookingIdJson = $"\"bookingId\":{bookingId}";
+
+        return _context.Notifications.FirstOrDefaultAsync(n =>
+            n.Type == type &&
+            n.UserId == userId &&
+            n.PartnerId == partnerId &&
+            n.MetadataJson != null &&
+            n.MetadataJson.Contains(bookingIdJson));
+    }
+
+    private async Task NotifyCounterPaymentAsync(Booking booking, string customerName, string qrPayload)
+    {
+        var createdAt = DateTimeHelper.Now;
+        const string notificationType = "PAYMENT_COUNTER";
+        const string title = "Xác nhận thanh toán tại quầy";
+        const string message = "Đơn đặt của bạn đã được xác nhận thanh toán tại quầy. Vui lòng thanh toán khi đến địa điểm sử dụng dịch vụ.";
+
+        var existingNotification = await FindExistingNotificationAsync(
+            notificationType,
+            booking.BookingId,
+            userId: booking.UserId,
+            partnerId: null);
+
+        if (existingNotification != null)
+        {
+            return;
+        }
+
+        var payload = new
+        {
+            bookingId = booking.BookingId,
+            customerName,
+            totalPrice = booking.TotalAmount,
+            paymentMethod = "Counter",
+            badge = "Thanh toán tại quầy",
+            qrPayload,
+            message,
+            createdAt
+        };
+
+        var notification = new TravelAI.Domain.Entities.Notification
+        {
+            UserId = booking.UserId,
+            Title = title,
+            Type = notificationType,
+            Message = message,
+            IsRead = false,
+            CreatedAt = createdAt,
+            MetadataJson = JsonSerializer.Serialize(payload)
+        };
+
+        _context.Notifications.Add(notification);
+        await _context.SaveChangesAsync();
+
+        await _notificationService.NotifyUserAsync(booking.UserId, notificationType, new
+        {
+            id = notification.NotificationId,
+            title,
+            bookingId = booking.BookingId,
+            customerName,
+            totalPrice = booking.TotalAmount,
+            paymentMethod = "Counter",
+            badge = "Thanh toán tại quầy",
+            qrPayload,
+            message,
+            createdAt,
+            isRead = false
+        });
     }
 
     private IActionResult BuildCallbackResponse(PaymentResult result, int? bookingId, string message)
@@ -773,8 +988,8 @@ public sealed class PaymentController : ControllerBase
             TransactionRef = transactionRef,
             Amount = amount,
             Status = PaymentStatus.Pending,
-            CreatedAt = DateTime.UtcNow,
-            PaymentTime = DateTime.UtcNow
+            CreatedAt = DateTimeHelper.Now,
+            PaymentTime = DateTimeHelper.Now
         };
 
         _context.Payments.Add(payment);

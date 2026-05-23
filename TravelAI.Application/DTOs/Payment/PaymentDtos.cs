@@ -23,6 +23,7 @@ public sealed class CreateCounterPaymentRequest
 {
     public int BookingId { get; set; }
     public decimal? Amount { get; set; }
+    public string? CustomerName { get; set; }
 }
 
 public sealed class MomoRefundRequest
@@ -116,6 +117,7 @@ public sealed class CounterPaymentResponse
     public string TransactionRef { get; set; } = string.Empty;
     public string PaymentLocation { get; set; } = string.Empty;
     public string PaymentCode { get; set; } = string.Empty;
+    public string QrPayload { get; set; } = string.Empty;
     public string Message { get; set; } = string.Empty;
 }
 

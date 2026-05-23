@@ -41,6 +41,7 @@ import ServiceConsole from './pages/partner/ServiceConsole';
 import ServiceDetail from './pages/ServiceDetail';
 import Services from './pages/Services';
 import SpotDetail from './pages/SpotDetail';
+import { CartProvider } from './contexts/CartContext';
 
 function App() {
   return (

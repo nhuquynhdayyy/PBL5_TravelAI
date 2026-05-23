@@ -93,8 +93,17 @@ namespace TravelAI.Infrastructure.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("BookingId"));
 
+                    b.Property<DateTime?>("ApprovalDeadline")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsApprovedByPartner")
+                        .HasColumnType("bit");
 
                     b.Property<int?>("PromoId")
                         .HasColumnType("int");
@@ -130,6 +139,9 @@ namespace TravelAI.Infrastructure.Migrations
 
                     b.Property<DateTime>("CheckInDate")
                         .HasColumnType("date");
+
+                    b.Property<DateTime?>("CheckOutDate")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Notes")
                         .HasMaxLength(255)
@@ -250,6 +262,57 @@ namespace TravelAI.Infrastructure.Migrations
                     b.HasIndex("SpotId");
 
                     b.ToTable("ItineraryItems");
+                });
+
+            modelBuilder.Entity("TravelAI.Domain.Entities.Notification", b =>
+                {
+                    b.Property<int>("NotificationId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("NotificationId"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("MetadataJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("PartnerId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("NotificationId");
+
+                    b.HasIndex("Type", "CreatedAt");
+
+                    b.HasIndex("PartnerId", "IsRead", "CreatedAt");
+
+                    b.HasIndex("UserId", "IsRead", "CreatedAt");
+
+                    b.ToTable("Notifications");
                 });
 
             modelBuilder.Entity("TravelAI.Domain.Entities.PartnerProfile", b =>

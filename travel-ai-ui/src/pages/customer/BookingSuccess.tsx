@@ -1,25 +1,57 @@
 import { useEffect, useState } from 'react';
+import type { ComponentType } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
-import { CheckCircle, Printer, Home, Calendar, Users, Loader2 } from 'lucide-react';
+import QRCode from 'react-qr-code';
+import { CheckCircle, Printer, Home, Calendar, Users, Loader2, Store } from 'lucide-react';
+import { useCart } from '../../contexts/CartContext';
+
+const CounterQrCode = QRCode as unknown as ComponentType<{ value: string; className?: string }>;
+
+type BookingItem = {
+  itemId: number;
+  serviceId: number;
+  serviceName: string;
+  checkInDate: string;
+  quantity: number;
+  priceAtBooking: number;
+  lineTotal: number;
+};
 
 const BookingSuccess = () => {
   const { bookingId } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { removeItems } = useCart();
   const [booking, setBooking] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [counterPayment, setCounterPayment] = useState<any>(null);
 
   const paymentStatus = searchParams.get('paymentStatus');
+  const paymentMethod = searchParams.get('method');
   const paymentMessage = searchParams.get('message');
+  const customerName = searchParams.get('customerName') || '';
   const isPaid = booking?.status === 2 && paymentStatus !== 'failed';
   const isOfflineSuccess = paymentStatus === 'offline';
+  const isCounterPayment = isOfflineSuccess && (paymentMethod === 'counter' || booking?.paymentMethod === 'Counter');
 
   useEffect(() => {
     const fetchBill = async () => {
       try {
         const res = await axiosClient.get(`/bookings/${bookingId}`);
         setBooking(res.data);
+        const cachedCounterPayment = localStorage.getItem(`travelai_counter_payment_${bookingId}`);
+        if (cachedCounterPayment) {
+          setCounterPayment(JSON.parse(cachedCounterPayment));
+        }
+        if ((res.data.status === 2 || paymentStatus === 'offline') && res.data.items?.length) {
+          removeItems(
+            res.data.items.map((item: BookingItem) => ({
+              serviceId: item.serviceId,
+              checkInDate: new Date(item.checkInDate),
+            }))
+          );
+        }
       } catch (err) {
         console.error(err);
       } finally {
@@ -28,7 +60,28 @@ const BookingSuccess = () => {
     };
 
     fetchBill();
-  }, [bookingId]);
+  }, [bookingId, paymentStatus, removeItems]);
+
+  const counterQrPayload = counterPayment?.qrPayload || JSON.stringify({
+    bookingId: Number(bookingId),
+    customerName: counterPayment?.customerName || customerName,
+    totalPrice: booking?.totalAmount ?? 0,
+    paymentMethod: 'Counter',
+  });
+
+  const bookingItems: BookingItem[] = booking?.items?.length
+    ? booking.items
+    : booking
+      ? [{
+          itemId: booking.bookingId,
+          serviceId: 0,
+          serviceName: booking.serviceName || 'Dich vu du lich',
+          checkInDate: booking.checkInDate,
+          quantity: booking.quantity || 0,
+          priceAtBooking: booking.quantity ? booking.totalAmount / booking.quantity : booking.totalAmount,
+          lineTotal: booking.totalAmount,
+        }]
+      : [];
 
   if (loading) {
     return (
@@ -92,26 +145,30 @@ const BookingSuccess = () => {
               <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
                 Thong tin dich vu
               </p>
-              <h2 className="text-2xl font-black leading-tight text-slate-900">{booking?.serviceName}</h2>
+              <h2 className="text-2xl font-black leading-tight text-slate-900">
+                {bookingItems.length} muc trong don hang
+              </h2>
             </div>
 
-            <div className="grid grid-cols-2 gap-8 border-y border-slate-50 py-6">
-              <div>
-                <div className="mb-1 flex items-center gap-2 text-slate-400">
-                  <Calendar size={14} />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Ngay nhan</span>
+            <div className="space-y-3 border-y border-slate-50 py-6">
+              {bookingItems.map((item) => (
+                <div key={item.itemId} className="rounded-2xl bg-slate-50 p-4">
+                  <p className="font-black text-slate-900">{item.serviceName}</p>
+                  <div className="mt-3 grid gap-3 text-sm font-bold text-slate-600 sm:grid-cols-3">
+                    <span className="flex items-center gap-2">
+                      <Calendar size={14} className="text-slate-400" />
+                      {new Date(item.checkInDate).toLocaleDateString('vi-VN')}
+                    </span>
+                    <span className="flex items-center gap-2">
+                      <Users size={14} className="text-slate-400" />
+                      {item.quantity} nguoi lon
+                    </span>
+                    <span className="font-black text-blue-600 sm:text-right">
+                      {new Intl.NumberFormat('vi-VN').format(item.lineTotal)} VND
+                    </span>
+                  </div>
                 </div>
-                <p className="font-bold text-slate-700">
-                  {new Date(booking?.checkInDate).toLocaleDateString('vi-VN')}
-                </p>
-              </div>
-              <div>
-                <div className="mb-1 flex items-center gap-2 text-slate-400">
-                  <Users size={14} />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Khach hang</span>
-                </div>
-                <p className="font-bold text-slate-700">{booking?.quantity} nguoi lon</p>
-              </div>
+              ))}
             </div>
 
             <div className="space-y-3 rounded-3xl bg-slate-50 p-6">
@@ -132,6 +189,21 @@ const BookingSuccess = () => {
                 </span>
               </div>
             </div>
+
+            {isCounterPayment && (
+              <div className="mt-6 rounded-3xl border border-amber-200 bg-amber-50 p-6 text-center">
+                <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-amber-700">
+                  <Store size={14} /> Thanh toán tại quầy
+                </div>
+                <div className="mx-auto flex size-52 items-center justify-center rounded-3xl bg-white p-4 shadow-sm">
+                  <CounterQrCode value={counterQrPayload} className="h-full w-full" />
+                </div>
+                <p className="mt-4 font-black text-slate-900">Đưa mã QR này cho quầy để xác nhận thanh toán</p>
+                <p className="mt-2 text-sm font-bold text-slate-600">
+                  Mã thanh toán: {counterPayment?.paymentCode || `BK${String(booking?.bookingId ?? '').padStart(6, '0')}`}
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

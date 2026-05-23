@@ -11,11 +11,13 @@ namespace TravelAI.WebAPI.Controllers;
 public class ServicesController : ControllerBase
 {
     private readonly IServiceService _service;
+    private readonly IAvailabilityService _availabilityService;
     private readonly IWebHostEnvironment _env;
 
-    public ServicesController(IServiceService service, IWebHostEnvironment env)
+    public ServicesController(IServiceService service, IAvailabilityService availabilityService, IWebHostEnvironment env)
     {
         _service = service;
+        _availabilityService = availabilityService;
         _env = env;
     }
 
@@ -146,5 +148,13 @@ public class ServicesController : ControllerBase
         }
 
         return Ok(new { summary });
+    }
+
+    [HttpGet("{id}/available-dates")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetAvailableDates(int id)
+    {
+        var dates = await _availabilityService.GetAvailableDatesAsync(id);
+        return Ok(dates.Select(date => date.ToString("yyyy-MM-dd")));
     }
 }

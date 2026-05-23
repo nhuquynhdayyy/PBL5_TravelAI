@@ -9,6 +9,7 @@ import {
   Receipt,
   RefreshCw,
   X,
+  Store,
 } from 'lucide-react';
 import axiosClient from '../../api/axiosClient';
 
@@ -69,6 +70,10 @@ function formatPaymentMethod(paymentMethod: string | null) {
 
   if (paymentMethod.toLowerCase() === 'mock') {
     return 'Mock payment';
+  }
+
+  if (paymentMethod.toLowerCase() === 'counter') {
+    return 'Thanh toán tại quầy';
   }
 
   return paymentMethod;
@@ -270,12 +275,19 @@ const MyBookings = () => {
             const status = getStatusMeta(booking.status);
             const canCancel = canCancelBooking(booking);
             const isCancelling = cancellingId === booking.bookingId;
+            const isCounterPending =
+              resolveStatusKey(booking.status) === 1 &&
+              booking.paymentMethod?.toLowerCase() === 'counter';
 
             return (
               <div
                 key={`${booking.bookingId}-${booking.createdAt}`}
                 onClick={() => setSelectedBooking(booking)}
-                className="cursor-pointer rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-xl"
+                className={`cursor-pointer rounded-[2rem] border p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-xl ${
+                  isCounterPending
+                    ? 'border-amber-200 bg-amber-50/80 ring-1 ring-amber-100'
+                    : 'border-slate-100 bg-white'
+                }`}
               >
                 <div className="mb-5 flex items-start justify-between gap-4">
                   <div>
@@ -290,6 +302,12 @@ const MyBookings = () => {
                     {status.label}
                   </span>
                 </div>
+
+                {isCounterPending && (
+                  <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs font-black text-amber-700 shadow-sm">
+                    <Store size={14} /> Thanh toán tại quầy
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div className="rounded-2xl bg-slate-50 p-4">
@@ -411,6 +429,11 @@ const MyBookings = () => {
                   Thanh toan
                 </p>
                 <p className="font-bold text-slate-800">{formatPaymentMethod(selectedBooking.paymentMethod)}</p>
+                {selectedBooking.paymentMethod?.toLowerCase() === 'counter' && resolveStatusKey(selectedBooking.status) === 1 && (
+                  <span className="mt-3 inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-700">
+                    <Store size={14} /> Thanh toán tại quầy
+                  </span>
+                )}
               </div>
 
               <div className="rounded-2xl bg-slate-50 p-5">
