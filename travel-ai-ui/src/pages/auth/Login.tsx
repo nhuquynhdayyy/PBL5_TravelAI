@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
+import { notifyCartAuthChanged } from '../../contexts/CartContext';
 import MainLayout from '../../layouts/MainLayout';
 
 const Login = () => {
@@ -15,6 +16,7 @@ const Login = () => {
       const { data } = await axiosClient.post('/auth/login', formData);
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data));
+      notifyCartAuthChanged();
       const nextPath = data.roleName?.toLowerCase() === 'partner'
         ? '/partner/profile'
         : data.roleName?.toLowerCase() === 'admin'

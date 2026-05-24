@@ -24,6 +24,10 @@ const getIcon = (type: string) => {
   if (type === 'PAYMENT_COUNTER') return <CreditCard size={18} />;
   if (type === 'booking_confirmed' || type === 'partner_booking_confirmed') return <ReceiptText size={18} />;
   return <Bell size={18} />;
+const getTitle = (type: string) => {
+  if (type === 'partner_booking_confirmed') return 'Don hang moi';
+  if (type === 'booking_confirmed') return 'Thanh toan da xac nhan';
+  return 'Thong bao';
 };
 
 const NotificationDropdown = ({

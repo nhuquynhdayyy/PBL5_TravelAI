@@ -217,7 +217,7 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
       )
     );
 
-    axiosClient.put(`/notifications/${id}/read`).catch((err) => {
+    axiosClient.post(`/notifications/${id}/mark-read`).catch((err) => {
       console.error('Failed to mark notification as read:', err);
       fetchNotifications();
     });

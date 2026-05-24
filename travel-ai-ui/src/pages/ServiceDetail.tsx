@@ -277,11 +277,23 @@ const ServiceDetail = () => {
     }
   };
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (!service) return;
 
     if (!selectedDate) {
       alert('Vui long chon ngay su dung truoc khi them vao gio hang.');
+      return;
+    }
+
+    const availability = await axiosClient
+      .get(`/availability/check/${service.serviceId}`, {
+        params: { date: selectedDate, qty: quantity }
+      })
+      .then((res) => Boolean(res.data?.canBook))
+      .catch(() => false);
+
+    if (!availability) {
+      alert('Ngay da chon khong con lich trong. Vui long chon ngay khac.');
       return;
     }
 

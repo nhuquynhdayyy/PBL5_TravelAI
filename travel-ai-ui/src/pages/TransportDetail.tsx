@@ -235,6 +235,7 @@ const TransportDetail = () => {
       serviceId: service.serviceId,
       serviceName: `${service.name} (${rentalDays} ngay)`,
       checkInDate: new Date(startDate),
+      checkOutDate: new Date(endDate),
       quantity,
       price: service.basePrice * rentalDays
     });
