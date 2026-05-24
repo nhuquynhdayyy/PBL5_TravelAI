@@ -27,6 +27,9 @@ const typeFromRoute = (value: string) => {
     Hotel: 'Hotel',
     Tour: 'Tour',
     Transport: 'Transport',
+    transport: 'Transport',   // lowercase từ ?type=transport
+    hotel: 'Hotel',
+    tour: 'Tour',
   };
 
   return routeMap[value] || '';
@@ -117,7 +120,7 @@ const Services: React.FC<ServicesProps> = ({ defaultType = '' }) => {
       case 'Tour':
         return 'Tour du lịch';
       case 'Transport':
-        return 'Vé xe';
+        return 'Thuê xe';
       default:
         return 'Dịch vụ TravelAI';
     }

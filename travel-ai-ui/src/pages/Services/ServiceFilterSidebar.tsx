@@ -48,7 +48,7 @@ const serviceTypes = [
   { value: '', label: 'Tất cả' },
   { value: 'Hotel', label: 'Khách sạn' },
   { value: 'Tour', label: 'Tour' },
-  { value: 'Transport', label: 'Vé xe' },
+  { value: 'Transport', label: 'Thuê xe' },
 ];
 
 const hotelAmenities = [

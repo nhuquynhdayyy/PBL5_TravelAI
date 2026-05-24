@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowUpRight, CalendarCheck, Compass, Edit3, Hotel, MapPin, ShoppingCart, Star, Trash2 } from 'lucide-react';
+import { ArrowUpRight, CalendarCheck, Car, Compass, Edit3, Hotel, MapPin, ShoppingCart, Star, Trash2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axiosClient from '../api/axiosClient';
 import { getDisplayAvailabilityPrice } from './AvailabilityCalendar';
@@ -36,6 +36,16 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, isAdminOrPartner, on
 
   const isHotel = service.serviceType === 'Hotel' || service.serviceType === 0 || service.serviceType === '0';
   const isTransport = service.serviceType === 'Transport' || service.serviceType === 2 || service.serviceType === '2';
+
+  // Badge config theo loại dịch vụ
+  const badgeConfig = isHotel
+    ? { label: 'Khách sạn', icon: <Hotel size={12} />, bg: 'bg-blue-600/80' }
+    : isTransport
+    ? { label: 'Thuê xe', icon: <Car size={12} />, bg: 'bg-orange-500/80' }
+    : { label: 'Tour du lịch', icon: <Compass size={12} />, bg: 'bg-emerald-600/80' };
+
+  // Label giá theo loại
+  const priceLabel = isTransport ? '/ngày' : isHotel ? '/đêm' : '/người';
 
   useEffect(() => {
     let isActive = true;
@@ -111,8 +121,8 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, isAdminOrPartner, on
           alt={service.name}
         />
         <div className="absolute left-4 top-4">
-          <div className={`flex items-center gap-1 rounded-full px-4 py-1.5 text-[10px] font-black uppercase text-white backdrop-blur-md ${isHotel ? 'bg-blue-600/80' : 'bg-emerald-600/80'}`}>
-            {isHotel ? <Hotel size={12} /> : <Compass size={12} />} {isHotel ? 'Khach san' : 'Tour du lich'}
+          <div className={`flex items-center gap-1 rounded-full px-4 py-1.5 text-[10px] font-black uppercase text-white backdrop-blur-md ${badgeConfig.bg}`}>
+            {badgeConfig.icon} {badgeConfig.label}
           </div>
         </div>
 
@@ -145,9 +155,12 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, isAdminOrPartner, on
           <div className="flex items-end justify-between gap-3">
             <div>
               <p className="mb-1 flex items-center gap-1 text-[10px] font-black uppercase text-slate-400">
-                <CalendarCheck size={12} /> {activeAvailability ? activeAvailability.date : 'Gia tu'}
+                <CalendarCheck size={12} /> {activeAvailability ? activeAvailability.date : 'Giá từ'}
               </p>
-              <p className="text-xl font-black text-blue-600">{currencyFormatter.format(displayPrice)}d</p>
+              <p className="text-xl font-black text-blue-600">
+                {currencyFormatter.format(displayPrice)}đ
+                <span className="ml-1 text-[10px] font-semibold text-slate-400">{priceLabel}</span>
+              </p>
             </div>
             <div className="flex items-center gap-1 text-xs font-black text-orange-500">
               <Star size={12} fill="currentColor" /> {service.ratingAvg || 5.0}
