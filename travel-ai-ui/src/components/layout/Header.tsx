@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Menu, X, Plane, LogOut, LayoutDashboard, Store, User, ChevronDown, Hotel, Compass, ClipboardList, MessageSquare, BarChart3, Building2, ShoppingCart, Landmark, Package } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useCart } from '../../contexts/CartContext';
+import { NotificationBell } from '../notifications';
 import { getUser } from '../../utils/userUtils';
 
 const Header: React.FC = () => {
@@ -167,6 +168,7 @@ const Header: React.FC = () => {
           <div className="hidden md:flex items-center gap-3">
             {userState ? (
                 <div className="flex items-center gap-4">
+                    <NotificationBell />
                     <div className="flex flex-col items-end">
                       <Link to="/profile" className="text-sm font-black text-slate-900 hover:text-blue-600 transition-all flex items-center gap-1">
                         {userState.fullName} <User size={14} className="text-blue-500" />
@@ -184,9 +186,12 @@ const Header: React.FC = () => {
             )}
           </div>
 
-          <button onClick={() => setIsOpen(!isOpen)} className="md:hidden text-slate-600 p-2">
-            {isOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
+          <div className="flex items-center gap-2 md:hidden">
+            {userState && <NotificationBell />}
+            <button onClick={() => setIsOpen(!isOpen)} className="text-slate-600 p-2">
+              {isOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+          </div>
         </div>
       </div>
     </header>

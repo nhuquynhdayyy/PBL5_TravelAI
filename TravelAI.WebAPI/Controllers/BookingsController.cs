@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using System.Globalization;
 using TravelAI.Application.DTOs.Booking;
+using TravelAI.Application.DTOs.Notification;
 using TravelAI.Application.DTOs.Payment;
 using TravelAI.Application.Helpers;
 using TravelAI.Application.Interfaces;
@@ -26,6 +27,7 @@ public class BookingsController : ControllerBase
     private readonly ILogger<BookingsController> _logger;
     private readonly IAuditLogService _auditLogService;
     private readonly IRealtimeNotificationService _notificationService;
+    private readonly INotificationService _persistentNotificationService;
 
     public BookingsController(
         IBookingService bookingService,
@@ -35,7 +37,8 @@ public class BookingsController : ControllerBase
         IConfiguration configuration,
         ILogger<BookingsController> logger,
         IAuditLogService auditLogService,
-        IRealtimeNotificationService notificationService)
+        IRealtimeNotificationService notificationService,
+        INotificationService persistentNotificationService)
     {
         _bookingService = bookingService;
         _paymentService = paymentService;
@@ -45,6 +48,7 @@ public class BookingsController : ControllerBase
         _logger = logger;
         _auditLogService = auditLogService;
         _notificationService = notificationService;
+        _persistentNotificationService = persistentNotificationService;
     }
 
     [HttpGet("my-bookings")]
@@ -106,6 +110,13 @@ public class BookingsController : ControllerBase
 
         // Log audit
         await _auditLogService.LogAsync(userId, "CREATE", "Bookings", bookingId.Value);
+        await _persistentNotificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = userId,
+            Title = "Dat tour thanh cong",
+            Message = $"Don dat tour #{bookingId.Value} da duoc tao va dang cho thanh toan.",
+            Type = "Booking"
+        });
 
         return Ok(new
         {
@@ -242,6 +253,13 @@ public class BookingsController : ControllerBase
 
         await _context.SaveChangesAsync();
         await transaction.CommitAsync();
+        await _persistentNotificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = userId,
+            Title = "Dat tour thanh cong",
+            Message = $"Don dat tour #{booking.BookingId} tu gio hang da duoc tao va dang cho thanh toan.",
+            Type = "Booking"
+        });
 
         return Ok(new
         {
@@ -401,6 +419,13 @@ public class BookingsController : ControllerBase
                 totalAmount = booking.TotalAmount,
                 message = "Don hang cua ban da duoc xac nhan thanh toan."
             });
+            await _persistentNotificationService.CreateAsync(new CreateNotificationRequest
+            {
+                UserId = booking.UserId,
+                Title = "Thanh toan thanh cong",
+                Message = $"Don dat tour #{booking.BookingId} da duoc thanh toan thanh cong.",
+                Type = "Payment"
+            });
 
             if (partnerId > 0)
             {
@@ -411,6 +436,13 @@ public class BookingsController : ControllerBase
                     quantity = firstItem?.Quantity,
                     checkInDate = firstItem?.CheckInDate,
                     message = "Co don hang moi da thanh toan cho dich vu cua ban."
+                });
+                await _persistentNotificationService.CreateAsync(new CreateNotificationRequest
+                {
+                    UserId = partnerId,
+                    Title = "Co booking moi",
+                    Message = $"Don #{booking.BookingId} da thanh toan cho dich vu cua ban.",
+                    Type = "Booking"
                 });
             }
 
@@ -584,6 +616,7 @@ public class BookingsController : ControllerBase
 
         var booking = await _context.Bookings
             .Include(b => b.BookingItems)
+                .ThenInclude(item => item.Service)
             .Include(b => b.Payments)
                 .ThenInclude(payment => payment.Refunds)
             .FirstOrDefaultAsync(b => b.BookingId == id && b.UserId == userId);
@@ -662,6 +695,28 @@ public class BookingsController : ControllerBase
         
         // Log audit
         await _auditLogService.LogAsync(userId, "DELETE", "Bookings", id);
+        await _persistentNotificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = userId,
+            Title = "Huy tour thanh cong",
+            Message = $"Don dat tour #{id} da duoc huy.",
+            Type = "Booking"
+        });
+
+        var partnerIds = booking.BookingItems
+            .Select(item => item.Service.PartnerId)
+            .Distinct()
+            .ToList();
+        foreach (var partnerId in partnerIds)
+        {
+            await _persistentNotificationService.CreateAsync(new CreateNotificationRequest
+            {
+                UserId = partnerId,
+                Title = "Khach hang huy booking",
+                Message = $"Don #{id} cho dich vu cua ban da bi huy.",
+                Type = "Booking"
+            });
+        }
 
         return Ok(new
         {
@@ -788,6 +843,7 @@ public class BookingsController : ControllerBase
 
         var booking = await _context.Bookings
             .Include(b => b.BookingItems)
+                .ThenInclude(item => item.Service)
             .Include(b => b.Payments)
             .FirstOrDefaultAsync(b => b.BookingId == bookingId);
 
@@ -872,6 +928,28 @@ public class BookingsController : ControllerBase
 
         await _context.SaveChangesAsync();
         await transaction.CommitAsync();
+        await _persistentNotificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = booking.UserId,
+            Title = "Thanh toan thanh cong",
+            Message = $"Don dat tour #{booking.BookingId} da duoc thanh toan qua {provider}.",
+            Type = "Payment"
+        });
+
+        var partnerIds = booking.BookingItems
+            .Select(item => item.Service.PartnerId)
+            .Distinct()
+            .ToList();
+        foreach (var partnerId in partnerIds)
+        {
+            await _persistentNotificationService.CreateAsync(new CreateNotificationRequest
+            {
+                UserId = partnerId,
+                Title = "Co booking moi da thanh toan",
+                Message = $"Don #{booking.BookingId} da thanh toan cho dich vu cua ban.",
+                Type = "Booking"
+            });
+        }
 
         _logger.LogInformation(
             "Payment {Provider} {TransactionRef} marked paid for booking {BookingId}.",
@@ -897,6 +975,19 @@ public class BookingsController : ControllerBase
 
         payment.Status = PaymentStatus.Failed;
         await _context.SaveChangesAsync();
+        var booking = await _context.Bookings
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.BookingId == payment.BookingId);
+        if (booking != null)
+        {
+            await _persistentNotificationService.CreateAsync(new CreateNotificationRequest
+            {
+                UserId = booking.UserId,
+                Title = "Thanh toan that bai",
+                Message = $"Giao dich cho don #{booking.BookingId} khong thanh cong.",
+                Type = "Payment"
+            });
+        }
 
         _logger.LogWarning(
             "Marked payment {TransactionRef} failed. Reason: {Reason}",

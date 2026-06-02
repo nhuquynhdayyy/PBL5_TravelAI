@@ -30,6 +30,7 @@ import DestinationDetail from './pages/DestinationDetail';
 import Destinations from './pages/Destinations';
 import SpotList from './pages/Destinations/SpotList';
 import Home from './pages/Home';
+import Notifications from './pages/Notifications';
 import UserPreferences from './pages/Preferences/UserPreferences';
 import Timeline from './pages/Planner/Timeline';
 import Profile from './pages/Profile/Profile';
@@ -245,6 +246,14 @@ function App() {
         />
 
         <Route path="/profile" element={<MainLayout><Profile /></MainLayout>} />
+        <Route
+          path="/notifications"
+          element={
+            <ProtectedRoute allowedRoles={['customer', 'partner', 'admin']}>
+              <MainLayout><Notifications /></MainLayout>
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/preferences"
           element={

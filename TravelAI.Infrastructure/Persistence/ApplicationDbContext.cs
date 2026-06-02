@@ -29,6 +29,7 @@ public class ApplicationDbContext : DbContext {
     public DbSet<Refund> Refunds => Set<Refund>();
     public DbSet<Review> Reviews => Set<Review>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<Notification> Notifications => Set<Notification>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder) {
         base.OnModelCreating(modelBuilder);

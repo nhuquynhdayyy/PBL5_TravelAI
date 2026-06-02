@@ -17,4 +17,5 @@ public class User {
     public ICollection<Booking> Bookings { get; set; } = new List<Booking>();
     public ICollection<Review> Reviews { get; set; } = new List<Review>();
     public ICollection<Itinerary> Itineraries { get; set; } = new List<Itinerary>();
+    public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
 }

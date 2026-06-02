@@ -95,6 +95,7 @@ builder.Services.AddScoped<IPartnerOrderService, PartnerOrderService>();
 builder.Services.AddScoped<IEmailService, TravelAI.Infrastructure.ExternalServices.Mail.SendGridEmailService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IAIAnalyticsService, AIAnalyticsService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
 
 builder.Services.Configure<VnPayOptions>(builder.Configuration.GetSection("VnPay"));
 builder.Services.AddHttpClient<IPaymentService, VnPayService>();
@@ -258,6 +259,31 @@ using (var scope = app.Services.CreateScope())
         BEGIN
             ALTER TABLE [Bookings]
             ADD [ApprovalDeadline] DATETIME2 NULL;
+        END
+        """);
+
+    // Patch: Add persistent notifications table
+    dbContext.Database.ExecuteSqlRaw(
+        """
+        IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[Notifications]') AND type in (N'U'))
+        BEGIN
+            CREATE TABLE [dbo].[Notifications] (
+                [Id] INT IDENTITY(1,1) NOT NULL,
+                [UserId] INT NOT NULL,
+                [Title] NVARCHAR(200) NOT NULL,
+                [Message] NVARCHAR(1000) NOT NULL,
+                [Type] NVARCHAR(50) NOT NULL,
+                [IsRead] BIT NOT NULL DEFAULT 0,
+                [CreatedAt] DATETIME2 NOT NULL,
+                [UpdatedAt] DATETIME2 NULL,
+                CONSTRAINT [PK_Notifications] PRIMARY KEY CLUSTERED ([Id] ASC),
+                CONSTRAINT [FK_Notifications_Users_UserId] FOREIGN KEY([UserId])
+                    REFERENCES [dbo].[Users] ([UserId])
+                    ON DELETE CASCADE
+            );
+
+            CREATE NONCLUSTERED INDEX [IX_Notifications_UserId_IsRead_CreatedAt]
+            ON [dbo].[Notifications]([UserId] ASC, [IsRead] ASC, [CreatedAt] ASC);
         END
         """);
 
