@@ -23,6 +23,7 @@ public sealed class PaymentController : ControllerBase
     private readonly IConfiguration _configuration;
     private readonly ILogger<PaymentController> _logger;
     private readonly INotificationService _notificationService;
+    private readonly IElectronicTicketService _ticketService;
 
     public PaymentController(
         IPaymentService paymentService,
@@ -30,7 +31,8 @@ public sealed class PaymentController : ControllerBase
         ApplicationDbContext context,
         IConfiguration configuration,
         ILogger<PaymentController> logger,
-        INotificationService notificationService)
+        INotificationService notificationService,
+        IElectronicTicketService ticketService)
     {
         _paymentService = paymentService;
         _momoService = momoService;
@@ -38,6 +40,7 @@ public sealed class PaymentController : ControllerBase
         _configuration = configuration;
         _logger = logger;
         _notificationService = notificationService;
+        _ticketService = ticketService;
     }
 
     [HttpPost("vnpay/create")]
@@ -679,6 +682,8 @@ public sealed class PaymentController : ControllerBase
 
         if (payment?.Status == PaymentStatus.Paid)
         {
+            await _ticketService.GenerateForBookingAsync(booking.BookingId);
+            await transaction.CommitAsync();
             return (true, "Giao dich da duoc ghi nhan truoc do.");
         }
 
@@ -744,6 +749,7 @@ public sealed class PaymentController : ControllerBase
         }
 
         await _context.SaveChangesAsync();
+        var generatedTickets = await _ticketService.GenerateForBookingAsync(booking.BookingId);
         await transaction.CommitAsync();
         await _notificationService.CreateAsync(new CreateNotificationRequest
         {
@@ -752,6 +758,16 @@ public sealed class PaymentController : ControllerBase
             Message = $"Don dat tour #{booking.BookingId} da duoc thanh toan qua {method}.",
             Type = "Payment"
         });
+        if (generatedTickets.Count > 0)
+        {
+            await _notificationService.CreateAsync(new CreateNotificationRequest
+            {
+                UserId = booking.UserId,
+                Title = "Vé điện tử đã được phát hành",
+                Message = "Thanh toán thành công. Vé điện tử của bạn đã sẵn sàng. Bạn có thể xem mã QR trong mục Dịch vụ đã đặt.",
+                Type = "Ticket"
+            });
+        }
 
         var partnerIds = booking.BookingItems
             .Select(item => item.Service.PartnerId)

@@ -6,6 +6,7 @@ using System.Globalization;
 using TravelAI.Application.DTOs.Booking;
 using TravelAI.Application.DTOs.Notification;
 using TravelAI.Application.DTOs.Payment;
+using TravelAI.Application.DTOs.Ticket;
 using TravelAI.Application.Helpers;
 using TravelAI.Application.Interfaces;
 using TravelAI.Domain.Entities;
@@ -28,6 +29,7 @@ public class BookingsController : ControllerBase
     private readonly IAuditLogService _auditLogService;
     private readonly IRealtimeNotificationService _notificationService;
     private readonly INotificationService _persistentNotificationService;
+    private readonly IElectronicTicketService _ticketService;
 
     public BookingsController(
         IBookingService bookingService,
@@ -38,7 +40,8 @@ public class BookingsController : ControllerBase
         ILogger<BookingsController> logger,
         IAuditLogService auditLogService,
         IRealtimeNotificationService notificationService,
-        INotificationService persistentNotificationService)
+        INotificationService persistentNotificationService,
+        IElectronicTicketService ticketService)
     {
         _bookingService = bookingService;
         _paymentService = paymentService;
@@ -49,6 +52,7 @@ public class BookingsController : ControllerBase
         _auditLogService = auditLogService;
         _notificationService = notificationService;
         _persistentNotificationService = persistentNotificationService;
+        _ticketService = ticketService;
     }
 
     [HttpGet("my-bookings")]
@@ -70,6 +74,7 @@ public class BookingsController : ControllerBase
                 .ThenInclude(bi => bi.Service)
             .Include(b => b.Payments)
                 .ThenInclude(payment => payment.Refunds)
+            .Include(b => b.ElectronicTickets)
             .OrderByDescending(b => b.CreatedAt)
             .ToListAsync();
 
@@ -277,6 +282,7 @@ public class BookingsController : ControllerBase
                 .ThenInclude(bi => bi.Service)
             .Include(b => b.Payments)
                 .ThenInclude(payment => payment.Refunds)
+            .Include(b => b.ElectronicTickets)
             .FirstOrDefaultAsync(b => b.BookingId == id);
 
         if (booking == null)
@@ -402,6 +408,7 @@ public class BookingsController : ControllerBase
 
         if (result > 0)
         {
+            var generatedTickets = await _ticketService.GenerateForBookingAsync(booking.BookingId);
             // 1. Phần Log Audit của bạn
             int userId = int.Parse(userIdClaim.Value);
             await _auditLogService.LogAsync(userId, "UPDATE", "Bookings", id);
@@ -426,6 +433,16 @@ public class BookingsController : ControllerBase
                 Message = $"Don dat tour #{booking.BookingId} da duoc thanh toan thanh cong.",
                 Type = "Payment"
             });
+            if (generatedTickets.Count > 0)
+            {
+                await _persistentNotificationService.CreateAsync(new CreateNotificationRequest
+                {
+                    UserId = booking.UserId,
+                    Title = "Vé điện tử đã được phát hành",
+                    Message = "Thanh toán thành công. Vé điện tử của bạn đã sẵn sàng. Bạn có thể xem mã QR trong mục Dịch vụ đã đặt.",
+                    Type = "Ticket"
+                });
+            }
 
             if (partnerId > 0)
             {
@@ -690,6 +707,13 @@ public class BookingsController : ControllerBase
         }
 
         booking.Status = BookingStatus.Cancelled;
+        var tickets = await _context.ElectronicTickets
+            .Where(ticket => ticket.BookingId == id)
+            .ToListAsync();
+        foreach (var ticket in tickets)
+        {
+            ticket.Status = TicketStatus.Cancelled;
+        }
 
         await _context.SaveChangesAsync();
         
@@ -772,7 +796,11 @@ public class BookingsController : ControllerBase
             EstimatedRefundAmount = evaluation.EstimatedRefundAmount,
             CanCancel = evaluation.CanCancel,
             CancelPolicy = evaluation.PolicyMessage,
-            CancellationReason = cancellationReason
+            CancellationReason = cancellationReason,
+            Tickets = booking.ElectronicTickets
+                .OrderBy(ticket => ticket.TicketId)
+                .Select(MapTicketToDto)
+                .ToList()
         };
     }
 
@@ -794,7 +822,31 @@ public class BookingsController : ControllerBase
             EstimatedRefundAmount = detail.EstimatedRefundAmount,
             CanCancel = detail.CanCancel,
             CancelPolicy = detail.CancelPolicy,
-            CancellationReason = detail.CancellationReason
+            CancellationReason = detail.CancellationReason,
+            Tickets = detail.Tickets
+        };
+    }
+
+    private static ElectronicTicketDto MapTicketToDto(ElectronicTicket ticket)
+    {
+        return new ElectronicTicketDto
+        {
+            TicketId = ticket.TicketId,
+            TicketCode = ticket.TicketCode,
+            BookingId = ticket.BookingId,
+            BookingItemId = ticket.BookingItemId,
+            CustomerName = ticket.CustomerName,
+            ServiceName = ticket.ServiceName,
+            ServiceType = ticket.ServiceType,
+            BookingDate = ticket.BookingDate,
+            TravelDate = ticket.TravelDate,
+            Quantity = ticket.Quantity,
+            TotalAmount = ticket.TotalAmount,
+            Status = ticket.Status.ToString(),
+            QrPayloadJson = ticket.QrPayloadJson,
+            QrImageBase64 = ticket.QrImageBase64,
+            CreatedAt = ticket.CreatedAt,
+            UsedAt = ticket.UsedAt
         };
     }
 
@@ -862,6 +914,8 @@ public class BookingsController : ControllerBase
 
         if (payment?.Status == PaymentStatus.Paid)
         {
+            await _ticketService.GenerateForBookingAsync(booking.BookingId);
+            await transaction.CommitAsync();
             return (true, "Giao dich da duoc ghi nhan truoc do.");
         }
 
@@ -927,6 +981,7 @@ public class BookingsController : ControllerBase
         }
 
         await _context.SaveChangesAsync();
+        var paidTickets = await _ticketService.GenerateForBookingAsync(booking.BookingId);
         await transaction.CommitAsync();
         await _persistentNotificationService.CreateAsync(new CreateNotificationRequest
         {
@@ -935,6 +990,16 @@ public class BookingsController : ControllerBase
             Message = $"Don dat tour #{booking.BookingId} da duoc thanh toan qua {provider}.",
             Type = "Payment"
         });
+        if (paidTickets.Count > 0)
+        {
+            await _persistentNotificationService.CreateAsync(new CreateNotificationRequest
+            {
+                UserId = booking.UserId,
+                Title = "Vé điện tử đã được phát hành",
+                Message = "Thanh toán thành công. Vé điện tử của bạn đã sẵn sàng. Bạn có thể xem mã QR trong mục Dịch vụ đã đặt.",
+                Type = "Ticket"
+            });
+        }
 
         var partnerIds = booking.BookingItems
             .Select(item => item.Service.PartnerId)

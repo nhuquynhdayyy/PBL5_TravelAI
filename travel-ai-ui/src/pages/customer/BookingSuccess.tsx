@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
-import { CheckCircle, Printer, Home, Calendar, Users, Loader2 } from 'lucide-react';
+import { CheckCircle, Printer, Home, Calendar, Users, Loader2, QrCode } from 'lucide-react';
 import { formatVietnameseDate } from '../../utils/dateTimeUtils';
 import { getTodayVietnam } from '../../utils/dateUtils';
 import { useCart } from '../../contexts/CartContext';
@@ -90,11 +90,11 @@ const BookingSuccess = () => {
           <CheckCircle size={48} />
         </div>
         <h1 className="text-4xl font-black tracking-tighter text-slate-900">
-          {isPaid ? 'Thanh toan hoan tat!' : isOfflineSuccess ? 'Dat cho thanh cong!' : 'Thanh toan chua hoan tat'}
+          {isPaid ? 'Thanh toán thành công. Vé điện tử đã được phát hành.' : isOfflineSuccess ? 'Dat cho thanh cong!' : 'Thanh toan chua hoan tat'}
         </h1>
         <p className="mt-2 font-medium text-slate-500">
-          {isPaid && paymentStatus === 'success'
-            ? paymentMessage || 'VNPay da xac nhan giao dich thanh cong.'
+          {isPaid
+            ? 'Bạn có thể xem mã QR trong mục Dịch vụ đã đặt.'
             : isOfflineSuccess
               ? paymentMessage || 'TravelAI da ghi nhan don hang va dang cho xac nhan thanh toan.'
             : paymentMessage || 'Booking chua duoc xac nhan thanh toan tu cong thanh toan.'}
@@ -176,11 +176,19 @@ const BookingSuccess = () => {
       </div>
 
       <div className="mt-12 flex flex-col gap-4 sm:flex-row">
+        {isPaid && (
+          <button
+            onClick={() => navigate('/my-bookings?tickets=1')}
+            className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-4 text-sm font-black text-white transition-all hover:bg-emerald-700 active:scale-95"
+          >
+            <QrCode size={18} /> XEM VE NGAY
+          </button>
+        )}
         <button
           onClick={() => navigate('/my-bookings')}
           className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-blue-600 py-4 text-sm font-black text-white transition-all hover:bg-blue-700 active:scale-95"
         >
-          XEM BOOKINGS CUA TOI
+          DI TOI DICH VU DA DAT
         </button>
         <button
           onClick={() => navigate('/')}

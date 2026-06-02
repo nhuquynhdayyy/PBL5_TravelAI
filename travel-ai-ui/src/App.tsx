@@ -42,6 +42,7 @@ import PartnerOrders from './pages/partner/PartnerOrders';
 import PartnerOrderDetail from './pages/partner/PartnerOrderDetail';
 import PartnerReviews from './pages/partner/PartnerReviews';
 import ServiceConsole from './pages/partner/ServiceConsole';
+import TicketScanner from './pages/partner/TicketScanner';
 import ServiceDetail from './pages/ServiceDetail';
 import TransportDetail from './pages/TransportDetail';
 import Services from './pages/Services';
@@ -171,6 +172,14 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/partner/tickets/verify"
+          element={
+            <ProtectedRoute allowedRoles={['partner']}>
+              <MainLayout><TicketScanner /></MainLayout>
+            </ProtectedRoute>
+          }
+        />
 
         <Route
           path="/admin/stats"
@@ -241,6 +250,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['admin']}>
               <MainLayout><AdminManageServices /></MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/tickets/verify"
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <MainLayout><TicketScanner /></MainLayout>
             </ProtectedRoute>
           }
         />

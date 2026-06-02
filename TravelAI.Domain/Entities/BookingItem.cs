@@ -12,4 +12,5 @@ public class BookingItem {
 
     public Booking Booking { get; set; } = null!;
     public Service Service { get; set; } = null!;
+    public ICollection<ElectronicTicket> ElectronicTickets { get; set; } = new List<ElectronicTicket>();
 }
