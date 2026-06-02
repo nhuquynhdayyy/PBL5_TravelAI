@@ -67,7 +67,9 @@ namespace TravelAI.Infrastructure.Migrations
                     Latitude = table.Column<double>(type: "float", nullable: false),
                     Longitude = table.Column<double>(type: "float", nullable: false),
                     AvgTimeSpent = table.Column<int>(type: "int", nullable: false),
-                    OpeningHours = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true)
+                    OpeningHours = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    Description = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    ImageUrl = table.Column<string>(type: "nvarchar(max)", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -91,7 +93,9 @@ namespace TravelAI.Infrastructure.Migrations
                     PasswordHash = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: false),
                     FullName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     Phone = table.Column<string>(type: "nvarchar(15)", maxLength: 15, nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    AvatarUrl = table.Column<string>(type: "nvarchar(max)", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -113,7 +117,9 @@ namespace TravelAI.Infrastructure.Migrations
                     UserId = table.Column<int>(type: "int", nullable: false),
                     UserPrompt = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     AiResponseJson = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    DestinationName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    EstimatedCost = table.Column<decimal>(type: "decimal(18,2)", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -159,7 +165,10 @@ namespace TravelAI.Infrastructure.Migrations
                     PromoId = table.Column<int>(type: "int", nullable: true),
                     TotalAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     Status = table.Column<int>(type: "int", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    IsApprovedByPartner = table.Column<bool>(type: "bit", nullable: false),
+                    ApprovedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    ApprovalDeadline = table.Column<DateTime>(type: "datetime2", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -189,7 +198,8 @@ namespace TravelAI.Infrastructure.Migrations
                     StartDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     EndDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     EstimatedCost = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    Status = table.Column<int>(type: "int", nullable: false)
+                    Status = table.Column<int>(type: "int", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -213,7 +223,13 @@ namespace TravelAI.Infrastructure.Migrations
                     TaxCode = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
                     BankAccount = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
                     Address = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: true),
-                    Description = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                    Description = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ContactPhone = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: true),
+                    BusinessLicenseUrl = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    VerificationStatus = table.Column<int>(type: "int", nullable: false),
+                    ReviewNote = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    SubmittedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    ReviewedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -236,10 +252,13 @@ namespace TravelAI.Infrastructure.Migrations
                     SpotId = table.Column<int>(type: "int", nullable: true),
                     ServiceType = table.Column<int>(type: "int", nullable: false),
                     Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     BasePrice = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     RatingAvg = table.Column<double>(type: "float", nullable: false),
                     Latitude = table.Column<double>(type: "float", nullable: false),
-                    Longitude = table.Column<double>(type: "float", nullable: false)
+                    Longitude = table.Column<double>(type: "float", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    ReviewSummary = table.Column<string>(type: "nvarchar(max)", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -289,8 +308,12 @@ namespace TravelAI.Infrastructure.Migrations
                         .Annotation("SqlServer:Identity", "1, 1"),
                     BookingId = table.Column<int>(type: "int", nullable: false),
                     Method = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
+                    Provider = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
                     TransactionRef = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     Amount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    Status = table.Column<int>(type: "int", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    PaidAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     PaymentTime = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
@@ -315,6 +338,7 @@ namespace TravelAI.Infrastructure.Migrations
                     Quantity = table.Column<int>(type: "int", nullable: false),
                     PriceAtBooking = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     CheckInDate = table.Column<DateTime>(type: "date", nullable: false),
+                    CheckOutDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     Notes = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: true)
                 },
                 constraints: table =>
@@ -371,6 +395,30 @@ namespace TravelAI.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "PricingRules",
+                columns: table => new
+                {
+                    RuleId = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    ServiceId = table.Column<int>(type: "int", nullable: false),
+                    StartDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    EndDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    PriceMultiplier = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "GETUTCDATE()")
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_PricingRules", x => x.RuleId);
+                    table.ForeignKey(
+                        name: "FK_PricingRules_Services_ServiceId",
+                        column: x => x.ServiceId,
+                        principalTable: "Services",
+                        principalColumn: "ServiceId",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Reviews",
                 columns: table => new
                 {
@@ -380,6 +428,8 @@ namespace TravelAI.Infrastructure.Migrations
                     UserId = table.Column<int>(type: "int", nullable: false),
                     Rating = table.Column<int>(type: "int", nullable: false),
                     Comment = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    ReplyText = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    ReplyTime = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
@@ -578,6 +628,21 @@ namespace TravelAI.Infrastructure.Migrations
                 column: "BookingId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Payments_TransactionRef",
+                table: "Payments",
+                column: "TransactionRef");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PricingRules_ServiceId",
+                table: "PricingRules",
+                column: "ServiceId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PricingRules_StartDate_EndDate",
+                table: "PricingRules",
+                columns: new[] { "StartDate", "EndDate" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Promotions_Code",
                 table: "Promotions",
                 column: "Code",
@@ -589,9 +654,10 @@ namespace TravelAI.Infrastructure.Migrations
                 column: "PaymentId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Reviews_ServiceId",
+                name: "IX_Reviews_ServiceId_UserId",
                 table: "Reviews",
-                column: "ServiceId");
+                columns: new[] { "ServiceId", "UserId" },
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_Reviews_UserId",
@@ -672,6 +738,9 @@ namespace TravelAI.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "PartnerProfiles");
+
+            migrationBuilder.DropTable(
+                name: "PricingRules");
 
             migrationBuilder.DropTable(
                 name: "Refunds");

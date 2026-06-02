@@ -42,6 +42,10 @@ public class ServiceFilterRequest
     public string? DepartureLocation { get; set; }
     public string? ArrivalLocation { get; set; }
     
+    // Phân biệt Thuê xe (IsRental=true) vs Vé xe/Máy bay (IsRental=false/null)
+    // null = không lọc, true = chỉ lấy thuê xe, false = chỉ lấy vé xe
+    public bool? IsRental { get; set; }
+    
     // Restaurant
     public List<string>? CuisineTypes { get; set; } // ["Vietnamese", "Japanese", "Italian"]
     public string? MealType { get; set; } // "breakfast", "lunch", "dinner"
