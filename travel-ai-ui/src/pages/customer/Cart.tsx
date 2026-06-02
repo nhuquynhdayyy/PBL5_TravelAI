@@ -1,5 +1,5 @@
 import { Calendar, Loader2, ShoppingCart, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
 import { useCart } from '../../contexts/CartContext';
@@ -17,9 +17,48 @@ const Cart = () => {
   const navigate = useNavigate();
   const { items, removeItem, clearCart, totalAmount } = useCart();
   const [checkingOut, setCheckingOut] = useState(false);
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+
+  // Tạo unique ID cho mỗi item trong giỏ hàng
+  const getItemId = (item: any) => {
+    return `${item.serviceId}-${formatDateForApi(item.checkInDate)}-${item.checkOutDate ? formatDateForApi(item.checkOutDate) : 'null'}`;
+  };
+
+  // Tính toán các item đã chọn
+  const selectedCartItems = useMemo(() => {
+    return items.filter(item => selectedItems.includes(getItemId(item)));
+  }, [items, selectedItems]);
+
+  // Tính tổng tiền của các item đã chọn
+  const selectedTotalAmount = useMemo(() => {
+    return selectedCartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  }, [selectedCartItems]);
+
+  // Xử lý chọn/bỏ chọn tất cả
+  const handleSelectAll = () => {
+    if (selectedItems.length === items.length) {
+      setSelectedItems([]);
+    } else {
+      setSelectedItems(items.map(item => getItemId(item)));
+    }
+  };
+
+  // Xử lý chọn/bỏ chọn một item
+  const handleSelectItem = (itemId: string) => {
+    setSelectedItems(prev => {
+      if (prev.includes(itemId)) {
+        return prev.filter(id => id !== itemId);
+      } else {
+        return [...prev, itemId];
+      }
+    });
+  };
 
   const handleCheckout = async () => {
-    if (items.length === 0) return;
+    if (selectedItems.length === 0) {
+      alert('Vui long chon it nhat 1 muc de thanh toan.');
+      return;
+    }
 
     const token = localStorage.getItem('token');
     if (!token) {
@@ -31,7 +70,7 @@ const Cart = () => {
     try {
       setCheckingOut(true);
       const res = await axiosClient.post('/bookings/draft-cart', {
-        items: items.map((item) => ({
+        items: selectedCartItems.map((item) => ({
           serviceId: item.serviceId,
           quantity: item.quantity,
           checkInDate: formatDateForApi(item.checkInDate),
@@ -40,7 +79,11 @@ const Cart = () => {
       });
 
       if (res.data.bookingId) {
-        clearCart();
+        // Xóa các item đã chọn khỏi giỏ hàng
+        selectedCartItems.forEach(item => {
+          removeItem(item.serviceId, item.checkInDate, item.checkOutDate);
+        });
+        setSelectedItems([]);
         navigate(`/checkout/${res.data.bookingId}`);
       }
     } catch (err: any) {
@@ -86,64 +129,97 @@ const Cart = () => {
       ) : (
         <div className="grid gap-8 lg:grid-cols-[1fr_340px]">
           <section className="space-y-4">
-            {items.map((item) => (
-              <article
-                key={`${item.serviceId}-${formatDateForApi(item.checkInDate)}`}
-                className="flex flex-col gap-5 rounded-3xl border border-slate-100 bg-white p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div>
-                  <h2 className="text-xl font-black text-slate-900">{item.serviceName}</h2>
-                  <div className="mt-3 flex flex-wrap gap-3 text-sm font-bold text-slate-500">
-                    <span className="flex items-center gap-2">
-                      <Calendar size={16} className="text-blue-500" />
-                      {item.checkOutDate
-                        ? `${item.checkInDate.toLocaleDateString('vi-VN')} - ${item.checkOutDate.toLocaleDateString('vi-VN')}`
-                        : item.checkInDate.toLocaleDateString('vi-VN')}
-                    </span>
-                    <span>{item.quantity} muc</span>
-                    <span>{currencyFormatter.format(item.price)} VND / muc</span>
+            {/* Checkbox Chọn tất cả */}
+            <div className="flex items-center gap-3 rounded-3xl border border-slate-200 bg-white px-6 py-4">
+              <input
+                type="checkbox"
+                id="select-all"
+                checked={selectedItems.length === items.length && items.length > 0}
+                onChange={handleSelectAll}
+                className="h-5 w-5 cursor-pointer rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+              />
+              <label htmlFor="select-all" className="cursor-pointer text-sm font-bold text-slate-700">
+                Chon tat ca ({items.length} muc)
+              </label>
+            </div>
+
+            {items.map((item) => {
+              const itemId = getItemId(item);
+              const isSelected = selectedItems.includes(itemId);
+              
+              return (
+                <article
+                  key={itemId}
+                  className={`flex flex-col gap-5 rounded-3xl border p-6 shadow-sm transition-all sm:flex-row sm:items-center ${
+                    isSelected 
+                      ? 'border-blue-300 bg-blue-50' 
+                      : 'border-slate-100 bg-white'
+                  }`}
+                >
+                  {/* Checkbox cho từng item */}
+                  <div className="flex items-start gap-4 sm:items-center">
+                    <input
+                      type="checkbox"
+                      id={itemId}
+                      checked={isSelected}
+                      onChange={() => handleSelectItem(itemId)}
+                      className="mt-1 h-5 w-5 cursor-pointer rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500 sm:mt-0"
+                    />
+                    <div className="flex-1">
+                      <h2 className="text-xl font-black text-slate-900">{item.serviceName}</h2>
+                      <div className="mt-3 flex flex-wrap gap-3 text-sm font-bold text-slate-500">
+                        <span className="flex items-center gap-2">
+                          <Calendar size={16} className="text-blue-500" />
+                          {item.checkOutDate
+                            ? `${item.checkInDate.toLocaleDateString('vi-VN')} - ${item.checkOutDate.toLocaleDateString('vi-VN')}`
+                            : item.checkInDate.toLocaleDateString('vi-VN')}
+                        </span>
+                        <span>{item.quantity} muc</span>
+                        <span>{currencyFormatter.format(item.price)} VND / muc</span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center justify-between gap-4 sm:flex-col sm:items-end">
-                  <p className="text-xl font-black text-blue-600">
-                    {currencyFormatter.format(item.price * item.quantity)} VND
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => removeItem(item.serviceId, item.checkInDate, item.checkOutDate)}
-                    className="inline-flex items-center gap-2 rounded-2xl bg-red-50 px-4 py-2 text-sm font-black text-red-600 hover:bg-red-100"
-                  >
-                    <Trash2 size={16} /> XOA
-                  </button>
-                </div>
-              </article>
-            ))}
+                  <div className="flex items-center justify-between gap-4 sm:flex-col sm:items-end">
+                    <p className="text-xl font-black text-blue-600">
+                      {currencyFormatter.format(item.price * item.quantity)} VND
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => removeItem(item.serviceId, item.checkInDate, item.checkOutDate)}
+                      className="inline-flex items-center gap-2 rounded-2xl bg-red-50 px-4 py-2 text-sm font-black text-red-600 hover:bg-red-100"
+                    >
+                      <Trash2 size={16} /> XOA
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
           </section>
 
           <aside className="h-fit rounded-3xl bg-slate-900 p-7 text-white shadow-2xl">
             <h2 className="text-xl font-black">Tong tien</h2>
             <div className="my-6 space-y-3 border-y border-white/10 py-5">
               <div className="flex items-center justify-between text-sm text-slate-300">
-                <span>So muc</span>
-                <span className="font-bold">{items.length}</span>
+                <span>So muc da chon</span>
+                <span className="font-bold">{selectedCartItems.length}</span>
               </div>
               <div className="flex items-center justify-between text-sm text-slate-300">
                 <span>Tam tinh</span>
-                <span className="font-bold">{currencyFormatter.format(totalAmount)} VND</span>
+                <span className="font-bold">{currencyFormatter.format(selectedTotalAmount)} VND</span>
               </div>
             </div>
             <div className="mb-6 flex items-center justify-between">
               <span className="font-bold text-slate-300">Thanh toan</span>
-              <span className="text-2xl font-black">{currencyFormatter.format(totalAmount)} VND</span>
+              <span className="text-2xl font-black">{currencyFormatter.format(selectedTotalAmount)} VND</span>
             </div>
             <button
               type="button"
               onClick={handleCheckout}
-              disabled={checkingOut}
+              disabled={checkingOut || selectedItems.length === 0}
               className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 py-4 text-sm font-black text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
             >
               {checkingOut && <Loader2 className="animate-spin" size={18} />}
-              TIEN HANH THANH TOAN
+              {selectedItems.length === 0 ? 'CHON MUC DE THANH TOAN' : 'TIEN HANH THANH TOAN'}
             </button>
           </aside>
         </div>

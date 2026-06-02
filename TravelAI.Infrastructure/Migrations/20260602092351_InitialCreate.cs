@@ -68,7 +68,7 @@ namespace TravelAI.Infrastructure.Migrations
                     Longitude = table.Column<double>(type: "float", nullable: false),
                     AvgTimeSpent = table.Column<int>(type: "int", nullable: false),
                     OpeningHours = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
-                    Description = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     ImageUrl = table.Column<string>(type: "nvarchar(max)", nullable: true)
                 },
                 constraints: table =>
@@ -252,7 +252,7 @@ namespace TravelAI.Infrastructure.Migrations
                     SpotId = table.Column<int>(type: "int", nullable: true),
                     ServiceType = table.Column<int>(type: "int", nullable: false),
                     Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    Description = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     BasePrice = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     RatingAvg = table.Column<double>(type: "float", nullable: false),
                     Latitude = table.Column<double>(type: "float", nullable: false),

@@ -12,7 +12,7 @@ using TravelAI.Infrastructure.Persistence;
 namespace TravelAI.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260602084729_InitialCreate")]
+    [Migration("20260602092351_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -557,7 +557,6 @@ namespace TravelAI.Infrastructure.Migrations
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("Description")
-                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("IsActive")
@@ -725,7 +724,6 @@ namespace TravelAI.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("Description")
-                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("DestinationId")
