@@ -118,7 +118,10 @@ const Profile: React.FC = () => {
 
 
   const handleLogout = () => {
-    localStorage.clear();
+    // Chỉ xóa token và user info, không xóa toàn bộ localStorage
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('travelai_cart'); // Xóa cart trong memory
     navigate('/login');
     window.location.reload();
   };

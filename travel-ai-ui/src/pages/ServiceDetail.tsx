@@ -273,7 +273,7 @@ const ServiceDetail = () => {
     }
   };
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (!service) return;
 
     if (!selectedDate) {
@@ -281,15 +281,20 @@ const ServiceDetail = () => {
       return;
     }
 
-    addItem({
-      serviceId: service.serviceId,
-      serviceName: service.name,
-      checkInDate: new Date(selectedDate),
-      quantity,
-      price: actualPrice
-    });
+    try {
+      await addItem({
+        serviceId: service.serviceId,
+        serviceName: service.name,
+        checkInDate: new Date(selectedDate),
+        quantity,
+        price: actualPrice
+      });
 
-    alert('Da them dich vu vao gio hang.');
+      alert('Da them dich vu vao gio hang thanh cong.');
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+      alert('Co loi khi them vao gio hang.');
+    }
   };
 
   const handleSubmitReview = async () => {

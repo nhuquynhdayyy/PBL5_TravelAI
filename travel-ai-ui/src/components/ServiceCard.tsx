@@ -93,7 +93,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, isAdminOrPartner, on
     ? getDisplayAvailabilityPrice(activeAvailability)
     : service.basePrice;
 
-  const handleAddToCart = (event: React.MouseEvent) => {
+  const handleAddToCart = async (event: React.MouseEvent) => {
     event.stopPropagation();
 
     if (!activeAvailability) {
@@ -101,15 +101,20 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, isAdminOrPartner, on
       return;
     }
 
-    addItem({
-      serviceId: service.serviceId,
-      serviceName: service.name,
-      checkInDate: new Date(`${activeAvailability.date}T00:00:00`),
-      quantity: 1,
-      price: displayPrice
-    });
+    try {
+      await addItem({
+        serviceId: service.serviceId,
+        serviceName: service.name,
+        checkInDate: new Date(`${activeAvailability.date}T00:00:00`),
+        quantity: 1,
+        price: displayPrice
+      });
 
-    alert('Da them dich vu vao gio hang.');
+      alert('Da them dich vu vao gio hang thanh cong.');
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+      alert('Co loi khi them vao gio hang.');
+    }
   };
 
   return (

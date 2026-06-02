@@ -228,19 +228,24 @@ const TransportDetail = () => {
     }
   };
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (!service || !requireValidSelection()) return;
 
-    addItem({
-      serviceId: service.serviceId,
-      serviceName: `${service.name} (${rentalDays} ngay)`,
-      checkInDate: new Date(startDate),
-      checkOutDate: new Date(endDate),
-      quantity,
-      price: service.basePrice * rentalDays
-    });
+    try {
+      await addItem({
+        serviceId: service.serviceId,
+        serviceName: `${service.name} (${rentalDays} ngay)`,
+        checkInDate: new Date(startDate),
+        checkOutDate: new Date(endDate),
+        quantity,
+        price: service.basePrice * rentalDays
+      });
 
-    alert('Da them xe vao gio hang.');
+      alert('Da them xe vao gio hang thanh cong.');
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+      alert('Co loi khi them vao gio hang.');
+    }
   };
 
   if (loading) {

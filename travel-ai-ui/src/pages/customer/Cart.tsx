@@ -15,9 +15,10 @@ const formatDateForApi = (date: Date) => {
 
 const Cart = () => {
   const navigate = useNavigate();
-  const { items, removeItem, clearCart, totalAmount } = useCart();
+  const { items, removeItem, clearCart, totalAmount, isLoading } = useCart();
   const [checkingOut, setCheckingOut] = useState(false);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [removingItem, setRemovingItem] = useState<string | null>(null);
 
   // Tạo unique ID cho mỗi item trong giỏ hàng
   const getItemId = (item: any) => {
@@ -52,6 +53,29 @@ const Cart = () => {
         return [...prev, itemId];
       }
     });
+  };
+
+  // Xử lý xóa item (async)
+  const handleRemoveItem = async (serviceId: number, checkInDate: Date, checkOutDate?: Date) => {
+    const itemId = getItemId({ serviceId, checkInDate, checkOutDate });
+    setRemovingItem(itemId);
+    try {
+      await removeItem(serviceId, checkInDate, checkOutDate);
+      // Xóa item khỏi selectedItems nếu có
+      setSelectedItems(prev => prev.filter(id => id !== itemId));
+    } catch (error) {
+      console.error('Error removing item:', error);
+    } finally {
+      setRemovingItem(null);
+    }
+  };
+
+  // Xử lý xóa tất cả
+  const handleClearCart = () => {
+    if (confirm('Ban co chac chan muon xoa tat ca muc trong gio hang?')) {
+      clearCart();
+      setSelectedItems([]);
+    }
   };
 
   const handleCheckout = async () => {
@@ -106,8 +130,9 @@ const Cart = () => {
         {items.length > 0 && (
           <button
             type="button"
-            onClick={clearCart}
-            className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-600 hover:bg-slate-50"
+            onClick={handleClearCart}
+            disabled={isLoading}
+            className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             XOA TAT CA
           </button>
@@ -188,10 +213,16 @@ const Cart = () => {
                     </p>
                     <button
                       type="button"
-                      onClick={() => removeItem(item.serviceId, item.checkInDate, item.checkOutDate)}
-                      className="inline-flex items-center gap-2 rounded-2xl bg-red-50 px-4 py-2 text-sm font-black text-red-600 hover:bg-red-100"
+                      onClick={() => handleRemoveItem(item.serviceId, item.checkInDate, item.checkOutDate)}
+                      disabled={removingItem === itemId}
+                      className="inline-flex items-center gap-2 rounded-2xl bg-red-50 px-4 py-2 text-sm font-black text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      <Trash2 size={16} /> XOA
+                      {removingItem === itemId ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <Trash2 size={16} />
+                      )}
+                      XOA
                     </button>
                   </div>
                 </article>

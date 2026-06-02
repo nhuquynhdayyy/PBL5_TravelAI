@@ -315,7 +315,7 @@ const Timeline: React.FC = () => {
     }
   };
 
-  const handleBookAll = () => {
+  const handleBookAll = async () => {
     if (!itinerary) return;
 
     const bookableActivities = flattenActivities(itinerary.days).filter((activity) => activity.serviceId);
@@ -325,28 +325,33 @@ const Timeline: React.FC = () => {
       return;
     }
 
-    // Add all bookable activities to cart
-    bookableActivities.forEach((activity) => {
-      if (activity.serviceId) {
-        const checkInDate = itinerary.startDate 
-          ? new Date(itinerary.startDate)
-          : new Date();
-        
-        // Adjust date based on activity day
-        checkInDate.setDate(checkInDate.getDate() + activity.day - 1);
+    try {
+      // Add all bookable activities to cart
+      for (const activity of bookableActivities) {
+        if (activity.serviceId) {
+          const checkInDate = itinerary.startDate 
+            ? new Date(itinerary.startDate)
+            : new Date();
+          
+          // Adjust date based on activity day
+          checkInDate.setDate(checkInDate.getDate() + activity.day - 1);
 
-        addItem({
-          serviceId: activity.serviceId,
-          serviceName: activity.title,
-          checkInDate,
-          price: activity.estimatedCost,
-          quantity: 1,
-        });
+          await addItem({
+            serviceId: activity.serviceId,
+            serviceName: activity.title,
+            checkInDate,
+            price: activity.estimatedCost,
+            quantity: 1,
+          });
+        }
       }
-    });
 
-    alert(`Đã thêm ${bookableActivities.length} dịch vụ vào giỏ hàng!`);
-    navigate('/cart');
+      alert(`Đã thêm ${bookableActivities.length} dịch vụ vào giỏ hàng!`);
+      navigate('/cart');
+    } catch (error) {
+      console.error('Error adding all to cart:', error);
+      alert('Co loi khi them vao gio hang.');
+    }
   };
 
   const handleActivityClick = (activity: ItineraryActivity) => {

@@ -1,29 +1,35 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import type { ReactNode } from 'react';
+import axiosClient from '../api/axiosClient';
 
 export interface CartItem {
+  cartItemId?: number; // ID từ database (nếu có)
   serviceId: number;
   serviceName: string;
   checkInDate: Date;
-  checkOutDate?: Date;  // Thêm ngày trả cho dịch vụ Transport
+  checkOutDate?: Date;
   quantity: number;
   price: number;
 }
 
 interface CartContextValue {
   items: CartItem[];
-  addItem: (item: CartItem) => void;
-  removeItem: (serviceId: number, checkInDate: Date, checkOutDate?: Date) => void;
+  addItem: (item: CartItem) => Promise<void>;
+  removeItem: (serviceId: number, checkInDate: Date, checkOutDate?: Date) => Promise<void>;
   clearCart: () => void;
+  syncCart: () => Promise<void>;
   totalAmount: number;
+  isLoading: boolean;
 }
 
 const CartContext = createContext<CartContextValue>({
   items: [],
-  addItem: () => {},
-  removeItem: () => {},
+  addItem: async () => {},
+  removeItem: async () => {},
   clearCart: () => {},
-  totalAmount: 0
+  syncCart: async () => {},
+  totalAmount: 0,
+  isLoading: false
 });
 
 const storageKey = 'travelai_cart';
@@ -59,42 +65,132 @@ const parseCartItems = (value: string | null): CartItem[] => {
 
 export const CartProvider = ({ children }: { children: ReactNode }) => {
   const [items, setItems] = useState<CartItem[]>(() => parseCartItems(localStorage.getItem(storageKey)));
+  const [isLoading, setIsLoading] = useState(false);
 
+  // Đồng bộ cart với localStorage
   useEffect(() => {
     localStorage.setItem(storageKey, JSON.stringify(items));
   }, [items]);
 
-  const addItem = (item: CartItem) => {
-    setItems((current) => {
-      const itemKey = getCartItemKey(item);
-      const existing = current.find((cartItem) => getCartItemKey(cartItem) === itemKey);
-      if (!existing) {
-        return [...current, item];
+  // Kiểm tra xem user đã đăng nhập chưa
+  const isLoggedIn = useCallback(() => {
+    return !!localStorage.getItem('token');
+  }, []);
+
+  // Sync cart từ database khi component mount (nếu đã đăng nhập)
+  const syncCart = useCallback(async () => {
+    if (!isLoggedIn()) {
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const { data } = await axiosClient.get('/cart');
+      
+      // Convert database items sang CartItem format
+      const dbItems: CartItem[] = data.items.map((item: any) => ({
+        cartItemId: item.cartItemId,
+        serviceId: item.serviceId,
+        serviceName: item.serviceName,
+        checkInDate: new Date(item.checkInDate),
+        checkOutDate: item.checkOutDate ? new Date(item.checkOutDate) : undefined,
+        quantity: item.quantity,
+        price: item.priceAtBooking
+      }));
+
+      setItems(dbItems);
+    } catch (error) {
+      console.error('Error syncing cart from database:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isLoggedIn]);
+
+  // Thêm item vào cart
+  const addItem = useCallback(async (item: CartItem) => {
+    // Nếu chưa đăng nhập, lưu vào localStorage
+    if (!isLoggedIn()) {
+      setItems((current) => {
+        const itemKey = getCartItemKey(item);
+        const existing = current.find((cartItem) => getCartItemKey(cartItem) === itemKey);
+        if (!existing) {
+          return [...current, item];
+        }
+
+        return current.map((cartItem) =>
+          getCartItemKey(cartItem) === itemKey
+            ? {
+                ...cartItem,
+                serviceName: item.serviceName,
+                checkInDate: item.checkInDate,
+                checkOutDate: item.checkOutDate,
+                quantity: cartItem.quantity + item.quantity,
+                price: item.price
+              }
+            : cartItem
+        );
+      });
+      return;
+    }
+
+    // Nếu đã đăng nhập, gọi API
+    try {
+      setIsLoading(true);
+      await axiosClient.post('/cart', {
+        serviceId: item.serviceId,
+        quantity: item.quantity,
+        priceAtBooking: item.price,
+        checkInDate: formatDateKey(item.checkInDate),
+        checkOutDate: item.checkOutDate ? formatDateKey(item.checkOutDate) : null
+      });
+
+      // Sau khi thêm thành công, sync lại từ database
+      await syncCart();
+    } catch (error: any) {
+      console.error('Error adding to cart:', error);
+      alert(error.response?.data?.message || 'Không thể thêm vào giỏ hàng');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isLoggedIn, syncCart]);
+
+  // Xóa item khỏi cart
+  const removeItem = useCallback(async (serviceId: number, checkInDate: Date, checkOutDate?: Date) => {
+    // Nếu chưa đăng nhập, xóa khỏi localStorage
+    if (!isLoggedIn()) {
+      const itemKey = getCartItemKey({ serviceId, checkInDate, checkOutDate });
+      setItems((current) => current.filter((item) => getCartItemKey(item) !== itemKey));
+      return;
+    }
+
+    // Nếu đã đăng nhập, tìm cartItemId và gọi API
+    try {
+      setIsLoading(true);
+      const itemKey = getCartItemKey({ serviceId, checkInDate, checkOutDate });
+      const itemToRemove = items.find((item) => getCartItemKey(item) === itemKey);
+
+      if (!itemToRemove?.cartItemId) {
+        console.error('Cart item ID not found');
+        return;
       }
 
-      return current.map((cartItem) =>
-        getCartItemKey(cartItem) === itemKey
-          ? {
-              ...cartItem,
-              serviceName: item.serviceName,
-              checkInDate: item.checkInDate,
-              checkOutDate: item.checkOutDate,
-              quantity: cartItem.quantity + item.quantity,
-              price: item.price
-            }
-          : cartItem
-      );
-    });
-  };
+      await axiosClient.delete(`/cart/${itemToRemove.cartItemId}`);
 
-  const removeItem = (serviceId: number, checkInDate: Date, checkOutDate?: Date) => {
-    const itemKey = getCartItemKey({ serviceId, checkInDate, checkOutDate });
-    setItems((current) => current.filter((item) => getCartItemKey(item) !== itemKey));
-  };
+      // Sau khi xóa thành công, sync lại từ database
+      await syncCart();
+    } catch (error: any) {
+      console.error('Error removing from cart:', error);
+      alert(error.response?.data?.message || 'Không thể xóa khỏi giỏ hàng');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isLoggedIn, items, syncCart]);
 
-  const clearCart = () => {
+  // Xóa toàn bộ cart (chỉ xóa trong memory, không xóa database)
+  const clearCart = useCallback(() => {
     setItems([]);
-  };
+    localStorage.removeItem(storageKey);
+  }, []);
 
   const totalAmount = useMemo(
     () => items.reduce((sum, item) => sum + item.price * item.quantity, 0),
@@ -107,9 +203,11 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       addItem,
       removeItem,
       clearCart,
-      totalAmount
+      syncCart,
+      totalAmount,
+      isLoading
     }),
-    [items, totalAmount]
+    [items, addItem, removeItem, clearCart, syncCart, totalAmount, isLoading]
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

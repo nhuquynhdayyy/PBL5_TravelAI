@@ -44,21 +44,25 @@ const BookingSuccess = () => {
       const storedItems = localStorage.getItem(storageKey);
       
       if (storedItems) {
-        try {
-          const checkedOutItems = JSON.parse(storedItems);
-          
-          // Xóa từng item đã checkout khỏi giỏ hàng
-          checkedOutItems.forEach((item: any) => {
-            const checkInDate = new Date(item.checkInDate);
-            const checkOutDate = item.checkOutDate ? new Date(item.checkOutDate) : undefined;
-            removeItem(item.serviceId, checkInDate, checkOutDate);
-          });
-          
-          // Xóa thông tin đã lưu trong localStorage
-          localStorage.removeItem(storageKey);
-        } catch (err) {
-          console.error('Loi khi xoa items khoi gio hang:', err);
-        }
+        const deleteCartItems = async () => {
+          try {
+            const checkedOutItems = JSON.parse(storedItems);
+            
+            // Xóa từng item đã checkout khỏi giỏ hàng (gọi API để xóa khỏi database)
+            for (const item of checkedOutItems) {
+              const checkInDate = new Date(item.checkInDate);
+              const checkOutDate = item.checkOutDate ? new Date(item.checkOutDate) : undefined;
+              await removeItem(item.serviceId, checkInDate, checkOutDate);
+            }
+            
+            // Xóa thông tin đã lưu trong localStorage
+            localStorage.removeItem(storageKey);
+          } catch (err) {
+            console.error('Loi khi xoa items khoi gio hang:', err);
+          }
+        };
+
+        deleteCartItems();
       }
     }
   }, [bookingId, isPaid, isOfflineSuccess, removeItem]);

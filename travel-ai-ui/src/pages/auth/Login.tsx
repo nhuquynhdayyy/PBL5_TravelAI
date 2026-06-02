@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
 import MainLayout from '../../layouts/MainLayout';
+import { useCart } from '../../contexts/CartContext';
 
 const Login = () => {
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { items: localCartItems, syncCart } = useCart();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -15,6 +17,27 @@ const Login = () => {
       const { data } = await axiosClient.post('/auth/login', formData);
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data));
+
+      // Bước 1: Nếu có items trong localStorage, sync lên database
+      if (localCartItems.length > 0) {
+        try {
+          await axiosClient.post('/cart/sync', {
+            items: localCartItems.map((item) => ({
+              serviceId: item.serviceId,
+              quantity: item.quantity,
+              priceAtBooking: item.price,
+              checkInDate: item.checkInDate.toISOString().split('T')[0],
+              checkOutDate: item.checkOutDate ? item.checkOutDate.toISOString().split('T')[0] : null
+            }))
+          });
+        } catch (syncError) {
+          console.error('Error syncing local cart to database:', syncError);
+        }
+      }
+
+      // Bước 2: Sync cart từ database về client
+      await syncCart();
+
       const nextPath = data.roleName?.toLowerCase() === 'partner'
         ? '/partner/profile'
         : data.roleName?.toLowerCase() === 'admin'

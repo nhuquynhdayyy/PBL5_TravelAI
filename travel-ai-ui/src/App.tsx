@@ -1,8 +1,10 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { useEffect } from 'react';
 import Chatbox from './components/chat/Chatbox';
 import ProtectedRoute from './components/ProtectedRoute';
 import RealtimeNotifications from './components/RealtimeNotifications';
 import MainLayout from './layouts/MainLayout';
+import { useCart } from './contexts/CartContext';
 import AdminManageServices from './pages/Admin/AdminManageServices';
 import AdminManagePartners from './pages/Admin/AdminManagePartners';
 import AdminStats from './pages/Admin/AdminStats';
@@ -46,6 +48,16 @@ import SpotDetail from './pages/SpotDetail';
 import Transportation from './pages/Transportation';
 
 function App() {
+  const { syncCart } = useCart();
+
+  // Sync cart từ database khi app khởi động (nếu đã đăng nhập)
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      syncCart();
+    }
+  }, [syncCart]);
+
   return (
     <>
       <Routes>
