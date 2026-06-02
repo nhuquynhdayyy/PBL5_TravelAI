@@ -12,8 +12,8 @@ using TravelAI.Infrastructure.Persistence;
 namespace TravelAI.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260518091719_AddAnalyticsColumnsToAISuggestionLog")]
-    partial class AddAnalyticsColumnsToAISuggestionLog
+    [Migration("20260602085716_MakeServiceDescriptionNullable")]
+    partial class MakeServiceDescriptionNullable
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -149,6 +149,9 @@ namespace TravelAI.Infrastructure.Migrations
 
                     b.Property<DateTime>("CheckInDate")
                         .HasColumnType("date");
+
+                    b.Property<DateTime?>("CheckOutDate")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Notes")
                         .HasMaxLength(255)
@@ -554,7 +557,6 @@ namespace TravelAI.Infrastructure.Migrations
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("Description")
-                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("IsActive")
@@ -722,7 +724,6 @@ namespace TravelAI.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("Description")
-                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("DestinationId")
