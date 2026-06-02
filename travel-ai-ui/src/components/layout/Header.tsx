@@ -1,7 +1,7 @@
 // src/components/layout/Header.tsx
 
 import React, { useState, useEffect } from 'react';
-import { Menu, X, Plane, LogOut, LayoutDashboard, Store, User, ChevronDown, Hotel, Compass, ClipboardList, MessageSquare, BarChart3, Building2, ShoppingCart, Landmark, Package } from 'lucide-react';
+import { Menu, X, Plane, LogOut, LayoutDashboard, Store, User, ChevronDown, Hotel, Compass, ClipboardList, MessageSquare, BarChart3, Building2, ShoppingCart, Landmark, Sparkles } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useCart } from '../../contexts/CartContext';
 import { getUser } from '../../utils/userUtils';
@@ -108,9 +108,14 @@ const Header: React.FC = () => {
                     )}
                 </div>
 
+                <Link to="/ai-suggestions" className="flex items-center gap-1.5 text-slate-600 hover:text-blue-500 font-medium text-sm transition-all group">
+                  <Sparkles size={16} className="text-blue-400 group-hover:text-blue-500 transition-colors" />
+                  <span>Gợi ý AI</span>
+                </Link>
+
                 <Link to="/planner" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all">Itinerary</Link>
                 <Link to="/cart" className="relative text-slate-600 hover:text-blue-500 font-medium text-sm transition-all">
-                  <ShoppingCart size={20} />
+                  Giỏ hàng
                   {items.length > 0 && (
                     <span className="absolute -right-3 -top-3 flex size-5 items-center justify-center rounded-full bg-blue-600 text-[10px] font-black text-white">
                       {items.length}

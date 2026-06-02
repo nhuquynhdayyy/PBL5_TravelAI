@@ -15,6 +15,7 @@ import EditDestination from './pages/Admin/EditDestination';
 import EditSpot from './pages/Admin/EditSpot';
 import ServiceForm from './pages/Admin/ServiceForm';
 import SpotForm from './pages/Admin/SpotForm';
+import AiSuggestionPage from './pages/AiSuggestionPage';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import BookingSuccess from './pages/customer/BookingSuccess';
@@ -67,6 +68,7 @@ function App() {
         <Route path="/destinations/:id/spots" element={<MainLayout><SpotList /></MainLayout>} />
         <Route path="/spots" element={<MainLayout><SpotList /></MainLayout>} />
         <Route path="/spots/:id" element={<MainLayout><SpotDetail /></MainLayout>} />
+        <Route path="/ai-suggestions" element={<MainLayout><AiSuggestionPage /></MainLayout>} />
         <Route path="/services" element={<MainLayout><Services /></MainLayout>} />
         <Route path="/hotels" element={<MainLayout><HotelsPage /></MainLayout>} />
         <Route path="/tours" element={<MainLayout><ToursPage /></MainLayout>} />
