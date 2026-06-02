@@ -4,6 +4,7 @@ import axiosClient from '../../api/axiosClient';
 import { CheckCircle, Printer, Home, Calendar, Users, Loader2 } from 'lucide-react';
 import { formatVietnameseDate } from '../../utils/dateTimeUtils';
 import { getTodayVietnam } from '../../utils/dateUtils';
+import { useCart } from '../../contexts/CartContext';
 
 const BookingSuccess = () => {
   const { bookingId } = useParams();
@@ -11,6 +12,7 @@ const BookingSuccess = () => {
   const [searchParams] = useSearchParams();
   const [booking, setBooking] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const { removeItem } = useCart();
 
   const paymentStatus = searchParams.get('paymentStatus');
   const paymentMessage = searchParams.get('message');
@@ -31,6 +33,35 @@ const BookingSuccess = () => {
 
     fetchBill();
   }, [bookingId]);
+
+  // Xóa các item đã thanh toán thành công khỏi giỏ hàng
+  useEffect(() => {
+    if (!bookingId) return;
+
+    // Chỉ xóa khi thanh toán thành công (isPaid hoặc isOfflineSuccess)
+    if (isPaid || isOfflineSuccess) {
+      const storageKey = `booking_${bookingId}_items`;
+      const storedItems = localStorage.getItem(storageKey);
+      
+      if (storedItems) {
+        try {
+          const checkedOutItems = JSON.parse(storedItems);
+          
+          // Xóa từng item đã checkout khỏi giỏ hàng
+          checkedOutItems.forEach((item: any) => {
+            const checkInDate = new Date(item.checkInDate);
+            const checkOutDate = item.checkOutDate ? new Date(item.checkOutDate) : undefined;
+            removeItem(item.serviceId, checkInDate, checkOutDate);
+          });
+          
+          // Xóa thông tin đã lưu trong localStorage
+          localStorage.removeItem(storageKey);
+        } catch (err) {
+          console.error('Loi khi xoa items khoi gio hang:', err);
+        }
+      }
+    }
+  }, [bookingId, isPaid, isOfflineSuccess, removeItem]);
 
   if (loading) {
     return (

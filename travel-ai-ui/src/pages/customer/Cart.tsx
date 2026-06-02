@@ -79,11 +79,14 @@ const Cart = () => {
       });
 
       if (res.data.bookingId) {
-        // Xóa các item đã chọn khỏi giỏ hàng
-        selectedCartItems.forEach(item => {
-          removeItem(item.serviceId, item.checkInDate, item.checkOutDate);
-        });
-        setSelectedItems([]);
+        // Lưu thông tin các item đã checkout để xóa sau khi thanh toán thành công
+        const checkedOutItems = selectedCartItems.map(item => ({
+          serviceId: item.serviceId,
+          checkInDate: formatDateForApi(item.checkInDate),
+          checkOutDate: item.checkOutDate ? formatDateForApi(item.checkOutDate) : null
+        }));
+        localStorage.setItem(`booking_${res.data.bookingId}_items`, JSON.stringify(checkedOutItems));
+        
         navigate(`/checkout/${res.data.bookingId}`);
       }
     } catch (err: any) {
