@@ -38,6 +38,25 @@ const Checkout = () => {
   const [promotionMessage, setPromotionMessage] = useState('');
   const [offlinePayment, setOfflinePayment] = useState<any>(null);
 
+  // Lấy thông tin người dùng từ localStorage
+  useEffect(() => {
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        // Tự động điền thông tin người dùng vào form
+        if (user.fullName) {
+          setCustomerName(user.fullName);
+        }
+        if (user.phone || user.phoneNumber) {
+          setCustomerPhone(user.phone || user.phoneNumber);
+        }
+      } catch (err) {
+        console.error('Loi khi doc thong tin nguoi dung:', err);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     const fetchBooking = async () => {
       try {
