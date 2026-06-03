@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using QRCoder;
@@ -13,6 +14,12 @@ namespace TravelAI.Infrastructure.Services;
 
 public class ElectronicTicketService : IElectronicTicketService
 {
+    private const string DefaultFrontendBaseUrl = "https://travelai.vn";
+    private const string TicketPathSegment = "/e-ticket/";
+    private static readonly Regex TicketCodePattern = new(
+        "^TA-\\d{8}-[A-Z0-9]{6}$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
     private readonly ApplicationDbContext _context;
     private readonly string _frontendBaseUrl;
 
@@ -22,7 +29,7 @@ public class ElectronicTicketService : IElectronicTicketService
         _frontendBaseUrl = NormalizeFrontendBaseUrl(
             configuration["Ticket:FrontendBaseUrl"]
             ?? configuration["Frontend:BaseUrl"]
-            ?? "https://travelai.vn");
+            ?? DefaultFrontendBaseUrl);
     }
 
     public async Task<IReadOnlyList<ElectronicTicketDto>> GenerateForBookingAsync(
@@ -109,7 +116,12 @@ public class ElectronicTicketService : IElectronicTicketService
         string ticketCode,
         CancellationToken cancellationToken = default)
     {
-        var normalizedCode = ticketCode.Trim();
+        var normalizedCode = NormalizeTicketCode(ticketCode);
+        if (normalizedCode == null)
+        {
+            return null;
+        }
+
         var ticket = await _context.ElectronicTickets
             .AsNoTracking()
             .FirstOrDefaultAsync(item => item.TicketCode == normalizedCode, cancellationToken);
@@ -121,7 +133,12 @@ public class ElectronicTicketService : IElectronicTicketService
         string ticketCode,
         CancellationToken cancellationToken = default)
     {
-        var normalizedCode = ticketCode.Trim();
+        var normalizedCode = NormalizeTicketCode(ticketCode);
+        if (normalizedCode == null)
+        {
+            return null;
+        }
+
         var ticket = await _context.ElectronicTickets
             .AsNoTracking()
             .Include(item => item.User)
@@ -131,17 +148,17 @@ public class ElectronicTicketService : IElectronicTicketService
     }
 
     public async Task<VerifyTicketResponse> VerifyAsync(
-        string qrPayloadJson,
+        string qrPayload,
         int verifierUserId,
         bool markAsUsed,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(qrPayloadJson))
+        if (string.IsNullOrWhiteSpace(qrPayload))
         {
             return new VerifyTicketResponse { IsValid = false, Message = "QR payload is empty." };
         }
 
-        var ticketCode = ExtractTicketCode(qrPayloadJson);
+        var ticketCode = ExtractTicketCode(qrPayload);
         if (string.IsNullOrWhiteSpace(ticketCode))
         {
             return new VerifyTicketResponse { IsValid = false, Message = "QR payload does not contain a valid ticket URL or ticketCode." };
@@ -226,7 +243,7 @@ public class ElectronicTicketService : IElectronicTicketService
 
     private string BuildTicketUrl(string ticketCode)
     {
-        return $"{_frontendBaseUrl}/e-ticket/{Uri.EscapeDataString(ticketCode)}";
+        return $"{_frontendBaseUrl}{TicketPathSegment}{Uri.EscapeDataString(ticketCode)}";
     }
 
     private static string GenerateQrImageBase64(string qrContent)
@@ -240,7 +257,7 @@ public class ElectronicTicketService : IElectronicTicketService
 
     private ElectronicTicketDto MapToDto(ElectronicTicket ticket)
     {
-        var qrCodeUrl = EnsureTicketUrl(ticket);
+        var qrCodeUrl = BuildTicketUrl(ticket.TicketCode);
 
         return new ElectronicTicketDto
         {
@@ -266,7 +283,7 @@ public class ElectronicTicketService : IElectronicTicketService
 
     private PublicTicketDto MapToPublicDto(ElectronicTicket ticket)
     {
-        var qrCodeUrl = EnsureTicketUrl(ticket);
+        var qrCodeUrl = BuildTicketUrl(ticket.TicketCode);
 
         return new PublicTicketDto
         {
@@ -279,37 +296,41 @@ public class ElectronicTicketService : IElectronicTicketService
             Quantity = ticket.Quantity,
             UseDate = ticket.TravelDate,
             Status = ticket.Status.ToString(),
-            QrCodeUrl = qrCodeUrl,
-            QrImageBase64 = GetQrImageBase64(ticket, qrCodeUrl)
+            QrCodeUrl = qrCodeUrl
         };
     }
 
     private static string GetQrImageBase64(ElectronicTicket ticket, string qrCodeUrl)
     {
-        return IsTicketUrl(ticket.QrPayloadJson) && !string.IsNullOrWhiteSpace(ticket.QrImageBase64)
+        return string.Equals(ticket.QrPayloadJson, qrCodeUrl, StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(ticket.QrImageBase64)
             ? ticket.QrImageBase64
             : GenerateQrImageBase64(qrCodeUrl);
-    }
-
-    private string EnsureTicketUrl(ElectronicTicket ticket)
-    {
-        return IsTicketUrl(ticket.QrPayloadJson)
-            ? ticket.QrPayloadJson
-            : BuildTicketUrl(ticket.TicketCode);
     }
 
     private static string NormalizeFrontendBaseUrl(string value)
     {
         return string.IsNullOrWhiteSpace(value)
-            ? "https://travelai.vn"
+            ? DefaultFrontendBaseUrl
             : value.Trim().TrimEnd('/');
+    }
+
+    private static string? NormalizeTicketCode(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var normalized = value.Trim().ToUpperInvariant();
+        return TicketCodePattern.IsMatch(normalized) ? normalized : null;
     }
 
     private static bool IsTicketUrl(string value)
     {
         return Uri.TryCreate(value, UriKind.Absolute, out var uri)
             && uri.Scheme is "http" or "https"
-            && uri.AbsolutePath.Contains("/e-ticket/", StringComparison.OrdinalIgnoreCase);
+            && uri.AbsolutePath.Contains(TicketPathSegment, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string ExtractTicketCode(string qrContent)
@@ -318,11 +339,11 @@ public class ElectronicTicketService : IElectronicTicketService
 
         if (Uri.TryCreate(raw, UriKind.Absolute, out var uri))
         {
-            var marker = "/e-ticket/";
-            var index = uri.AbsolutePath.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+            var index = uri.AbsolutePath.IndexOf(TicketPathSegment, StringComparison.OrdinalIgnoreCase);
             if (index >= 0)
             {
-                return Uri.UnescapeDataString(uri.AbsolutePath[(index + marker.Length)..]).Trim('/');
+                return NormalizeTicketCode(Uri.UnescapeDataString(uri.AbsolutePath[(index + TicketPathSegment.Length)..]).Trim('/'))
+                    ?? string.Empty;
             }
         }
 
@@ -334,7 +355,7 @@ public class ElectronicTicketService : IElectronicTicketService
 
             if (!string.IsNullOrWhiteSpace(payload?.TicketCode))
             {
-                return payload.TicketCode.Trim();
+                return NormalizeTicketCode(payload.TicketCode) ?? string.Empty;
             }
         }
         catch (JsonException)
@@ -342,7 +363,7 @@ public class ElectronicTicketService : IElectronicTicketService
             // New production QR codes are URLs. JSON parsing is kept only for older tickets.
         }
 
-        return raw.StartsWith("TA-", StringComparison.OrdinalIgnoreCase) ? raw : string.Empty;
+        return NormalizeTicketCode(raw) ?? string.Empty;
     }
 
     private sealed class TicketPayload

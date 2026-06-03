@@ -12,6 +12,8 @@ namespace TravelAI.WebAPI.Controllers;
 [Authorize]
 public class TicketsController : ControllerBase
 {
+    private const string InvalidPublicTicketMessage = "Vé không hợp lệ hoặc đã bị xóa";
+
     private readonly IElectronicTicketService _ticketService;
 
     public TicketsController(IElectronicTicketService ticketService)
@@ -35,38 +37,45 @@ public class TicketsController : ControllerBase
 
     [HttpGet("{ticketCode}")]
     [Authorize(Roles = "Customer,Partner,Admin")]
-    public async Task<IActionResult> GetByCode(string ticketCode, CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(ElectronicTicketDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ElectronicTicketDto>> GetByCode(string ticketCode, CancellationToken cancellationToken)
     {
         var ticket = await _ticketService.GetByCodeAsync(ticketCode, cancellationToken);
         return ticket == null
-            ? NotFound(new { message = "Khong tim thay ve dien tu." })
+            ? NotFound(new { message = "Không tìm thấy vé điện tử." })
             : Ok(ticket);
     }
 
     [HttpGet("public/{ticketCode}")]
     [AllowAnonymous]
-    public async Task<IActionResult> GetPublicByCode(string ticketCode, CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(PublicTicketDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<PublicTicketDto>> GetPublicByCode(string ticketCode, CancellationToken cancellationToken)
     {
         var ticket = await _ticketService.GetPublicByCodeAsync(ticketCode, cancellationToken);
         return ticket == null
-            ? NotFound(new { message = "Ve khong hop le hoac da bi xoa." })
+            ? NotFound(new { message = InvalidPublicTicketMessage })
             : Ok(ticket);
     }
 
     [HttpPost("verify")]
     [Authorize(Roles = "Partner,Admin")]
-    public async Task<IActionResult> Verify(
+    [ProducesResponseType(typeof(VerifyTicketResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(VerifyTicketResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<VerifyTicketResponse>> Verify(
         [FromBody] VerifyTicketRequest request,
         CancellationToken cancellationToken)
     {
         var userId = GetCurrentUserId();
         if (userId == null)
         {
-            return Unauthorized(new { message = "Vui long dang nhap!" });
+            return Unauthorized(new { message = "Vui lòng đăng nhập." });
         }
 
         var result = await _ticketService.VerifyAsync(
-            request.QrPayloadJson,
+            request.QrPayload,
             userId.Value,
             request.MarkAsUsed,
             cancellationToken);
