@@ -1,6 +1,6 @@
-using System.Globalization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using QRCoder;
 using TravelAI.Application.DTOs.Ticket;
 using TravelAI.Application.Helpers;
@@ -14,10 +14,15 @@ namespace TravelAI.Infrastructure.Services;
 public class ElectronicTicketService : IElectronicTicketService
 {
     private readonly ApplicationDbContext _context;
+    private readonly string _frontendBaseUrl;
 
-    public ElectronicTicketService(ApplicationDbContext context)
+    public ElectronicTicketService(ApplicationDbContext context, IConfiguration configuration)
     {
         _context = context;
+        _frontendBaseUrl = NormalizeFrontendBaseUrl(
+            configuration["Ticket:FrontendBaseUrl"]
+            ?? configuration["Frontend:BaseUrl"]
+            ?? "https://travelai.vn");
     }
 
     public async Task<IReadOnlyList<ElectronicTicketDto>> GenerateForBookingAsync(
@@ -66,7 +71,7 @@ public class ElectronicTicketService : IElectronicTicketService
                 CreatedAt = DateTimeHelper.Now
             };
 
-            ticket.QrPayloadJson = BuildQrPayloadJson(ticket);
+            ticket.QrPayloadJson = BuildTicketUrl(ticket.TicketCode);
             ticket.QrImageBase64 = GenerateQrImageBase64(ticket.QrPayloadJson);
             newTickets.Add(ticket);
             _context.ElectronicTickets.Add(ticket);
@@ -112,6 +117,19 @@ public class ElectronicTicketService : IElectronicTicketService
         return ticket == null ? null : MapToDto(ticket);
     }
 
+    public async Task<PublicTicketDto?> GetPublicByCodeAsync(
+        string ticketCode,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedCode = ticketCode.Trim();
+        var ticket = await _context.ElectronicTickets
+            .AsNoTracking()
+            .Include(item => item.User)
+            .FirstOrDefaultAsync(item => item.TicketCode == normalizedCode, cancellationToken);
+
+        return ticket == null ? null : MapToPublicDto(ticket);
+    }
+
     public async Task<VerifyTicketResponse> VerifyAsync(
         string qrPayloadJson,
         int verifierUserId,
@@ -123,35 +141,19 @@ public class ElectronicTicketService : IElectronicTicketService
             return new VerifyTicketResponse { IsValid = false, Message = "QR payload is empty." };
         }
 
-        TicketPayload? payload;
-        try
+        var ticketCode = ExtractTicketCode(qrPayloadJson);
+        if (string.IsNullOrWhiteSpace(ticketCode))
         {
-            payload = JsonSerializer.Deserialize<TicketPayload>(
-                qrPayloadJson,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-        }
-        catch (JsonException)
-        {
-            return new VerifyTicketResponse { IsValid = false, Message = "QR payload is not valid JSON." };
-        }
-
-        if (payload == null || string.IsNullOrWhiteSpace(payload.TicketCode))
-        {
-            return new VerifyTicketResponse { IsValid = false, Message = "QR payload does not contain ticketCode." };
+            return new VerifyTicketResponse { IsValid = false, Message = "QR payload does not contain a valid ticket URL or ticketCode." };
         }
 
         var ticket = await _context.ElectronicTickets
             .Include(item => item.Service)
-            .FirstOrDefaultAsync(item => item.TicketCode == payload.TicketCode, cancellationToken);
+            .FirstOrDefaultAsync(item => item.TicketCode == ticketCode, cancellationToken);
 
         if (ticket == null)
         {
             return new VerifyTicketResponse { IsValid = false, Message = "Ticket does not exist." };
-        }
-
-        if (ticket.BookingId != payload.BookingId)
-        {
-            return new VerifyTicketResponse { IsValid = false, Message = "Ticket payload does not match booking." };
         }
 
         var verifier = await _context.Users
@@ -187,7 +189,7 @@ public class ElectronicTicketService : IElectronicTicketService
             ticket.Status = TicketStatus.Used;
             ticket.UsedAt = DateTimeHelper.Now;
             ticket.VerifiedByUserId = verifierUserId;
-            ticket.QrPayloadJson = BuildQrPayloadJson(ticket);
+            ticket.QrPayloadJson = BuildTicketUrl(ticket.TicketCode);
             ticket.QrImageBase64 = GenerateQrImageBase64(ticket.QrPayloadJson);
             await _context.SaveChangesAsync(cancellationToken);
         }
@@ -222,36 +224,24 @@ public class ElectronicTicketService : IElectronicTicketService
         return $"TA-{today:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..6].ToUpperInvariant()}";
     }
 
-    private static string BuildQrPayloadJson(ElectronicTicket ticket)
+    private string BuildTicketUrl(string ticketCode)
     {
-        var payload = new
-        {
-            ticketCode = ticket.TicketCode,
-            bookingId = ticket.BookingId,
-            customerName = ticket.CustomerName,
-            serviceName = ticket.ServiceName,
-            serviceType = ticket.ServiceType,
-            bookingDate = ticket.BookingDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-            travelDate = ticket.TravelDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-            quantity = ticket.Quantity,
-            totalAmount = ticket.TotalAmount,
-            status = ticket.Status.ToString()
-        };
-
-        return JsonSerializer.Serialize(payload);
+        return $"{_frontendBaseUrl}/e-ticket/{Uri.EscapeDataString(ticketCode)}";
     }
 
-    private static string GenerateQrImageBase64(string payloadJson)
+    private static string GenerateQrImageBase64(string qrContent)
     {
         using var generator = new QRCodeGenerator();
-        using var qrData = generator.CreateQrCode(payloadJson, QRCodeGenerator.ECCLevel.Q);
+        using var qrData = generator.CreateQrCode(qrContent, QRCodeGenerator.ECCLevel.Q);
         var pngQrCode = new PngByteQRCode(qrData);
         var qrCodeBytes = pngQrCode.GetGraphic(20);
         return Convert.ToBase64String(qrCodeBytes);
     }
 
-    private static ElectronicTicketDto MapToDto(ElectronicTicket ticket)
+    private ElectronicTicketDto MapToDto(ElectronicTicket ticket)
     {
+        var qrCodeUrl = EnsureTicketUrl(ticket);
+
         return new ElectronicTicketDto
         {
             TicketId = ticket.TicketId,
@@ -266,16 +256,97 @@ public class ElectronicTicketService : IElectronicTicketService
             Quantity = ticket.Quantity,
             TotalAmount = ticket.TotalAmount,
             Status = ticket.Status.ToString(),
-            QrPayloadJson = ticket.QrPayloadJson,
-            QrImageBase64 = ticket.QrImageBase64,
+            QrPayloadJson = qrCodeUrl,
+            QrCodeUrl = qrCodeUrl,
+            QrImageBase64 = GetQrImageBase64(ticket, qrCodeUrl),
             CreatedAt = ticket.CreatedAt,
             UsedAt = ticket.UsedAt
         };
     }
 
+    private PublicTicketDto MapToPublicDto(ElectronicTicket ticket)
+    {
+        var qrCodeUrl = EnsureTicketUrl(ticket);
+
+        return new PublicTicketDto
+        {
+            TicketCode = ticket.TicketCode,
+            BookingId = ticket.BookingId,
+            CustomerName = ticket.CustomerName,
+            CustomerEmail = ticket.User.Email,
+            CustomerPhone = ticket.User.Phone ?? string.Empty,
+            ServiceName = ticket.ServiceName,
+            Quantity = ticket.Quantity,
+            UseDate = ticket.TravelDate,
+            Status = ticket.Status.ToString(),
+            QrCodeUrl = qrCodeUrl,
+            QrImageBase64 = GetQrImageBase64(ticket, qrCodeUrl)
+        };
+    }
+
+    private static string GetQrImageBase64(ElectronicTicket ticket, string qrCodeUrl)
+    {
+        return IsTicketUrl(ticket.QrPayloadJson) && !string.IsNullOrWhiteSpace(ticket.QrImageBase64)
+            ? ticket.QrImageBase64
+            : GenerateQrImageBase64(qrCodeUrl);
+    }
+
+    private string EnsureTicketUrl(ElectronicTicket ticket)
+    {
+        return IsTicketUrl(ticket.QrPayloadJson)
+            ? ticket.QrPayloadJson
+            : BuildTicketUrl(ticket.TicketCode);
+    }
+
+    private static string NormalizeFrontendBaseUrl(string value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? "https://travelai.vn"
+            : value.Trim().TrimEnd('/');
+    }
+
+    private static bool IsTicketUrl(string value)
+    {
+        return Uri.TryCreate(value, UriKind.Absolute, out var uri)
+            && uri.Scheme is "http" or "https"
+            && uri.AbsolutePath.Contains("/e-ticket/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ExtractTicketCode(string qrContent)
+    {
+        var raw = qrContent.Trim();
+
+        if (Uri.TryCreate(raw, UriKind.Absolute, out var uri))
+        {
+            var marker = "/e-ticket/";
+            var index = uri.AbsolutePath.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+            if (index >= 0)
+            {
+                return Uri.UnescapeDataString(uri.AbsolutePath[(index + marker.Length)..]).Trim('/');
+            }
+        }
+
+        try
+        {
+            var payload = JsonSerializer.Deserialize<TicketPayload>(
+                raw,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            if (!string.IsNullOrWhiteSpace(payload?.TicketCode))
+            {
+                return payload.TicketCode.Trim();
+            }
+        }
+        catch (JsonException)
+        {
+            // New production QR codes are URLs. JSON parsing is kept only for older tickets.
+        }
+
+        return raw.StartsWith("TA-", StringComparison.OrdinalIgnoreCase) ? raw : string.Empty;
+    }
+
     private sealed class TicketPayload
     {
         public string TicketCode { get; set; } = string.Empty;
-        public int BookingId { get; set; }
     }
 }

@@ -43,6 +43,16 @@ public class TicketsController : ControllerBase
             : Ok(ticket);
     }
 
+    [HttpGet("public/{ticketCode}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetPublicByCode(string ticketCode, CancellationToken cancellationToken)
+    {
+        var ticket = await _ticketService.GetPublicByCodeAsync(ticketCode, cancellationToken);
+        return ticket == null
+            ? NotFound(new { message = "Ve khong hop le hoac da bi xoa." })
+            : Ok(ticket);
+    }
+
     [HttpPost("verify")]
     [Authorize(Roles = "Partner,Admin")]
     public async Task<IActionResult> Verify(

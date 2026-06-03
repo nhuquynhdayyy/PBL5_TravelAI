@@ -34,6 +34,7 @@ import Notifications from './pages/Notifications';
 import UserPreferences from './pages/Preferences/UserPreferences';
 import Timeline from './pages/Planner/Timeline';
 import Profile from './pages/Profile/Profile';
+import PublicETicket from './pages/PublicETicket';
 import ManageAvailability from './pages/partner/ManageAvailability';
 import PartnerDashboard from './pages/partner/PartnerDashboard';
 import PartnerProfile from './pages/partner/PartnerProfile';
@@ -82,6 +83,7 @@ function App() {
         <Route path="/payment-result/:method" element={<MainLayout><PaymentResult /></MainLayout>} />
         <Route path="/mock-payment/:provider/:bookingId" element={<MainLayout><MockPayment /></MainLayout>} />
         <Route path="/booking-success/:bookingId" element={<MainLayout><BookingSuccess /></MainLayout>} />
+        <Route path="/e-ticket/:ticketCode" element={<MainLayout><PublicETicket /></MainLayout>} />
 
         <Route
           path="/my-bookings"

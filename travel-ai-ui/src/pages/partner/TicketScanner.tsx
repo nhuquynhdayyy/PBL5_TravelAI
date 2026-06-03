@@ -40,7 +40,7 @@ const TicketScanner = () => {
       setError('');
       const BarcodeDetectorCtor = (window as any).BarcodeDetector;
       if (!BarcodeDetectorCtor) {
-        setError('Camera QR scan is not supported in this browser. Paste the QR JSON below.');
+        setError('Camera QR scan is not supported in this browser. Paste the ticket URL or code below.');
         setScanning(false);
         return;
       }
@@ -73,7 +73,7 @@ const TicketScanner = () => {
 
         window.requestAnimationFrame(scan);
       } catch {
-        setError('Cannot open camera. Paste the QR JSON below.');
+        setError('Cannot open camera. Paste the ticket URL or code below.');
         setScanning(false);
       }
     };
@@ -144,7 +144,7 @@ const TicketScanner = () => {
           <textarea
             value={payload}
             onChange={(event) => setPayload(event.target.value)}
-            placeholder='Paste QR JSON here, for example {"ticketCode":"TA-20260602-000001","bookingId":123,...}'
+            placeholder="Paste ticket URL or code, for example https://travelai.vn/e-ticket/TA-20260603-000002"
             className="mt-4 min-h-36 w-full rounded-2xl border border-slate-200 p-4 text-sm font-semibold text-slate-700 outline-none focus:border-blue-400"
           />
 

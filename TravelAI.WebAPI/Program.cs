@@ -21,6 +21,10 @@ using TravelAI.WebAPI.Hubs;
 using TravelAI.WebAPI.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+Console.WriteLine("Environment: " + builder.Environment.EnvironmentName);
+
+var cs = builder.Configuration.GetConnectionString("DefaultConnection");
+Console.WriteLine("ConnectionString = " + (cs ?? "NULL"));
 
 // --- 1. Cấu hình SQL SERVER & DB CONTEXT ---
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
