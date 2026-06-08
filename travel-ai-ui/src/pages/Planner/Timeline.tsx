@@ -420,8 +420,8 @@ const Timeline: React.FC = () => {
     <>
       <div className="mx-auto max-w-[1800px] px-4 py-8 pb-32">
         {/* Header */}
-        <div className="mb-8 overflow-hidden rounded-[32px] bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 p-6 text-white shadow-2xl md:p-8">
-          <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
+        <div className="mb-8 overflow-hidden rounded-[32px] bg-gradient-to-br from-slate-950 via-slate-900/95 to-blue-950 p-8 md:p-12 md:py-16 text-white shadow-2xl relative min-h-[280px] flex items-center">
+          <div className="flex w-full flex-col justify-between gap-6 lg:flex-row lg:items-end">
             <div>
               <button
                 type="button"
@@ -461,7 +461,7 @@ const Timeline: React.FC = () => {
               <button
                 type="button"
                 onClick={() => exportItineraryPdf(itinerary)}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-4 text-sm font-black text-slate-950 transition hover:bg-blue-50"
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-white px-6 text-sm font-black text-slate-950 transition hover:bg-slate-100 shadow-md shadow-white/5 active:scale-95"
               >
                 <Download size={18} />
                 Xuất PDF
@@ -470,7 +470,7 @@ const Timeline: React.FC = () => {
                 type="button"
                 onClick={handleSave}
                 disabled={saving}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-5 py-4 text-sm font-black text-white ring-1 ring-white/15 transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-70"
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-6 text-sm font-black text-white transition hover:bg-blue-500 shadow-md shadow-blue-500/20 active:scale-95 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
                 Lưu

@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from 'react-leaflet';
 import L from 'leaflet';
+import { MapPin } from 'lucide-react';
 import type { ItineraryActivity, ItineraryDay } from './itineraryTypes';
 import { geocodeLocation } from '../../utils/geocoding';
 
@@ -343,19 +344,40 @@ const ItineraryMap = ({ days, activeDay, focusedActivity }: Props) => {
               })}
             </MapContainer>
           ) : (
-            /* Empty / loading state */
-            <div className="flex h-full flex-col items-center justify-center gap-4 px-8 text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-blue-50 text-3xl dark:bg-blue-900/30">
-                🗺️
-              </div>
-              <div>
-                <h3 className="text-lg font-black text-slate-900 dark:text-white">
-                  {geocoding ? 'Đang tìm tọa độ…' : 'Chưa có tọa độ bản đồ'}
-                </h3>
-                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                  {geocoding ? 'Vui lòng chờ trong giây lát' : 'Bản đồ sẽ hiện khi có dữ liệu tọa độ'}
-                </p>
-              </div>
+            /* Beautiful mock map / skeleton loading placeholder */
+            <div className="relative h-full w-full bg-slate-50 dark:bg-slate-900/40 overflow-hidden flex flex-col items-center justify-center">
+              {/* Map Grid / Grid Lines as background */}
+              <div className="absolute inset-0 opacity-15 bg-[linear-gradient(to_right,#808080_1px,transparent_1px),linear-gradient(to_bottom,#808080_1px,transparent_1px)] bg-[size:32px_32px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)]"></div>
+              
+              {/* Abstract Map Roads / Paths */}
+              <svg className="absolute inset-0 w-full h-full text-slate-200 dark:text-slate-800 opacity-60 dark:opacity-40" xmlns="http://www.w3.org/2000/svg">
+                <path d="M-50,150 Q100,50 250,200 T600,100" fill="none" stroke="currentColor" strokeWidth="4" />
+                <path d="M50,-50 Q200,300 150,500 T300,700" fill="none" stroke="currentColor" strokeWidth="3" />
+                <path d="M-10,350 C300,350 400,200 700,450" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="5 5" />
+                <circle cx="250" cy="200" r="6" fill="#3b82f6" className="animate-pulse" />
+                <circle cx="150" cy="380" r="6" fill="#10b981" />
+              </svg>
+
+              {geocoding ? (
+                <div className="z-10 bg-white/90 dark:bg-slate-950/90 backdrop-blur-md p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-xl max-w-[280px] text-center animate-pulse">
+                  <div className="mx-auto w-12 h-12 bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 rounded-2xl flex items-center justify-center mb-3">
+                    <MapPin className="animate-bounce" size={24} />
+                  </div>
+                  <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-3/4 mx-auto mb-2"></div>
+                  <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-1/2 mx-auto mb-3"></div>
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400">Đang định vị tọa độ...</p>
+                </div>
+              ) : (
+                <div className="z-10 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-xl max-w-[320px] text-center mx-4">
+                  <div className="mx-auto w-14 h-14 bg-gradient-to-tr from-blue-500 to-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/20 mb-3.5">
+                    <MapPin size={28} />
+                  </div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white mb-1.5">Chưa có tọa độ bản đồ</h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed font-semibold">
+                    Bản đồ tương tác sẽ tự động hiển thị lộ trình ngay khi các địa điểm được định vị thành công.
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>
