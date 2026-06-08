@@ -211,6 +211,7 @@ const Timeline: React.FC = () => {
   const [activeDay, setActiveDay] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [focusedActivity, setFocusedActivity] = useState<ItineraryActivity | null>(null);
+  const [focusClickKey, setFocusClickKey] = useState(0);
   const [mapExpanded, setMapExpanded] = useState(false);
 
   const itineraryId = itinerary?.itineraryId || (routeItineraryId ? Number(routeItineraryId) : null);
@@ -519,6 +520,8 @@ const Timeline: React.FC = () => {
   const handleActivityClick = (activity: ItineraryActivity) => {
     // Set focused activity to trigger map flyTo + ripple animation
     setFocusedActivity(activity);
+    // Increment key every click so FlyTo always fires, even for the same activity
+    setFocusClickKey((k) => k + 1);
     
     // Keep focus long enough for the ripple animation to be visible (4 cycles × 1.6s)
     setTimeout(() => {
@@ -675,6 +678,7 @@ const Timeline: React.FC = () => {
                 days={itinerary.days}
                 activeDay={activeDay}
                 focusedActivity={focusedActivity}
+                focusClickKey={focusClickKey}
               />
             </div>
           </div>

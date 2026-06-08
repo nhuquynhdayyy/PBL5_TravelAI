@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { Plane, Facebook, Instagram, Twitter, Mail, Phone, MapPin, Globe } from 'lucide-react';
 
 const Footer: React.FC = () => {
@@ -13,7 +14,7 @@ const Footer: React.FC = () => {
               <span className="text-xl font-bold">TravelAI</span>
             </div>
             <p className="text-sm leading-relaxed text-slate-400">
-              Smart travel planning powered by AI. Discover hidden gems and book your dream trip seamlessly.
+              Lập kế hoạch du lịch thông minh với AI. Khám phá những điểm đến độc đáo và đặt chuyến đi mơ ước của bạn.
             </p>
             <div className="flex gap-4">
               <Facebook className="size-5 hover:text-blue-400 cursor-pointer" />
@@ -24,32 +25,32 @@ const Footer: React.FC = () => {
 
           {/* Quick Links */}
           <div>
-            <h4 className="text-white font-bold mb-6">Explore</h4>
+            <h4 className="text-white font-bold mb-6">Khám phá</h4>
             <ul className="space-y-3 text-sm">
-              <li><a href="#" className="hover:text-blue-400 transition-colors">Popular Destinations</a></li>
-              <li><a href="#" className="hover:text-blue-400 transition-colors">AI Trip Planner</a></li>
-              <li><a href="#" className="hover:text-blue-400 transition-colors">Tour Guides</a></li>
-              <li><a href="#" className="hover:text-blue-400 transition-colors">Special Offers</a></li>
+              <li><Link to="/destinations" className="hover:text-blue-400 transition-colors">Điểm đến phổ biến</Link></li>
+              <li><Link to="/planner" className="hover:text-blue-400 transition-colors">Lập kế hoạch du lịch AI</Link></li>
+              <li><Link to="/tours" className="hover:text-blue-400 transition-colors">Tour du lịch</Link></li>
+              <li><Link to="/services" className="hover:text-blue-400 transition-colors">Dịch vụ</Link></li>
             </ul>
           </div>
 
           {/* Support */}
           <div>
-            <h4 className="text-white font-bold mb-6">Support</h4>
+            <h4 className="text-white font-bold mb-6">Hỗ trợ</h4>
             <ul className="space-y-3 text-sm">
-              <li><a href="#" className="hover:text-blue-400 transition-colors">Help Center</a></li>
-              <li><a href="#" className="hover:text-blue-400 transition-colors">Terms of Service</a></li>
-              <li><a href="#" className="hover:text-blue-400 transition-colors">Privacy Policy</a></li>
-              <li><a href="#" className="hover:text-blue-400 transition-colors">Refund Policy</a></li>
+              <li><Link to="/" className="hover:text-blue-400 transition-colors">Trung tâm hỗ trợ</Link></li>
+              <li><Link to="/" className="hover:text-blue-400 transition-colors">Điều khoản dịch vụ</Link></li>
+              <li><Link to="/" className="hover:text-blue-400 transition-colors">Chính sách bảo mật</Link></li>
+              <li><Link to="/" className="hover:text-blue-400 transition-colors">Chính sách hoàn tiền</Link></li>
             </ul>
           </div>
 
           {/* Contact */}
           <div className="space-y-4">
-            <h4 className="text-white font-bold mb-6">Contact Us</h4>
+            <h4 className="text-white font-bold mb-6">Liên hệ</h4>
             <div className="flex items-center gap-3 text-sm">
               <MapPin className="size-4 text-blue-400" />
-              <span>123 AI Street, Tech City, VN</span>
+              <span>Số 123 Đường ABC, Đà Nẵng, VN</span>
             </div>
             <div className="flex items-center gap-3 text-sm">
               <Phone className="size-4 text-blue-400" />
@@ -64,7 +65,7 @@ const Footer: React.FC = () => {
 
         <div className="border-t border-slate-800 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-xs text-slate-500">
-            © {new Date().getFullYear()} TravelAI System. All rights reserved.
+            © {new Date().getFullYear()} TravelAI System. Tất cả các quyền được bảo lưu.
           </p>
           <div className="flex items-center gap-2 text-xs">
             <Globe className="size-4" />

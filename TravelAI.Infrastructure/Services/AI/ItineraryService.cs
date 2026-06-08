@@ -149,10 +149,16 @@ public class ItineraryService : IItineraryService
             availableServiceEntities,
             request.ServiceFilters);
 
+        // Inject SpecialRequest as a TOP-PRIORITY mandatory block at the beginning of the prompt
+        // This ensures AI sees and honors specific named places before reading anything else
         if (!string.IsNullOrWhiteSpace(request.SpecialRequest))
         {
+            var strictBlock = BuildStrictInclusionBlock(request.SpecialRequest);
+            prompt = strictBlock + "\n" + prompt;
+            
+            // Also inject into personalization section for redundancy
             prompt = prompt.Replace("### YEU CAU CA NHAN HOA:", 
-                $"### YEU CAU CA NHAN HOA:\n- Yeu cau chi tiet: {request.SpecialRequest}");
+                $"### YEU CAU CA NHAN HOA:\n- Yeu cau nguoi dung: {request.SpecialRequest}");
         }
 
         var rawAiResponse = await _gemini.CallApiAsync(
@@ -493,7 +499,108 @@ public class ItineraryService : IItineraryService
         return await GetByIdAsync(id, userId);
     }
 
+    /// <summary>
+    /// Builds a TOP-PRIORITY mandatory block injected at the very beginning of the prompt.
+    /// Extracts specific place names from the user's special request and enforces them as
+    /// non-negotiable inclusions. This block must appear BEFORE all other instructions so
+    /// the AI sees hard constraints first.
+    /// </summary>
+    private static string BuildStrictInclusionBlock(string specialRequest)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("╔══════════════════════════════════════════════════════════════╗");
+        sb.AppendLine("║  RANG BUOC BAT BUOC - DOC TRUOC KHI LAP LICH TRINH         ║");
+        sb.AppendLine("╚══════════════════════════════════════════════════════════════╝");
+        sb.AppendLine();
+        sb.AppendLine("!!! CAU LENH SAU LA BAT BUOC, TUYET DOI KHONG BO QUA !!!");
+        sb.AppendLine();
+        sb.AppendLine($"YEU CAU NGUOI DUNG (nguyen van): \"{specialRequest}\"");
+        sb.AppendLine();
+
+        // Extract specific named places (quoted or capitalized multi-word names)
+        var namedPlaces = ExtractNamedPlaces(specialRequest);
+        if (namedPlaces.Count > 0)
+        {
+            sb.AppendLine("DIA DIEM BAT BUOC PHAI CO TRONG LICH TRINH:");
+            foreach (var place in namedPlaces)
+            {
+                sb.AppendLine($"  >>> \"{place}\" - BAT BUOC XUAT HIEN. KHONG DUOC thay the hoac loai bo. <<<");
+                
+                // Special handling for known places
+                var normalizedPlace = place.ToLowerInvariant().Replace(" ", "").Replace("-", "");
+                if (normalizedPlace.Contains("trinhcaphe") || normalizedPlace.Contains("trinhcafe")
+                    || normalizedPlace.Contains("trinhcà") || normalizedPlace.Contains("trịnhcà"))
+                {
+                    sb.AppendLine($"    - Goi y: Trinh Ca Phe tai 51A Truong Tien, Hue (hoac chi nhanh gan nhat).");
+                    sb.AppendLine($"    - Toa do goc: latitude=16.4727, longitude=107.5797");
+                    sb.AppendLine($"    - Thoi gian goi y: 14:30-16:00 (buoi chieu, sau tham quan sang).");
+                    sb.AppendLine($"    - service_id: null (quan ca phe tu do).");
+                }
+                else if (normalizedPlace.Contains("banahill") || normalizedPlace.Contains("banahills")
+                    || normalizedPlace.Contains("bànà") || normalizedPlace.Contains("bana"))
+                {
+                    sb.AppendLine($"    - BAT BUOC: Danh TOAN NGAY cho Ba Na Hills (toi thieu 6 tieng, khuyen nghi 7-8 tieng).");
+                    sb.AppendLine($"    - KHONG xep them hoat dong chinh nao khac trong ngay nay.");
+                    sb.AppendLine($"    - Toa do: latitude=15.9964, longitude=107.9969");
+                }
+            }
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("QUY TAC XU LY YEU CAU NGUOI DUNG:");
+        sb.AppendLine("1. Cac dia diem/hoat dong nguoi dung neu ten CU THE → BAT BUOC dua vao lich trinh.");
+        sb.AppendLine("2. KHONG duoc thay the bang dia diem 'tuong tu' hoac 'phu hop hon'.");
+        sb.AppendLine("3. Neu yeu cau mau thuan voi quy tac khac → UU TIEN yeu cau nguoi dung.");
+        sb.AppendLine("4. Toa do GPS cua dia diem cu the phai chinh xac, khong de null/0.");
+        sb.AppendLine();
+        sb.AppendLine("══════════════════════════════════════════════════════════════");
+        sb.AppendLine();
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Extracts specific named place mentions from user request text.
+    /// Looks for quoted strings and known Vietnamese place name patterns.
+    /// </summary>
+    private static List<string> ExtractNamedPlaces(string text)
+    {
+        var places = new List<string>();
+
+        // 1. Extract quoted strings: "Trình Cà Phê", 'Bánh Mì Phượng'
+        var quotedMatches = System.Text.RegularExpressions.Regex.Matches(
+            text, @"[""'""']([^""'""']{3,60})[""'""']");
+        foreach (System.Text.RegularExpressions.Match m in quotedMatches)
+        {
+            var candidate = m.Groups[1].Value.Trim();
+            if (!string.IsNullOrWhiteSpace(candidate))
+                places.Add(candidate);
+        }
+
+        // 2. Detect well-known Vietnamese place keywords (case-insensitive)
+        var knownKeywords = new[]
+        {
+            "Trình Cà Phê", "Trinh Ca Phe", "Trinh Cafe",
+            "Bà Nà Hills", "Ba Na Hills", "BaNa Hills",
+            "Hội An", "Hoi An",
+            "Cầu Rồng", "Cau Rong",
+            "Asia Park", "Sun World",
+        };
+
+        foreach (var keyword in knownKeywords)
+        {
+            if (text.Contains(keyword, StringComparison.OrdinalIgnoreCase)
+                && !places.Any(p => p.Contains(keyword, StringComparison.OrdinalIgnoreCase)))
+            {
+                places.Add(keyword);
+            }
+        }
+
+        return places.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
     private async Task<List<PromptServiceOption>> GetAvailableServicesForPromptAsync(
+
         Destination destination,
         DateTime tripStartDate,
         int totalDays,

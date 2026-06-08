@@ -130,19 +130,19 @@ const Header: React.FC = () => {
             {role === 'partner' && (
               <>
                 <Link to="/partner/dashboard" className="flex items-center gap-2 px-6 py-2 bg-slate-900 text-white rounded-full font-black text-xs hover:bg-slate-700 transition-all shadow-lg shadow-slate-100 uppercase tracking-widest">
-                  <BarChart3 size={14} /> DASHBOARD
+                  <BarChart3 size={14} /> BẢNG ĐIỀU KHIỂN
                 </Link>
                 <Link to="/partner/profile" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
-                  <Building2 size={14} /> BUSINESS
+                  <Building2 size={14} /> DOANH NGHIỆP
                 </Link>
                 <Link to="/partner/services" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
-                  <Store size={14} /> MY SERVICES
+                  <Store size={14} /> DỊCH VỤ CỦA TÔI
                 </Link>
                 <Link to="/partner/orders" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
-                  <ClipboardList size={14} /> MY ORDERS
+                  <ClipboardList size={14} /> ĐƠN HÀNG CỦA TÔI
                 </Link>
                 <Link to="/partner/reviews" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
-                  <MessageSquare size={14} /> MY REVIEWS
+                  <MessageSquare size={14} /> ĐÁNH GIÁ CỦA TÔI
                 </Link>
               </>
             )}
@@ -185,8 +185,8 @@ const Header: React.FC = () => {
                 </div>
             ) : (
               <div className="flex items-center gap-2">
-                <button onClick={() => navigate('/login')} className="px-5 py-2 text-slate-700 font-bold text-sm hover:text-blue-500">Login</button>
-<button onClick={() => navigate('/register')} className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-200 transition-all active:scale-95">Register</button>
+                <button onClick={() => navigate('/login')} className="px-5 py-2 text-slate-700 font-bold text-sm hover:text-blue-500">Đăng nhập</button>
+                <button onClick={() => navigate('/register')} className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-200 transition-all active:scale-95">Đăng ký</button>
               </div>
             )}
           </div>
