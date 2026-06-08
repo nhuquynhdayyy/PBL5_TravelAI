@@ -62,7 +62,10 @@ const Login = () => {
               onChange={e => setFormData({ ...formData, email: e.target.value })} required />
           </div>
           <div>
-            <label className="text-xs font-bold text-slate-700 uppercase ml-1">Password</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-bold text-slate-700 uppercase ml-1">Password</label>
+              <Link to="/forgot-password" className="text-xs text-blue-600 hover:underline font-medium">Quên mật khẩu?</Link>
+            </div>
             <input className="w-full p-4 mt-1 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" type="password" placeholder="••••••••"
               onChange={e => setFormData({ ...formData, password: e.target.value })} required />
           </div>

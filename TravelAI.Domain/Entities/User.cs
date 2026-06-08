@@ -9,6 +9,9 @@ public class User {
     public string? Phone { get; set; }
     public DateTime CreatedAt { get; set; }
     public bool IsActive { get; set; } = true;
+    public bool IsVerified { get; set; } = false;
+    public string? VerificationToken { get; set; }
+    public DateTime? VerificationTokenExpiry { get; set; }
     public string? AvatarUrl { get; set; }
     public Role Role { get; set; } = null!;
     public PartnerProfile? PartnerProfile { get; set; }
