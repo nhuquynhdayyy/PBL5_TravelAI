@@ -287,8 +287,8 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/planner/create" element={<MainLayout><CreateItinerary /></MainLayout>} />
-        <Route path="/planner/:id" element={<MainLayout><Timeline /></MainLayout>} />
-        <Route path="/planner" element={<MainLayout><Timeline /></MainLayout>} />
+        <Route path="/planner/:id" element={<MainLayout><Timeline key="planner-detail" /></MainLayout>} />
+        <Route path="/planner" element={<MainLayout><Timeline key="planner-list" /></MainLayout>} />
         <Route path="/itinerary/latest" element={<MainLayout><Timeline /></MainLayout>} />
         <Route path="/itinerary/:id" element={<MainLayout><Timeline /></MainLayout>} />
         <Route path="*" element={<Navigate to="/" replace />} />

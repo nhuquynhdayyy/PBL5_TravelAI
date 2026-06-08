@@ -569,7 +569,10 @@ const Timeline: React.FC = () => {
             <div>
               <button
                 type="button"
-                onClick={() => navigate(-1)}
+                onClick={() => {
+                  setItinerary(null);
+                  navigate('/planner');
+                }}
                 className="mb-5 inline-flex items-center gap-2 text-sm font-bold text-blue-100 transition hover:text-white"
               >
                 <ArrowLeft size={18} />

@@ -11,7 +11,7 @@ const NotificationBell = () => {
         trigger={
           <button
             className="relative flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 transition-all hover:bg-blue-50 hover:text-blue-600"
-            aria-label="Thong bao"
+            aria-label="Thông báo"
           >
             <Bell size={18} />
             <span className="hidden lg:inline">Thong bao</span>
