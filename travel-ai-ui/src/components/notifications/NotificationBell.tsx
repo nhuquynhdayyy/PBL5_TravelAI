@@ -14,7 +14,7 @@ const NotificationBell = () => {
             aria-label="Thông báo"
           >
             <Bell size={18} />
-            <span className="hidden lg:inline">Thong bao</span>
+            <span className="hidden lg:inline">Thông báo</span>
             {unreadCount > 0 && (
               <span className="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-black text-white">
                 {unreadCount > 99 ? '99+' : unreadCount}

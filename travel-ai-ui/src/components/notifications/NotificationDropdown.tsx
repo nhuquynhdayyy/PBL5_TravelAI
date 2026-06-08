@@ -53,7 +53,7 @@ const NotificationDropdown = ({ trigger }: NotificationDropdownProps) => {
           <div className="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-blue-50 to-slate-50 px-4 py-3">
             <div className="flex items-center gap-2">
               <Bell size={18} className="text-blue-600" />
-              <h3 className="text-sm font-black text-slate-900">Thong bao</h3>
+              <h3 className="text-sm font-black text-slate-900">Thông báo</h3>
               {notifications.length > 0 && (
                 <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-black text-white">
                   {notifications.length}
@@ -80,7 +80,7 @@ const NotificationDropdown = ({ trigger }: NotificationDropdownProps) => {
                 <div className="mb-3 rounded-full bg-slate-100 p-4">
                   <Bell size={32} className="text-slate-400" />
                 </div>
-                <p className="text-sm font-bold text-slate-400">Chua co thong bao nao</p>
+                <p className="text-sm font-bold text-slate-400">Chưa có thông báo nào</p>
               </div>
             ) : (
               <div className="divide-y divide-slate-100">
@@ -117,7 +117,7 @@ const NotificationDropdown = ({ trigger }: NotificationDropdownProps) => {
                     <button
                       onClick={() => deleteNotification(item.id)}
                       className="flex-shrink-0 rounded-lg p-1 text-slate-400 transition-all hover:bg-white hover:text-red-600"
-                      aria-label="Xoa thong bao"
+                      aria-label="Xóa thông báo"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -132,7 +132,7 @@ const NotificationDropdown = ({ trigger }: NotificationDropdownProps) => {
             onClick={() => setIsOpen(false)}
             className="block border-t border-slate-100 px-4 py-3 text-center text-xs font-black uppercase tracking-widest text-blue-600 hover:bg-blue-50"
           >
-            Xem tat ca thong bao
+            Xem tất cả thông báo
           </Link>
         </div>
       )}

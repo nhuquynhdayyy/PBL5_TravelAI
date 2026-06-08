@@ -7,6 +7,8 @@ import {
   DollarSign,
   Loader2,
   MapPin,
+  Maximize2,
+  Minimize2,
   Route,
   Save,
   Sparkles,
@@ -17,11 +19,10 @@ import '../../styles/leaflet-dark.css';
 import axiosClient from '../../api/axiosClient';
 import { useCart } from '../../contexts/CartContext';
 import DayTabs from './DayTabs';
-import HotelCard from './HotelCard';
 import ItineraryMap from './ItineraryMap';
 import ItinerarySkeleton from './ItinerarySkeleton';
 import ItineraryTimeline from './ItineraryTimeline';
-import PlannerSidebar from './PlannerSidebar';
+import PlannerConfigBar from './PlannerConfigBar';
 import StickyFooter from './StickyFooter';
 import { exportItineraryPdf } from './itineraryPdf';
 import type { ItineraryActivity, ItineraryViewModel } from './itineraryTypes';
@@ -209,8 +210,8 @@ const Timeline: React.FC = () => {
   const [loadingTrips, setLoadingTrips] = useState(false);
   const [activeDay, setActiveDay] = useState(1);
   const [error, setError] = useState<string | null>(null);
-  const [showSidebar, setShowSidebar] = useState(true);
   const [focusedActivity, setFocusedActivity] = useState<ItineraryActivity | null>(null);
+  const [mapExpanded, setMapExpanded] = useState(false);
 
   const itineraryId = itinerary?.itineraryId || (routeItineraryId ? Number(routeItineraryId) : null);
 
@@ -562,103 +563,91 @@ const Timeline: React.FC = () => {
 
   return (
     <>
-      <div className="mx-auto max-w-[1800px] px-4 py-8 pb-32">
-        {/* Header */}
-        <div className="mb-8 overflow-hidden rounded-[32px] bg-gradient-to-br from-slate-950 via-slate-900/95 to-blue-950 p-8 md:p-12 md:py-16 text-white shadow-2xl relative min-h-[280px] flex items-center">
-          <div className="flex w-full flex-col justify-between gap-6 lg:flex-row lg:items-end">
+      <div className="mx-auto max-w-[1600px] px-4 py-6 pb-32">
+
+        {/* ── Banner Header ── */}
+        <div className="mb-5 overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 px-8 py-8 text-white shadow-xl">
+          <button
+            type="button"
+            onClick={() => { setItinerary(null); navigate('/planner'); }}
+            className="mb-4 inline-flex items-center gap-2 text-sm font-bold text-blue-200 transition hover:text-white"
+          >
+            <ArrowLeft size={16} />
+            Quay lại danh sách
+          </button>
+
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <button
-                type="button"
-                onClick={() => {
-                  setItinerary(null);
-                  navigate('/planner');
-                }}
-                className="mb-5 inline-flex items-center gap-2 text-sm font-bold text-blue-100 transition hover:text-white"
-              >
-                <ArrowLeft size={18} />
-                Quay lại
-              </button>
-              <p className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-blue-100">
-                <Sparkles size={15} />
-                Quản lý lịch trình AI
+              <p className="mb-1.5 inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[11px] font-black uppercase tracking-widest text-blue-200">
+                <Sparkles size={12} /> Quản lý lịch trình AI
               </p>
-              <h1 className="max-w-4xl text-4xl font-black tracking-tight md:text-6xl">
+              <h1 className="text-3xl font-black tracking-tight md:text-4xl">
                 {itinerary.tripTitle}
               </h1>
-              <div className="mt-5 flex flex-wrap gap-3 text-sm font-bold text-slate-200">
-                <span className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2">
-                  <MapPin size={16} className="text-blue-300" />
-                  {itinerary.destination}
+              <div className="mt-3 flex flex-wrap gap-2 text-sm font-bold text-slate-300">
+                <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5">
+                  <MapPin size={14} className="text-blue-300" />{itinerary.destination}
                 </span>
-                <span className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2">
-                  <CalendarDays size={16} className="text-blue-300" />
-                  {getTripDateRange(itinerary)}
+                <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5">
+                  <CalendarDays size={14} className="text-blue-300" />{getTripDateRange(itinerary)}
                 </span>
-                <span className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2">
-                  <Route size={16} className="text-blue-300" />
-                  {flattenActivities(itinerary.days).length} hoạt động
+                <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5">
+                  <Route size={14} className="text-blue-300" />{flattenActivities(itinerary.days).length} hoạt động
                 </span>
-                <span className="inline-flex items-center gap-2 rounded-xl bg-emerald-500/15 px-3 py-2 text-emerald-100">
+                <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/20 px-3 py-1.5 text-emerald-200">
                   {formatCurrency(itinerary.totalEstimatedCost)}
                 </span>
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row lg:justify-end">
+            <div className="flex shrink-0 gap-2">
               <button
                 type="button"
                 onClick={() => exportItineraryPdf(itinerary)}
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-white px-6 text-sm font-black text-slate-950 transition hover:bg-slate-100 shadow-md shadow-white/5 active:scale-95"
+                className="inline-flex h-10 items-center gap-2 rounded-xl bg-white/10 px-5 text-sm font-black text-white transition hover:bg-white/20"
               >
-                <Download size={18} />
-                Xuất PDF
+                <Download size={16} /> Xuất PDF
               </button>
               <button
                 type="button"
                 onClick={handleSave}
                 disabled={saving}
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-6 text-sm font-black text-white transition hover:bg-blue-500 shadow-md shadow-blue-500/20 active:scale-95 disabled:cursor-not-allowed disabled:opacity-70"
+                className="inline-flex h-10 items-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-black text-white transition hover:bg-blue-500 disabled:opacity-70"
               >
-                {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+                {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
                 Lưu
               </button>
             </div>
           </div>
         </div>
 
+        {/* ── Config Bar (replaces sidebar) ── */}
+        <PlannerConfigBar
+          destination={resolvedDestination}
+          startDate={resolvedStartDate}
+          duration={resolvedDuration}
+          budgetLevel={resolvedBudget}
+          interests={resolvedInterests}
+          onRegenerate={handleOptimize}
+          regenerating={optimizing}
+          onConfigChange={syncConfigWithItinerary}
+        />
+
         {optimizing && (
-          <div className="mb-8 rounded-2xl border border-blue-100 bg-blue-50 p-5 dark:border-blue-900 dark:bg-blue-900/20">
-            <div className="mb-3 flex items-center gap-3 text-sm font-black text-blue-600 dark:text-blue-400">
-              <Loader2 className="animate-spin" size={18} />
-              AI đang sắp xếp lại thứ tự điểm đến theo lộ trình ngắn hơn
-            </div>
-            <ItinerarySkeleton />
+          <div className="mb-5 flex items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-5 py-4 text-sm font-black text-blue-600">
+            <Loader2 className="animate-spin" size={18} />
+            AI đang sắp xếp lại thứ tự điểm đến theo lộ trình tối ưu…
           </div>
         )}
 
-        {/* Main 3-Column Layout */}
-        <div className="grid gap-8 lg:grid-cols-[320px_minmax(0,1fr)_420px]">
-          {/* Left Sidebar */}
-          {showSidebar && (
-            <PlannerSidebar
-              destination={resolvedDestination}
-              startDate={resolvedStartDate}
-              duration={resolvedDuration}
-              budgetLevel={resolvedBudget}
-              interests={resolvedInterests}
-              onRegenerate={handleOptimize}
-              regenerating={optimizing}
-              onConfigChange={syncConfigWithItinerary}
-            />
-          )}
+        {/* ── Day Tabs ── */}
+        <DayTabs days={itinerary.days} activeDay={activeDay} onDayChange={setActiveDay} />
 
-          {/* Center Timeline */}
-          <div className={showSidebar ? '' : 'lg:col-span-2'}>
-            <DayTabs
-              days={itinerary.days}
-              activeDay={activeDay}
-              onDayChange={setActiveDay}
-            />
+        {/* ── Main 2-column layout ── */}
+        <div className={`grid gap-6 ${mapExpanded ? 'lg:grid-cols-[1fr_0]' : 'lg:grid-cols-[3fr_2fr]'}`}>
+
+          {/* LEFT — Timeline (60%) */}
+          <div className={mapExpanded ? 'hidden lg:block' : ''}>
             <ItineraryTimeline
               days={itinerary.days}
               activeDay={activeDay}
@@ -668,16 +657,31 @@ const Timeline: React.FC = () => {
             />
           </div>
 
-          {/* Right Map */}
-          <ItineraryMap 
-            days={itinerary.days} 
-            activeDay={activeDay} 
-            focusedActivity={focusedActivity}
-          />
+          {/* RIGHT — Sticky Map (40%) */}
+          <div className="relative">
+            {/* Expand/Collapse button */}
+            <button
+              type="button"
+              onClick={() => setMapExpanded(v => !v)}
+              className="absolute right-4 top-4 z-[1000] flex items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-xs font-black text-slate-700 shadow-md transition hover:bg-slate-100"
+              title={mapExpanded ? 'Thu nhỏ bản đồ' : 'Mở rộng bản đồ'}
+            >
+              {mapExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+              {mapExpanded ? 'Thu nhỏ' : 'Mở rộng'}
+            </button>
+
+            <div className={`sticky top-20 overflow-hidden rounded-3xl border border-slate-200 shadow-sm transition-all duration-300 ${mapExpanded ? 'h-[calc(100vh-120px)]' : 'h-[calc(100vh-180px)] min-h-[500px]'}`}>
+              <ItineraryMap
+                days={itinerary.days}
+                activeDay={activeDay}
+                focusedActivity={focusedActivity}
+              />
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Sticky Footer */}
+      {/* ── Sticky Footer ── */}
       {bookableCount > 0 && (
         <StickyFooter
           totalCost={itinerary.totalEstimatedCost}

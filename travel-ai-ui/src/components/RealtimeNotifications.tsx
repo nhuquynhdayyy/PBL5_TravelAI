@@ -102,7 +102,7 @@ const RealtimeNotifications = () => {
             <button
               onClick={() => setItems((current) => current.filter((currentItem) => currentItem.id !== item.id))}
               className="rounded-lg p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-              aria-label="Dong thong bao"
+              aria-label="Đóng thông báo"
             >
               <X size={16} />
             </button>

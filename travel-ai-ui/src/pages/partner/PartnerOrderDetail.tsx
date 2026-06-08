@@ -347,7 +347,7 @@ const PartnerOrderDetail = () => {
                     >
                         <h2 className="text-2xl font-black text-slate-900 mb-4">Tu choi don hang</h2>
                         <p className="text-slate-600 mb-4">
-                            Vui long nhap ly do tu choi don hang. Khach hang se nhan duoc email thong bao va duoc hoan tien.
+                            Vui lòng nhập lý do từ chối đơn hàng. Khách hàng sẽ nhận được email thông báo và được hoàn tiền.
                         </p>
                         <textarea
                             value={rejectReason}

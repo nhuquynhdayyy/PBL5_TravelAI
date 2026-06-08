@@ -237,28 +237,9 @@ const ItineraryMap = ({ days, activeDay, focusedActivity }: Props) => {
         .dark .itm-map .leaflet-popup-tip { background: #1e293b; }
       `}</style>
 
-      <aside className="sticky top-24 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
-        {/* Header */}
-        <div className="border-b border-slate-100 p-5 dark:border-slate-700">
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-[#0061ff] dark:text-blue-400">
-            Bản đồ lộ trình
-          </p>
-          <h2 className="mt-1 text-2xl font-black text-slate-900 dark:text-white">
-            Các điểm trong lịch trình
-          </h2>
-          <p className="mt-1.5 text-sm font-medium text-slate-500 dark:text-slate-400">
-            Marker hiển thị tất cả điểm có tọa độ; đường màu nối các điểm trong từng ngày.
-          </p>
-          {geocoding && (
-            <div className="mt-3 flex items-center gap-2 text-xs font-bold text-blue-600 dark:text-blue-400">
-              <span className="h-3 w-3 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
-              Đang tìm tọa độ cho các địa điểm…
-            </div>
-          )}
-        </div>
-
+      <aside className="h-full overflow-hidden rounded-3xl bg-white dark:bg-slate-800">
         {/* Map */}
-        <div className="itm-map h-[600px]">
+        <div className="itm-map h-full">
           {allPoints.length > 0 ? (
             <MapContainer
               center={initCenter}
