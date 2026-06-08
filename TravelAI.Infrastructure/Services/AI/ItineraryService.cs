@@ -351,21 +351,39 @@ public class ItineraryService : IItineraryService
 
     public async Task<IEnumerable<ItineraryResponseDto>> GetMyTripsAsync(int userId)
     {
-        return await _db.Itineraries
+        var itineraries = await _db.Itineraries
             .AsNoTracking()
+            .Include(i => i.Items)
+                .ThenInclude(item => item.Service)
+                    .ThenInclude(service => service!.TouristSpot)
+                        .ThenInclude(spot => spot!.Destination)
+            .Include(i => i.Items)
+                .ThenInclude(item => item.TouristSpot)
+                    .ThenInclude(spot => spot!.Destination)
             .Where(i => i.UserId == userId)
             .OrderByDescending(i => i.CreatedAt)
-            .Select(i => new ItineraryResponseDto
+            .ToListAsync();
+
+        return itineraries.Select(i =>
+        {
+            // Get destination name from first item's destination
+            var firstDestination = i.Items
+                .Select(item => item.Service?.TouristSpot?.Destination?.Name 
+                             ?? item.TouristSpot?.Destination?.Name)
+                .FirstOrDefault(name => !string.IsNullOrEmpty(name));
+
+            return new ItineraryResponseDto
             {
                 ItineraryId = i.ItineraryId,
                 TripTitle = i.Title,
-                Destination = i.Title,
+                Destination = firstDestination ?? i.Title,
                 StartDate = i.StartDate,
                 EndDate = i.EndDate,
-                TotalEstimatedCost = i.EstimatedCost,
+                // Recalculate total cost from actual items
+                TotalEstimatedCost = i.Items.Sum(item => item.Service?.BasePrice ?? 0),
                 CreatedAt = i.CreatedAt
-            })
-            .ToListAsync();
+            };
+        });
     }
 
     public async Task<ItineraryResponseDto?> GetByIdAsync(int id, int userId)
@@ -397,9 +415,9 @@ public class ItineraryService : IItineraryService
             .ToList();
 
         var days = BuildDayPlans(itinerary, orderedItems);
-        var totalEstimatedCost = itinerary.EstimatedCost > 0
-            ? itinerary.EstimatedCost
-            : days.Sum(day => day.DailyCost);
+        
+        // Always recalculate total cost from activities instead of using cached value
+        var totalEstimatedCost = days.Sum(day => day.DailyCost);
 
         return new ItineraryResponseDto
         {

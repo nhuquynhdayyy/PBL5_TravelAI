@@ -4,10 +4,10 @@ const API_HOST = 'http://localhost:5134';
 
 export const formatCurrency = (value: number) =>
   new Intl.NumberFormat('vi-VN', {
-    style: 'currency',
-    currency: 'VND',
+    style: 'decimal',
+    minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(value || 0);
+  }).format(value || 0) + 'đ';
 
 export const getImageUrl = (url?: string) => {
   if (!url) return 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1200';
@@ -173,14 +173,21 @@ export const normalizeItinerary = (payload: any): ItineraryViewModel => {
       activities,
     }));
 
+  // Always recalculate total cost from activities to ensure accuracy
+  const calculatedTotalCost = days.reduce((total, day) => 
+    total + day.activities.reduce((dayTotal, activity) => 
+      dayTotal + (activity.estimatedCost || 0), 0
+    ), 0
+  );
+
   return {
     itineraryId: valueOf<number | null>(data, ['itineraryId', 'itinerary_id', 'id'], null),
     destinationId: valueOf<number | null>(data, ['destinationId', 'destination_id'], null),
     tripTitle: valueOf(data, ['tripTitle', 'trip_title', 'title', 'name'], 'Lịch trình TravelAI'),
-    destination: valueOf(data, ['destination', 'destinationName', 'destination_name'], 'Việt Nam'),
+    destination: valueOf(data, ['destinationName', 'destination', 'destination_name'], 'Việt Nam'),
     startDate,
     endDate: valueOf<string | undefined>(data, ['endDate', 'end_date'], undefined),
-    totalEstimatedCost: Number(valueOf(data, ['totalEstimatedCost', 'total_estimated_cost', 'totalCost'], 0)) || 0,
+    totalEstimatedCost: calculatedTotalCost, // Use calculated value instead of API value
     days,
     createdAt: valueOf<string | undefined>(data, ['createdAt', 'created_at', 'created'], undefined),
     raw: data,
@@ -188,6 +195,10 @@ export const normalizeItinerary = (payload: any): ItineraryViewModel => {
 };
 
 export const flattenActivities = (days: ItineraryDay[]) => days.flatMap((day) => day.activities);
+
+export const calculateTotalCost = (days: ItineraryDay[]): number => {
+  return flattenActivities(days).reduce((total, activity) => total + (activity.estimatedCost || 0), 0);
+};
 
 export const formatDateToYmd = (dateStr?: string): string => {
   if (!dateStr) return '';
