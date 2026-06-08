@@ -517,13 +517,13 @@ const Timeline: React.FC = () => {
   };
 
   const handleActivityClick = (activity: ItineraryActivity) => {
-    // Set focused activity to trigger map flyTo
+    // Set focused activity to trigger map flyTo + ripple animation
     setFocusedActivity(activity);
     
-    // Clear focus after animation completes
+    // Keep focus long enough for the ripple animation to be visible (4 cycles × 1.6s)
     setTimeout(() => {
       setFocusedActivity(null);
-    }, 2000);
+    }, 6500);
     
     console.log('Activity clicked:', activity.title, 'Coordinates:', activity.latitude, activity.longitude);
   };

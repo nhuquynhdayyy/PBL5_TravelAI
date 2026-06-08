@@ -41,16 +41,30 @@ const jitterDuplicates = (points: LatLngTuple[]): LatLngTuple[] => {
 
 // ─── Marker icon ─────────────────────────────────────────────────────────────
 
-const makeIcon = (label: string | number, color: string, size: number, pulse = false) =>
-  L.divIcon({
+const makeIcon = (label: string | number, color: string, size: number, pulse = false, bounce = false) => {
+  // Ripple rings: 3 concentric waves staggered by 0.5s each
+  const rippleHtml = pulse ? `
+    <div style="position:absolute;inset:-14px;border-radius:50%;border:3px solid ${color};
+      opacity:0;animation:itm-ripple 1.6s ease-out infinite 0s;pointer-events:none;"></div>
+    <div style="position:absolute;inset:-14px;border-radius:50%;border:3px solid ${color};
+      opacity:0;animation:itm-ripple 1.6s ease-out infinite 0.53s;pointer-events:none;"></div>
+    <div style="position:absolute;inset:-14px;border-radius:50%;border:3px solid ${color};
+      opacity:0;animation:itm-ripple 1.6s ease-out infinite 1.06s;pointer-events:none;"></div>
+    <div style="position:absolute;inset:-6px;border-radius:50%;
+      background:${color}28;animation:itm-pulse 1.6s ease-out infinite;pointer-events:none;"></div>
+  ` : '';
+
+  return L.divIcon({
     className: '',
-    html: `<div style="position:relative;width:${size}px;height:${size}px;">
-      ${pulse ? `<div style="position:absolute;inset:-8px;border-radius:50%;
-        background:${color}33;animation:itm-pulse 1.6s ease-out infinite;"></div>` : ''}
+    html: `<div style="position:relative;width:${size}px;height:${size}px;${bounce ? 'animation:itm-bounce 0.6s ease-out 2;' : ''}">
+      ${rippleHtml}
       <div style="width:${size}px;height:${size}px;display:flex;align-items:center;
         justify-content:center;border-radius:${Math.round(size / 2.6)}px;
         background:${color};color:#fff;font-weight:900;font-size:${Math.round(size * 0.38)}px;
-        border:3px solid #fff;box-shadow:0 4px 12px ${color}55,0 2px 4px rgba(0,0,0,.2);">
+        border:${pulse ? '4px' : '3px'} solid #fff;
+        box-shadow:0 4px 16px ${color}66,0 2px 4px rgba(0,0,0,.2);
+        transform:${pulse ? 'scale(1.18)' : 'scale(1)'};
+        transition:transform 0.25s ease,box-shadow 0.25s ease;">
         ${label}
       </div>
     </div>`,
@@ -58,6 +72,7 @@ const makeIcon = (label: string | number, color: string, size: number, pulse = f
     iconAnchor: [size / 2, size / 2],
     popupAnchor: [0, -(size / 2 + 6)],
   });
+};
 
 // ─── Map controllers (must be children of MapContainer) ──────────────────────
 
@@ -135,12 +150,27 @@ const ItineraryMap = ({ days, activeDay, focusedActivity }: Props) => {
       // First pass: use whatever coords backend already gave us
       setEnrichedDays(days);
 
+      console.log('🗺️ Map received days:', days.map(d => ({
+        day: d.day,
+        activities: d.activities.map(a => ({
+          title: a.title,
+          hasCoords: hasCoord(a),
+          lat: a.latitude,
+          lng: a.longitude
+        }))
+      })));
+
       // Check if any activity is missing valid coords
       const needsGeo = days.some((d) =>
         d.activities.some((a) => !hasCoord(a) && a.location?.trim()),
       );
-      if (!needsGeo) return;
+      
+      if (!needsGeo) {
+        console.log('✅ All activities have coordinates');
+        return;
+      }
 
+      console.log('🔍 Some activities missing coords, starting geocoding...');
       setGeocoding(true);
 
       // Geocode in parallel batches of 3 to respect Nominatim rate limit
@@ -151,16 +181,20 @@ const ItineraryMap = ({ days, activeDay, focusedActivity }: Props) => {
             day.activities.map(async (act) => {
               if (hasCoord(act)) return act;
               if (!act.location?.trim()) return act;
+              
+              console.log(`🔍 Geocoding: ${act.title} at ${act.location}`);
               try {
                 // Try with full location string first, then just the name
                 const geo =
                   (await geocodeLocation(act.location, 'vn')) ??
                   (await geocodeLocation(act.title, 'vn'));
                 if (geo && isValidCoord(geo.latitude, geo.longitude)) {
+                  console.log(`✅ Found coords for ${act.title}: ${geo.latitude}, ${geo.longitude}`);
                   return { ...act, latitude: geo.latitude, longitude: geo.longitude };
                 }
-              } catch {
-                // skip silently
+                console.log(`❌ No coords found for ${act.title}`);
+              } catch (err) {
+                console.error(`❌ Geocoding error for ${act.title}:`, err);
               }
               return act;
             }),
@@ -213,8 +247,19 @@ const ItineraryMap = ({ days, activeDay, focusedActivity }: Props) => {
     <>
       <style>{`
         @keyframes itm-pulse {
-          0%   { transform: scale(1);   opacity: .5 }
-          100% { transform: scale(2.2); opacity: 0  }
+          0%   { transform: scale(1);   opacity: .45 }
+          100% { transform: scale(2.4); opacity: 0  }
+        }
+        @keyframes itm-ripple {
+          0%   { transform: scale(0.6); opacity: 0.9 }
+          70%  { transform: scale(2.2); opacity: 0.15 }
+          100% { transform: scale(2.6); opacity: 0 }
+        }
+        @keyframes itm-bounce {
+          0%, 100% { transform: translateY(0); }
+          25% { transform: translateY(-10px); }
+          50% { transform: translateY(0); }
+          75% { transform: translateY(-5px); }
         }
         /* Ensure tiles always render above the grey canvas */
         .itm-map .leaflet-tile-pane    { z-index: 2 !important; }
@@ -285,7 +330,7 @@ const ItineraryMap = ({ days, activeDay, focusedActivity }: Props) => {
                         <Marker
                           key={`${activity.id}-${idx}`}
                           position={position}
-                          icon={makeIcon(idx + 1, active ? color : '#64748b', size, isFocused)}
+                          icon={makeIcon(idx + 1, active ? color : '#64748b', size, isFocused, isFocused)}
                           zIndexOffset={active ? 1000 : 0}
                         >
                           <Popup minWidth={200} maxWidth={280}>
