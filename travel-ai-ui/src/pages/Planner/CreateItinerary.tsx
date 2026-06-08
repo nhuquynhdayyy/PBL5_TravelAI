@@ -1,383 +1,906 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { Calendar, MapPin, Users, DollarSign, Sparkles, ArrowRight, Loader2 } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  ChevronRight,
+  Loader2,
+  MapPin,
+  RotateCcw,
+  Send,
+  Sparkles,
+} from 'lucide-react';
 import axiosClient from '../../api/axiosClient';
 import { getTodayVietnam } from '../../utils/dateUtils';
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 interface Destination {
-  id: number;           // backend returns 'id', NOT 'destinationId'
+  id: number;
   name: string;
-  country: string;
+  country?: string;
   imageUrl?: string;
 }
 
+interface QuickReply {
+  label: string;
+  value: string;
+  emoji?: string;
+  color?: string;
+}
+
+interface ChatMessage {
+  id: string;
+  role: 'ai' | 'user';
+  text: string;
+  quickReplies?: QuickReply[];
+  showDatePicker?: boolean;
+  isTyping?: boolean;
+  timestamp: number;
+}
+
+type Step =
+  | 'greeting'
+  | 'destination'
+  | 'duration'
+  | 'startDate'
+  | 'budget'
+  | 'naturePreference'
+  | 'activityPreference'
+  | 'specialRequest'
+  | 'summary'
+  | 'generating';
+
+interface PlanData {
+  destinationId: number | null;
+  destinationName: string;
+  numberOfDays: number;
+  startDate: string;
+  budgetLevel: string;
+  naturePrefs: string[];
+  activityPrefs: string[];
+  specialRequest: string;
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const STEP_ORDER: Step[] = [
+  'greeting',
+  'destination',
+  'duration',
+  'startDate',
+  'budget',
+  'naturePreference',
+  'activityPreference',
+  'specialRequest',
+  'summary',
+  'generating',
+];
+
+const DURATION_OPTIONS: QuickReply[] = [
+  { label: '1 ngày', value: '1', emoji: '⚡' },
+  { label: '2 ngày', value: '2', emoji: '🌅' },
+  { label: '3 ngày', value: '3', emoji: '🗓️' },
+  { label: '5 ngày', value: '5', emoji: '🏖️' },
+  { label: '7 ngày', value: '7', emoji: '🌏' },
+  { label: '10 ngày', value: '10', emoji: '✈️' },
+];
+
+const BUDGET_OPTIONS: QuickReply[] = [
+  { label: 'Tiết kiệm', value: 'low', emoji: '💰', color: 'emerald' },
+  { label: 'Trung bình', value: 'medium', emoji: '💵', color: 'blue' },
+  { label: 'Cao cấp', value: 'high', emoji: '💎', color: 'purple' },
+];
+
+const NATURE_OPTIONS: QuickReply[] = [
+  { label: 'Biển & Đảo', value: 'Biển', emoji: '🏖️', color: 'cyan' },
+  { label: 'Núi & Rừng', value: 'Núi', emoji: '⛰️', color: 'green' },
+  { label: 'Thành phố', value: 'Thành phố', emoji: '🏙️', color: 'blue' },
+  { label: 'Di tích lịch sử', value: 'Di tích', emoji: '🏛️', color: 'amber' },
+  { label: 'Đồng quê', value: 'Nông thôn', emoji: '🌾', color: 'lime' },
+];
+
+const ACTIVITY_OPTIONS: QuickReply[] = [
+  { label: 'Ẩm thực', value: 'Ẩm thực', emoji: '🍜', color: 'orange' },
+  { label: 'Văn hóa & Nghệ thuật', value: 'Văn hóa', emoji: '🎭', color: 'purple' },
+  { label: 'Thể thao & Phiêu lưu', value: 'Phiêu lưu', emoji: '🏄', color: 'blue' },
+  { label: 'Mua sắm', value: 'Mua sắm', emoji: '🛍️', color: 'pink' },
+  { label: 'Chụp ảnh', value: 'Chụp ảnh', emoji: '📸', color: 'indigo' },
+  { label: 'Thư giãn & Spa', value: 'Thư giãn', emoji: '🧘', color: 'teal' },
+];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function genId() {
+  return Math.random().toString(36).slice(2);
+}
+
+function formatDate(dateStr: string) {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+function getBudgetLabel(val: string) {
+  return BUDGET_OPTIONS.find((b) => b.value === val)?.label || val;
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+const TypingIndicator = () => (
+  <div className="flex items-end gap-3 mb-4">
+    <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/30 shrink-0">
+      <Sparkles size={16} className="text-white" />
+    </div>
+    <div className="bg-white/10 backdrop-blur-sm border border-white/10 rounded-2xl rounded-bl-sm px-5 py-4">
+      <div className="flex gap-1.5 items-center h-5">
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            className="w-2 h-2 rounded-full bg-blue-400 animate-bounce"
+            style={{ animationDelay: `${i * 0.15}s`, animationDuration: '0.8s' }}
+          />
+        ))}
+      </div>
+    </div>
+  </div>
+);
+
+interface AiBubbleProps {
+  message: ChatMessage;
+  onQuickReply: (reply: QuickReply) => void;
+  onDateSubmit: (date: string) => void;
+  selectedValues?: string[];
+  multiSelect?: boolean;
+  pendingMulti?: string[];
+  onMultiToggle?: (val: string) => void;
+  onMultiConfirm?: () => void;
+}
+
+const COLOR_MAP: Record<string, string> = {
+  cyan: 'border-cyan-400/50 hover:bg-cyan-500/20 hover:border-cyan-400 text-cyan-300',
+  green: 'border-green-400/50 hover:bg-green-500/20 hover:border-green-400 text-green-300',
+  blue: 'border-blue-400/50 hover:bg-blue-500/20 hover:border-blue-400 text-blue-300',
+  amber: 'border-amber-400/50 hover:bg-amber-500/20 hover:border-amber-400 text-amber-300',
+  lime: 'border-lime-400/50 hover:bg-lime-500/20 hover:border-lime-400 text-lime-300',
+  orange: 'border-orange-400/50 hover:bg-orange-500/20 hover:border-orange-400 text-orange-300',
+  purple: 'border-purple-400/50 hover:bg-purple-500/20 hover:border-purple-400 text-purple-300',
+  pink: 'border-pink-400/50 hover:bg-pink-500/20 hover:border-pink-400 text-pink-300',
+  indigo: 'border-indigo-400/50 hover:bg-indigo-500/20 hover:border-indigo-400 text-indigo-300',
+  teal: 'border-teal-400/50 hover:bg-teal-500/20 hover:border-teal-400 text-teal-300',
+  emerald: 'border-emerald-400/50 hover:bg-emerald-500/20 hover:border-emerald-400 text-emerald-300',
+};
+
+const SELECTED_MAP: Record<string, string> = {
+  cyan: 'bg-cyan-500/30 border-cyan-400 text-cyan-200',
+  green: 'bg-green-500/30 border-green-400 text-green-200',
+  blue: 'bg-blue-500/30 border-blue-400 text-blue-200',
+  amber: 'bg-amber-500/30 border-amber-400 text-amber-200',
+  lime: 'bg-lime-500/30 border-lime-400 text-lime-200',
+  orange: 'bg-orange-500/30 border-orange-400 text-orange-200',
+  purple: 'bg-purple-500/30 border-purple-400 text-purple-200',
+  pink: 'bg-pink-500/30 border-pink-400 text-pink-200',
+  indigo: 'bg-indigo-500/30 border-indigo-400 text-indigo-200',
+  teal: 'bg-teal-500/30 border-teal-400 text-teal-200',
+  emerald: 'bg-emerald-500/30 border-emerald-400 text-emerald-200',
+};
+
+const AiBubble: React.FC<AiBubbleProps> = ({
+  message,
+  onQuickReply,
+  onDateSubmit,
+  selectedValues = [],
+  multiSelect = false,
+  pendingMulti = [],
+  onMultiToggle,
+  onMultiConfirm,
+}) => {
+  const [dateVal, setDateVal] = useState(getTodayVietnam());
+
+  return (
+    <div className="flex items-end gap-3 mb-6 animate-fadeInUp">
+      <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/30 shrink-0">
+        <Sparkles size={16} className="text-white" />
+      </div>
+
+      <div className="flex-1 max-w-[85%]">
+        <div className="bg-white/10 backdrop-blur-sm border border-white/10 rounded-2xl rounded-bl-sm px-5 py-4 text-white text-[15px] leading-relaxed font-medium shadow-lg">
+          {message.text}
+        </div>
+
+        {/* Quick Replies */}
+        {message.quickReplies && message.quickReplies.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {message.quickReplies.map((reply) => {
+              const isSelected = multiSelect
+                ? pendingMulti.includes(reply.value)
+                : selectedValues.includes(reply.value);
+              const colorClass = reply.color
+                ? isSelected
+                  ? SELECTED_MAP[reply.color] || ''
+                  : COLOR_MAP[reply.color] || ''
+                : isSelected
+                  ? 'bg-blue-500/30 border-blue-400 text-blue-200'
+                  : 'border-white/20 hover:bg-white/10 hover:border-white/40 text-white/80';
+
+              return (
+                <button
+                  key={reply.value}
+                  onClick={() =>
+                    multiSelect && onMultiToggle
+                      ? onMultiToggle(reply.value)
+                      : onQuickReply(reply)
+                  }
+                  className={`
+                    flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-bold
+                    transition-all duration-200 active:scale-95
+                    ${colorClass}
+                    ${isSelected ? 'ring-1 ring-white/20' : ''}
+                  `}
+                >
+                  {reply.emoji && <span>{reply.emoji}</span>}
+                  {reply.label}
+                  {isSelected && <span className="text-xs">✓</span>}
+                </button>
+              );
+            })}
+            {multiSelect && onMultiConfirm && pendingMulti.length > 0 && (
+              <button
+                onClick={onMultiConfirm}
+                className="flex items-center gap-2 px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-black transition-all active:scale-95 shadow-lg shadow-blue-500/30"
+              >
+                Xác nhận ({pendingMulti.length}) <ChevronRight size={14} />
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Date Picker */}
+        {message.showDatePicker && (
+          <div className="mt-3 flex items-center gap-3">
+            <input
+              type="date"
+              value={dateVal}
+              min={getTodayVietnam()}
+              onChange={(e) => setDateVal(e.target.value)}
+              className="bg-white/10 border border-white/20 text-white rounded-xl px-4 py-2.5 text-sm font-semibold [color-scheme:dark] focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/30 transition-all"
+            />
+            <button
+              onClick={() => onDateSubmit(dateVal)}
+              disabled={!dateVal}
+              className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl text-sm font-black transition-all active:scale-95 shadow-lg shadow-blue-500/30"
+            >
+              Chọn <ChevronRight size={14} />
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const UserBubble: React.FC<{ text: string }> = ({ text }) => (
+  <div className="flex justify-end mb-6 animate-fadeInUp">
+    <div className="max-w-[75%] bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-2xl rounded-br-sm px-5 py-3.5 text-sm font-semibold shadow-lg shadow-blue-600/30">
+      {text}
+    </div>
+  </div>
+);
+
+// ─── Progress Steps ───────────────────────────────────────────────────────────
+
+const PROGRESS_LABELS = ['Điểm đến', 'Thời gian', 'Ngày đi', 'Ngân sách', 'Sở thích', 'Hoàn tất'];
+
+const ProgressBar: React.FC<{ currentStep: Step }> = ({ currentStep }) => {
+  const stepMap: Record<Step, number> = {
+    greeting: 0,
+    destination: 1,
+    duration: 2,
+    startDate: 3,
+    budget: 4,
+    naturePreference: 5,
+    activityPreference: 5,
+    specialRequest: 5,
+    summary: 6,
+    generating: 6,
+  };
+  const current = stepMap[currentStep] || 0;
+  const total = PROGRESS_LABELS.length;
+
+  return (
+    <div className="flex items-center gap-1.5 px-4 py-3">
+      {PROGRESS_LABELS.map((label, i) => (
+        <React.Fragment key={label}>
+          <div className="flex flex-col items-center gap-1">
+            <div
+              className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black transition-all duration-500 ${
+                i < current
+                  ? 'bg-blue-500 text-white shadow-md shadow-blue-500/40'
+                  : i === current
+                    ? 'bg-blue-400/30 border-2 border-blue-400 text-blue-300'
+                    : 'bg-white/5 border border-white/10 text-white/30'
+              }`}
+            >
+              {i < current ? '✓' : i + 1}
+            </div>
+            <span className={`text-[9px] font-bold hidden sm:block whitespace-nowrap transition-all ${
+              i <= current ? 'text-blue-300' : 'text-white/20'
+            }`}>
+              {label}
+            </span>
+          </div>
+          {i < total - 1 && (
+            <div
+              className={`flex-1 h-0.5 rounded-full mb-3.5 transition-all duration-700 ${
+                i < current ? 'bg-blue-500' : 'bg-white/10'
+              }`}
+            />
+          )}
+        </React.Fragment>
+      ))}
+    </div>
+  );
+};
+
+// ─── Summary Card ─────────────────────────────────────────────────────────────
+
+const SummaryCard: React.FC<{ data: PlanData; onConfirm: () => void; onReset: () => void }> = ({
+  data,
+  onConfirm,
+  onReset,
+}) => (
+  <div className="bg-white/10 backdrop-blur-sm border border-white/10 rounded-2xl p-6 mb-6 animate-fadeInUp">
+    <h3 className="text-white font-black text-lg mb-4 flex items-center gap-2">
+      <Sparkles size={18} className="text-blue-400" />
+      Tóm tắt chuyến đi của bạn
+    </h3>
+    <div className="space-y-2.5 text-sm">
+      {[
+        { icon: '📍', label: 'Điểm đến', value: data.destinationName },
+        { icon: '🗓️', label: 'Thời gian', value: `${data.numberOfDays} ngày, từ ${formatDate(data.startDate)}` },
+        { icon: '💰', label: 'Ngân sách', value: getBudgetLabel(data.budgetLevel) },
+        { icon: '🌿', label: 'Phong cảnh', value: data.naturePrefs.join(', ') || 'Chưa chọn' },
+        { icon: '🎯', label: 'Hoạt động', value: data.activityPrefs.join(', ') || 'Chưa chọn' },
+        ...(data.specialRequest ? [{ icon: '💬', label: 'Yêu cầu đặc biệt', value: data.specialRequest }] : []),
+      ].map(({ icon, label, value }) => (
+        <div key={label} className="flex items-start gap-3">
+          <span className="text-base shrink-0">{icon}</span>
+          <div>
+            <span className="text-white/50 text-xs font-bold uppercase tracking-wider">{label}</span>
+            <p className="text-white font-semibold mt-0.5">{value}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+    <div className="flex gap-3 mt-6">
+      <button
+        onClick={onConfirm}
+        className="flex-1 py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl font-black text-sm transition-all active:scale-[0.98] shadow-lg shadow-blue-600/40 flex items-center justify-center gap-2"
+      >
+        <Sparkles size={16} />
+        Tạo lịch trình với AI
+      </button>
+      <button
+        onClick={onReset}
+        className="px-4 py-3.5 bg-white/10 hover:bg-white/15 text-white/70 rounded-xl font-bold text-sm transition-all active:scale-95 border border-white/10"
+        title="Bắt đầu lại"
+      >
+        <RotateCcw size={16} />
+      </button>
+    </div>
+  </div>
+);
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
 const CreateItinerary: React.FC = () => {
   const navigate = useNavigate();
-  const location = useLocation();
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
   const [destinations, setDestinations] = useState<Destination[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [step, setStep] = useState<Step>('greeting');
+  const [inputValue, setInputValue] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [selectedValues, setSelectedValues] = useState<Record<string, string[]>>({});
+  const [pendingMulti, setPendingMulti] = useState<string[]>([]);
 
-  // Form state
-  const [destinationId, setDestinationId] = useState<string>('');
-  const [startDate, setStartDate] = useState(getTodayVietnam());
-  const [numberOfDays, setNumberOfDays] = useState(3);
-  const [guests, setGuests] = useState(2);
-  const [budgetLevel, setBudgetLevel] = useState('medium');
+  const [planData, setPlanData] = useState<PlanData>({
+    destinationId: null,
+    destinationName: '',
+    numberOfDays: 3,
+    startDate: getTodayVietnam(),
+    budgetLevel: 'medium',
+    naturePrefs: [],
+    activityPrefs: [],
+    specialRequest: '',
+  });
 
-  // Store preselected values from navigation state
-  const [preselectedDestId, setPreselectedDestId] = useState<string | null>(null);
-  const [preselectedDate, setPreselectedDate] = useState<string | null>(null);
-
+  // Scroll to bottom on new messages
   useEffect(() => {
-    fetchDestinations();
-    
-    // Get preselected values from navigation state immediately
-    const state = location.state as any;
-    if (state?.preselectedDestinationId) {
-      setPreselectedDestId(String(state.preselectedDestinationId));
-    }
-    if (state?.preselectedDate) {
-      setPreselectedDate(state.preselectedDate);
-      setStartDate(state.preselectedDate);
-    }
-  }, [location.state]);
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isTyping]);
 
+  // Load destinations
   useEffect(() => {
-    // After destinations are loaded, apply preselected destination if any
-    if (preselectedDestId && destinations.length > 0) {
-      const destExists = destinations.some(
-        d => String(d.id) === preselectedDestId
+    axiosClient
+      .get('/destinations')
+      .then((res) => {
+        const data: Destination[] = res.data?.data || res.data || [];
+        setDestinations(Array.isArray(data) ? data : []);
+      })
+      .catch(console.error);
+  }, []);
+
+  // Kick off greeting after destinations load
+  useEffect(() => {
+    if (destinations.length > 0 && messages.length === 0) {
+      pushAiMessage(
+        'Xin chào! Tôi là AI Planner của TravelAI 🌏\nHãy để tôi giúp bạn lập kế hoạch chuyến đi trong mơ!\n\nBạn muốn đến đâu lần này?',
+        buildDestinationReplies(destinations),
       );
-      if (destExists) {
-        setDestinationId(preselectedDestId);
+      setStep('destination');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [destinations]);
+
+  // ── Helpers ──────────────────────────────────────────────────────────────────
+
+  function buildDestinationReplies(dests: Destination[]): QuickReply[] {
+    return dests.slice(0, 10).map((d) => ({ label: d.name, value: String(d.id) }));
+  }
+
+  function pushAiMessage(
+    text: string,
+    quickReplies?: QuickReply[],
+    showDatePicker = false,
+  ) {
+    const msg: ChatMessage = {
+      id: genId(),
+      role: 'ai',
+      text,
+      quickReplies,
+      showDatePicker,
+      timestamp: Date.now(),
+    };
+    setMessages((prev) => [...prev, msg]);
+  }
+
+  function pushUserMessage(text: string) {
+    setMessages((prev) => [
+      ...prev,
+      { id: genId(), role: 'user', text, timestamp: Date.now() },
+    ]);
+  }
+
+  async function aiThinkThen(fn: () => void, delay = 800) {
+    setIsTyping(true);
+    await new Promise((r) => setTimeout(r, delay));
+    setIsTyping(false);
+    fn();
+  }
+
+  function markSelected(stepKey: string, val: string) {
+    setSelectedValues((prev) => ({ ...prev, [stepKey]: [val] }));
+  }
+
+  // ── Step Handlers ─────────────────────────────────────────────────────────────
+
+  function handleDestinationReply(reply: QuickReply) {
+    const destId = parseInt(reply.value, 10);
+    const dest = destinations.find((d) => d.id === destId);
+    if (!dest) return;
+
+    pushUserMessage(`📍 ${dest.name}`);
+    markSelected('destination', reply.value);
+    setPlanData((prev) => ({ ...prev, destinationId: destId, destinationName: dest.name }));
+    setStep('duration');
+
+    aiThinkThen(() => {
+      pushAiMessage(
+        `Tuyệt vời! ${dest.name} là lựa chọn tuyệt vời 🎉\n\nBạn muốn đi trong bao nhiêu ngày?`,
+        DURATION_OPTIONS,
+      );
+    });
+  }
+
+  function handleDurationReply(reply: QuickReply) {
+    const days = parseInt(reply.value, 10);
+    pushUserMessage(`🗓️ ${reply.label}`);
+    markSelected('duration', reply.value);
+    setPlanData((prev) => ({ ...prev, numberOfDays: days }));
+    setStep('startDate');
+
+    aiThinkThen(() => {
+      pushAiMessage(
+        `${days} ngày đủ để khám phá nhiều điều thú vị!\n\nBạn dự định khởi hành vào ngày nào?`,
+        undefined,
+        true, // showDatePicker
+      );
+    });
+  }
+
+  function handleDateSubmit(date: string) {
+    pushUserMessage(`📅 ${formatDate(date)}`);
+    setPlanData((prev) => ({ ...prev, startDate: date }));
+    setStep('budget');
+
+    aiThinkThen(() => {
+      pushAiMessage(
+        `Ngày ${formatDate(date)} nghe có vẻ tuyệt! ☀️\n\nBạn có ngân sách dự kiến như thế nào cho chuyến đi này?`,
+        BUDGET_OPTIONS,
+      );
+    });
+  }
+
+  function handleBudgetReply(reply: QuickReply) {
+    pushUserMessage(`${reply.emoji} ${reply.label}`);
+    markSelected('budget', reply.value);
+    setPlanData((prev) => ({ ...prev, budgetLevel: reply.value }));
+    setStep('naturePreference');
+
+    aiThinkThen(() => {
+      pushAiMessage(
+        `Hiểu rồi! Để AI gợi ý đúng hơn, bạn thích loại phong cảnh nào?\n(Có thể chọn nhiều)`,
+        NATURE_OPTIONS,
+      );
+    });
+  }
+
+  function handleNatureToggle(val: string) {
+    setPendingMulti((prev) =>
+      prev.includes(val) ? prev.filter((v) => v !== val) : [...prev, val],
+    );
+  }
+
+  function handleNatureConfirm() {
+    if (pendingMulti.length === 0) return;
+    const labels = NATURE_OPTIONS.filter((o) => pendingMulti.includes(o.value)).map(
+      (o) => `${o.emoji} ${o.label}`,
+    );
+    pushUserMessage(labels.join(', '));
+    setPlanData((prev) => ({ ...prev, naturePrefs: pendingMulti }));
+    setPendingMulti([]);
+    setStep('activityPreference');
+
+    aiThinkThen(() => {
+      pushAiMessage(
+        `Sở thích phong cảnh của bạn thật đặc biệt! 🌿\n\nCòn về hoạt động, bạn thích làm gì nhất trong chuyến đi?\n(Có thể chọn nhiều)`,
+        ACTIVITY_OPTIONS,
+      );
+    });
+  }
+
+  function handleActivityToggle(val: string) {
+    setPendingMulti((prev) =>
+      prev.includes(val) ? prev.filter((v) => v !== val) : [...prev, val],
+    );
+  }
+
+  function handleActivityConfirm() {
+    const labels = ACTIVITY_OPTIONS.filter((o) => pendingMulti.includes(o.value)).map(
+      (o) => `${o.emoji} ${o.label}`,
+    );
+    const selected = pendingMulti.length > 0 ? pendingMulti : [];
+    pushUserMessage(selected.length > 0 ? labels.join(', ') : 'Đa dạng, cái gì cũng được!');
+    setPlanData((prev) => ({ ...prev, activityPrefs: selected }));
+    setPendingMulti([]);
+    setStep('specialRequest');
+
+    aiThinkThen(() => {
+      pushAiMessage(
+        `Bạn có yêu cầu đặc biệt nào không?\nVí dụ: "thích đồ ăn chay", "cần chỗ nghỉ thú cưng", "có trẻ nhỏ"...\n\nHoặc nhấn nút bên dưới để bỏ qua.`,
+        [{ label: 'Bỏ qua', value: '__skip__', emoji: '⏭️' }],
+      );
+    });
+  }
+
+  function handleSpecialRequest(text: string) {
+    const isSkip = text === '__skip__' || text.trim() === '';
+    pushUserMessage(isSkip ? '⏭️ Không có yêu cầu đặc biệt' : `💬 ${text}`);
+    setPlanData((prev) => ({ ...prev, specialRequest: isSkip ? '' : text }));
+    setInputValue('');
+    setStep('summary');
+
+    aiThinkThen(() => {
+      pushAiMessage(
+        `Hoàn hảo! Tôi đã thu thập đủ thông tin rồi ✅\n\nHãy xem lại tóm tắt chuyến đi của bạn bên dưới nhé!`,
+      );
+    }, 600);
+  }
+
+  // ── Master Quick Reply Dispatcher ─────────────────────────────────────────────
+
+  function handleQuickReply(reply: QuickReply) {
+    if (generating) return;
+    switch (step) {
+      case 'destination':
+        handleDestinationReply(reply);
+        break;
+      case 'duration':
+        handleDurationReply(reply);
+        break;
+      case 'budget':
+        handleBudgetReply(reply);
+        break;
+      case 'specialRequest':
+        if (reply.value === '__skip__') handleSpecialRequest('__skip__');
+        break;
+    }
+  }
+
+  function handleMultiToggle(val: string) {
+    if (step === 'naturePreference') handleNatureToggle(val);
+    else if (step === 'activityPreference') handleActivityToggle(val);
+  }
+
+  function handleMultiConfirm() {
+    if (step === 'naturePreference') handleNatureConfirm();
+    else if (step === 'activityPreference') handleActivityConfirm();
+  }
+
+  // ── Text Input Send ───────────────────────────────────────────────────────────
+
+  function handleSend() {
+    const text = inputValue.trim();
+    if (!text || generating) return;
+
+    if (step === 'destination') {
+      // Find by name
+      const match = destinations.find((d) =>
+        d.name.toLowerCase().includes(text.toLowerCase()),
+      );
+      if (match) {
+        handleDestinationReply({ label: match.name, value: String(match.id) });
+      } else {
+        pushAiMessage(
+          `Tôi chưa tìm thấy điểm đến "${text}" trong hệ thống.\nBạn có thể chọn từ gợi ý bên dưới không?`,
+        );
       }
+    } else if (step === 'specialRequest') {
+      handleSpecialRequest(text);
     }
-  }, [destinations, preselectedDestId]);
+    setInputValue('');
+  }
 
-  const fetchDestinations = async () => {
-    try {
-      setLoading(true);
-      const response = await axiosClient.get('/destinations');
-      const data = response.data.data || response.data || [];
-      console.log('Fetched destinations:', data);
-      setDestinations(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error('Error fetching destinations:', error);
-      setDestinations([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // ── Generate Itinerary ────────────────────────────────────────────────────────
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  async function handleGenerate() {
+    if (!planData.destinationId) return;
+    setGenerating(true);
+    setStep('generating');
 
-    if (!destinationId || destinationId === '') {
-      alert('Vui lòng chọn điểm đến');
-      return;
-    }
-
-    if (!startDate) {
-      alert('Vui lòng chọn ngày bắt đầu');
-      return;
-    }
+    pushUserMessage('✨ Tạo lịch trình ngay!');
+    setIsTyping(true);
 
     try {
-      setGenerating(true);
-
-      const destId = parseInt(destinationId, 10);
-      
-      // Validate before sending
-      if (!destinationId || destinationId === '' || isNaN(destId) || destId === 0) {
-        alert('Vui lòng chọn điểm đến hợp lệ');
-        setGenerating(false);
-        return;
-      }
-
-      // camelCase to match backend JSON serializer config (same as DestinationDetail)
       const requestBody = {
-        destinationId: destId,
-        numberOfDays: numberOfDays,
-        startDate: startDate,
+        destinationId: planData.destinationId,
+        numberOfDays: planData.numberOfDays,
+        startDate: planData.startDate,
       };
 
-      console.log('Sending request to API:', requestBody);
-
       const response = await axiosClient.post('/itinerary/generate', requestBody);
-
-      console.log('✅ API Response:', response.data);
-
-
-      // API /itinerary/generate trả về result trực tiếp (không có wrapper {success, data})
-      // Giống cách DestinationDetail xử lý: response.data.data || response.data
       const itinerary = response.data?.data || response.data;
 
       if (itinerary) {
-        // Navigate to timeline with generated itinerary
         navigate('/itinerary/latest', {
           state: { data: itinerary },
-          replace: false
+          replace: false,
         });
       } else {
-        alert('API trả về dữ liệu không hợp lệ. Vui lòng thử lại.');
+        throw new Error('Không nhận được dữ liệu lịch trình từ server.');
       }
-    } catch (error: any) {
-      console.error('Error generating itinerary:', error);
-      
-      // Extract detailed error message
-      let errorMsg = 'Không thể tạo lịch trình. Vui lòng thử lại.';
-      
-      if (error.response?.data) {
-        const data = error.response.data;
-        console.error('Backend error data:', data);
-        
-        if (typeof data === 'string') {
-          errorMsg = data;
-        } else if (data.message) {
-          errorMsg = data.message;
-        } else if (data.errors) {
-          // Validation errors from ASP.NET
-          errorMsg = Object.values(data.errors).flat().join(', ');
-        } else if (data.title) {
-          errorMsg = data.title;
-        }
-      }
-      
-      console.error('Full error details:', {
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data,
-        message: error.message,
-        parsedMessage: errorMsg
-      });
-      
-      alert(`Lỗi: ${errorMsg}\n\nVui lòng kiểm tra:\n- Đã đăng nhập chưa?\n- Điểm đến có hợp lệ?\n- Ngày bắt đầu đã chọn?\n\nXem Console (F12) để biết chi tiết.`);
-    } finally {
+    } catch (err: any) {
+      setIsTyping(false);
       setGenerating(false);
+      setStep('summary');
+
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        'Có lỗi xảy ra khi tạo lịch trình. Vui lòng thử lại.';
+
+      pushAiMessage(`❌ ${msg}\n\nBạn muốn thử lại không?`);
     }
-  };
+  }
 
-  const getImageUrl = (url?: string) => {
-    if (!url) return 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&q=80';
-    return url.startsWith('http') ? url : `http://localhost:5134${url}`;
-  };
+  // ── Reset ─────────────────────────────────────────────────────────────────────
 
-  const selectedDestination = destinationId 
-    ? destinations.find(d => d.id === parseInt(destinationId, 10))
-    : undefined;
+  function handleReset() {
+    setMessages([]);
+    setStep('greeting');
+    setInputValue('');
+    setSelectedValues({});
+    setPendingMulti([]);
+    setPlanData({
+      destinationId: null,
+      destinationName: '',
+      numberOfDays: 3,
+      startDate: getTodayVietnam(),
+      budgetLevel: 'medium',
+      naturePrefs: [],
+      activityPrefs: [],
+      specialRequest: '',
+    });
+
+    // Re-trigger greeting
+    setTimeout(() => {
+      pushAiMessage(
+        'Bắt đầu lại nào! 🔄\n\nBạn muốn đến đâu lần này?',
+        buildDestinationReplies(destinations),
+      );
+      setStep('destination');
+    }, 100);
+  }
+
+  // ─── Render ───────────────────────────────────────────────────────────────────
+
+  const isMultiStep = step === 'naturePreference' || step === 'activityPreference';
+  const showInput =
+    step === 'destination' || step === 'specialRequest';
+  const inputPlaceholder =
+    step === 'destination'
+      ? 'Nhập tên điểm đến...'
+      : 'Nhập yêu cầu đặc biệt (hoặc bỏ qua)...';
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 py-12 px-4">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-full text-sm font-bold mb-4">
-            <Sparkles size={16} />
-            AI Travel Planner
+    <>
+      <style>{`
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fadeInUp {
+          animation: fadeInUp 0.35s ease-out forwards;
+        }
+      `}</style>
+
+      <div
+        className="min-h-screen flex flex-col"
+        style={{
+          background: 'linear-gradient(135deg, #0a0f1e 0%, #0d1b3e 40%, #0f0a2e 100%)',
+        }}
+      >
+        {/* ── Header ── */}
+        <div className="border-b border-white/5 bg-black/20 backdrop-blur-sm sticky top-0 z-10">
+          <div className="max-w-2xl mx-auto">
+            <div className="flex items-center gap-3 px-4 pt-4 pb-2">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
+                <Sparkles size={18} className="text-white" />
+              </div>
+              <div>
+                <h1 className="text-white font-black text-base leading-tight">AI Travel Planner</h1>
+                <p className="text-blue-300 text-xs font-medium">Lên kế hoạch chuyến đi thông minh</p>
+              </div>
+              {step !== 'greeting' && step !== 'generating' && (
+                <button
+                  onClick={handleReset}
+                  className="ml-auto text-white/40 hover:text-white/70 transition-colors"
+                  title="Bắt đầu lại"
+                >
+                  <RotateCcw size={16} />
+                </button>
+              )}
+            </div>
+            <ProgressBar currentStep={step} />
           </div>
-          <h1 className="text-5xl font-black text-slate-900 mb-4">
-            Tạo Lịch Trình Du Lịch
-          </h1>
-          <p className="text-slate-600 text-lg max-w-2xl mx-auto">
-            Để AI giúp bạn lập kế hoạch chuyến đi hoàn hảo chỉ trong vài giây
-          </p>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-8">
-          {/* Form */}
-          <div className="bg-white rounded-3xl shadow-xl border border-slate-100 p-8">
-            <h2 className="text-2xl font-black text-slate-900 mb-6">Thông tin chuyến đi</h2>
-            
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Destination */}
-              <div>
-                <label className="flex items-center gap-2 text-sm font-bold text-slate-700 mb-3">
-                  <MapPin size={16} className="text-blue-600" />
-                  Điểm đến
-                </label>
-                {loading ? (
-                  <div className="flex items-center justify-center p-4">
-                    <Loader2 className="animate-spin text-blue-600" />
+        {/* ── Chat Area ── */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="max-w-2xl mx-auto px-4 py-6">
+            {/* Loading destinations */}
+            {destinations.length === 0 && (
+              <div className="flex items-center justify-center gap-3 text-white/50 py-20">
+                <Loader2 className="animate-spin" size={20} />
+                <span className="text-sm font-medium">Đang tải dữ liệu...</span>
+              </div>
+            )}
+
+            {/* Messages */}
+            {messages.map((msg, idx) => {
+              const isLastAi = msg.role === 'ai' && idx === messages.length - 1;
+              const showReplies = isLastAi && !isTyping && !generating;
+              const isNatureStep = step === 'naturePreference' && isLastAi;
+              const isActivityStep = step === 'activityPreference' && isLastAi;
+
+              return msg.role === 'ai' ? (
+                <AiBubble
+                  key={msg.id}
+                  message={{
+                    ...msg,
+                    quickReplies: showReplies ? msg.quickReplies : [],
+                    showDatePicker: showReplies && msg.showDatePicker,
+                  }}
+                  onQuickReply={handleQuickReply}
+                  onDateSubmit={handleDateSubmit}
+                  selectedValues={selectedValues[step] || []}
+                  multiSelect={showReplies && (isNatureStep || isActivityStep)}
+                  pendingMulti={pendingMulti}
+                  onMultiToggle={handleMultiToggle}
+                  onMultiConfirm={handleMultiConfirm}
+                />
+              ) : (
+                <UserBubble key={msg.id} text={msg.text} />
+              );
+            })}
+
+            {/* Typing indicator */}
+            {isTyping && <TypingIndicator />}
+
+            {/* Summary Card */}
+            {step === 'summary' && !isTyping && (
+              <SummaryCard
+                data={planData}
+                onConfirm={handleGenerate}
+                onReset={handleReset}
+              />
+            )}
+
+            {/* Generating state */}
+            {generating && (
+              <div className="flex flex-col items-center gap-4 py-12 animate-fadeInUp">
+                <div className="relative">
+                  <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-2xl shadow-blue-500/40">
+                    <Sparkles size={28} className="text-white animate-pulse" />
                   </div>
-                ) : (
-                  <select
-                    value={destinationId}
-                    onChange={(e) => {
-                      const selectedOption = e.target.options[e.target.selectedIndex];
-                      const value = selectedOption.value;
-                      const text = selectedOption.text;
-                      
-                      setDestinationId(value);
-                    }}
-                    className="w-full p-4 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-medium"
-                  >
-                    <option value="" key="empty">Chọn điểm đến...</option>
-                    {destinations.map((dest) => (
-                      <option key={dest.id} value={dest.id}>
-                        {dest.name}{dest.country ? `, ${dest.country}` : ''}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-
-              {/* Start Date */}
-              <div>
-                <label className="flex items-center gap-2 text-sm font-bold text-slate-700 mb-3">
-                  <Calendar size={16} className="text-blue-600" />
-                  Ngày bắt đầu
-                </label>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  min={new Date().toISOString().split('T')[0]}
-                  className="w-full p-4 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-medium"
-                  required
-                />
-              </div>
-
-              {/* Number of Days */}
-              <div>
-                <label className="flex items-center gap-2 text-sm font-bold text-slate-700 mb-3">
-                  <Calendar size={16} className="text-blue-600" />
-                  Số ngày ({numberOfDays} ngày)
-                </label>
-                <input
-                  type="range"
-                  min="1"
-                  max="14"
-                  value={numberOfDays}
-                  onChange={(e) => setNumberOfDays(Number(e.target.value))}
-                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                />
-                <div className="flex justify-between text-xs text-slate-500 mt-2 font-medium">
-                  <span>1 ngày</span>
-                  <span>14 ngày</span>
+                  <div className="absolute inset-0 rounded-3xl bg-blue-500/20 animate-ping" />
                 </div>
-              </div>
-
-              {/* Guests */}
-              <div>
-                <label className="flex items-center gap-2 text-sm font-bold text-slate-700 mb-3">
-                  <Users size={16} className="text-blue-600" />
-                  Số người ({guests} người)
-                </label>
-                <input
-                  type="range"
-                  min="1"
-                  max="10"
-                  value={guests}
-                  onChange={(e) => setGuests(Number(e.target.value))}
-                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                />
-                <div className="flex justify-between text-xs text-slate-500 mt-2 font-medium">
-                  <span>1 người</span>
-                  <span>10+ người</span>
-                </div>
-              </div>
-
-              {/* Budget Level */}
-              <div>
-                <label className="flex items-center gap-2 text-sm font-bold text-slate-700 mb-3">
-                  <DollarSign size={16} className="text-blue-600" />
-                  Mức ngân sách
-                </label>
-                <div className="grid grid-cols-3 gap-3">
-                  {[
-                    { value: 'low', label: 'Tiết kiệm', emoji: '💰' },
-                    { value: 'medium', label: 'Trung bình', emoji: '💵' },
-                    { value: 'high', label: 'Cao cấp', emoji: '💎' }
-                  ].map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => setBudgetLevel(option.value)}
-                      className={`p-4 rounded-xl border-2 transition-all font-bold text-sm ${
-                        budgetLevel === option.value
-                          ? 'border-blue-600 bg-blue-50 text-blue-700'
-                          : 'border-slate-200 hover:border-slate-300'
-                      }`}
-                    >
-                      <div className="text-2xl mb-1">{option.emoji}</div>
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={generating || !destinationId}
-                className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-2xl font-black text-lg shadow-lg shadow-blue-200 hover:shadow-xl hover:from-blue-700 hover:to-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {generating ? (
-                  <>
-                    <Loader2 className="animate-spin" size={20} />
-                    Đang tạo lịch trình...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles size={20} />
-                    Tạo lịch trình với AI
-                    <ArrowRight size={20} />
-                  </>
-                )}
-              </button>
-            </form>
-          </div>
-
-          {/* Preview/Info */}
-          <div className="space-y-6">
-            {/* Preview Card */}
-            {destinationId && selectedDestination && (
-              <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
-                <div className="h-48 overflow-hidden">
-                  <img
-                    src={getImageUrl(selectedDestination.imageUrl)}
-                    alt={selectedDestination.name}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="p-6">
-                  <h3 className="text-2xl font-black text-slate-900 mb-2">
-                    {selectedDestination.name}
-                  </h3>
-                  <p className="text-slate-600 mb-4">
-                    Chuyến đi {numberOfDays} ngày · {guests} người
+                <div className="text-center">
+                  <p className="text-white font-black text-lg">AI đang tạo lịch trình</p>
+                  <p className="text-blue-300 text-sm font-medium mt-1">
+                    Phân tích sở thích và lên kế hoạch chi tiết...
                   </p>
-                  <div className="flex items-center gap-2 text-sm text-blue-600 font-bold">
-                    <Sparkles size={16} />
-                    Sẵn sàng lập kế hoạch!
-                  </div>
+                </div>
+                <div className="flex gap-2">
+                  {['Phân tích điểm đến', 'Tối ưu lộ trình', 'Gợi ý dịch vụ'].map((label, i) => (
+                    <span
+                      key={label}
+                      className="px-3 py-1.5 rounded-full bg-white/10 text-white/60 text-xs font-bold animate-pulse"
+                      style={{ animationDelay: `${i * 0.3}s` }}
+                    >
+                      {label}
+                    </span>
+                  ))}
                 </div>
               </div>
             )}
 
-            {/* Features */}
-            <div className="bg-gradient-to-br from-blue-600 to-indigo-600 rounded-3xl p-8 text-white">
-              <h3 className="text-2xl font-black mb-4">✨ AI sẽ giúp bạn:</h3>
-              <ul className="space-y-3">
-                {[
-                  'Đề xuất địa điểm phù hợp với sở thích',
-                  'Sắp xếp lộ trình tối ưu',
-                  'Gợi ý dịch vụ khách sạn, tour',
-                  'Ước tính chi phí chính xác',
-                  'Tạo timeline chi tiết từng ngày'
-                ].map((feature, index) => (
-                  <li key={index} className="flex items-start gap-3">
-                    <span className="text-xl">✓</span>
-                    <span className="font-medium">{feature}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <div ref={bottomRef} />
           </div>
         </div>
+
+        {/* ── Input Bar ── */}
+        {showInput && !generating && (
+          <div className="border-t border-white/5 bg-black/20 backdrop-blur-sm sticky bottom-0">
+            <div className="max-w-2xl mx-auto px-4 py-3">
+              <div className="flex items-center gap-3">
+                <div className="flex-1 flex items-center gap-3 bg-white/10 border border-white/10 rounded-2xl px-4 py-3 focus-within:border-blue-400/50 focus-within:ring-2 focus-within:ring-blue-400/20 transition-all">
+                  <MapPin size={16} className="text-white/30 shrink-0" />
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                    placeholder={inputPlaceholder}
+                    className="flex-1 bg-transparent text-white placeholder-white/30 text-sm font-medium outline-none"
+                  />
+                </div>
+                <button
+                  onClick={handleSend}
+                  disabled={!inputValue.trim()}
+                  className="w-11 h-11 rounded-2xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white flex items-center justify-center transition-all active:scale-90 shadow-lg shadow-blue-600/30"
+                >
+                  <Send size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-    </div>
+    </>
   );
 };
 
