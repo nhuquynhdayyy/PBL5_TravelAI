@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TravelAI.Application.DTOs.Admin;
+using TravelAI.Application.DTOs.Notification;
 using TravelAI.Application.DTOs.Partner;
 using TravelAI.Application.DTOs.Service;
 using TravelAI.Application.DTOs.User;
@@ -21,12 +22,18 @@ public class AdminController : ControllerBase
     private readonly IServiceService _serviceService;
     private readonly ApplicationDbContext _context;
     private readonly IAuditLogService _auditLogService;
+    private readonly INotificationService _notificationService;
 
-    public AdminController(IServiceService serviceService, ApplicationDbContext context, IAuditLogService auditLogService)
+    public AdminController(
+        IServiceService serviceService,
+        ApplicationDbContext context,
+        IAuditLogService auditLogService,
+        INotificationService notificationService)
     {
         _serviceService = serviceService;
         _context = context;
         _auditLogService = auditLogService;
+        _notificationService = notificationService;
     }
 
     // ──────────────────────────────────────────────
@@ -428,6 +435,17 @@ var totalCount = await query.CountAsync();
         
         // Log audit
         await _auditLogService.LogAsync(adminUserId, "BAN", "Users", id);
+        await _notificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = id,
+            Title = "Tai khoan da bi khoa",
+            Message = "Tai khoan cua ban da bi Admin khoa. Vui long lien he quan tri vien de biet them chi tiet.",
+            Type = "User"
+        });
+        await _notificationService.NotifyAdminsAsync(
+            "Admin khoa tai khoan",
+            $"Tai khoan {user.FullName} ({user.Email}) da bi khoa.",
+            "User");
 
         return Ok(new { success = true, message = "Da khoa tai khoan nguoi dung." });
     }
@@ -448,6 +466,17 @@ var totalCount = await query.CountAsync();
         
         // Log audit
         await _auditLogService.LogAsync(adminUserId, "UNBAN", "Users", id);
+        await _notificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = id,
+            Title = "Tai khoan da duoc mo khoa",
+            Message = "Tai khoan cua ban da duoc Admin mo khoa.",
+            Type = "User"
+        });
+        await _notificationService.NotifyAdminsAsync(
+            "Admin mo khoa tai khoan",
+            $"Tai khoan {user.FullName} ({user.Email}) da duoc mo khoa.",
+            "User");
 
         return Ok(new { success = true, message = "Da mo khoa tai khoan nguoi dung." });
     }
@@ -567,6 +596,13 @@ return Ok(partners);
         profile.ReviewNote = NormalizeOptionalText(request?.ReviewNote);
         profile.ReviewedAt = DateTimeHelper.Now;
         await _context.SaveChangesAsync();
+        await _notificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = profile.UserId,
+            Title = "Ho so partner da duoc duyet",
+            Message = "Ho so doi tac cua ban da duoc Admin phe duyet.",
+            Type = "Partner"
+        });
 
         return Ok(new { success = true, message = "Da duyet doi tac." });
     }
@@ -589,6 +625,13 @@ return Ok(partners);
         profile.ReviewNote = request.ReviewNote.Trim();
         profile.ReviewedAt = DateTimeHelper.Now;
         await _context.SaveChangesAsync();
+        await _notificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = profile.UserId,
+            Title = "Ho so partner bi tu choi",
+            Message = $"Ho so doi tac cua ban bi tu choi. Ly do: {profile.ReviewNote}",
+            Type = "Partner"
+        });
 return Ok(new { success = true, message = "Da tu choi doi tac." });
     }
 
@@ -610,6 +653,13 @@ return Ok(new { success = true, message = "Da tu choi doi tac." });
         profile.ReviewNote = request.ReviewNote.Trim();
         profile.ReviewedAt = DateTimeHelper.Now;
         await _context.SaveChangesAsync();
+        await _notificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = profile.UserId,
+            Title = "Can bo sung ho so partner",
+            Message = $"Admin yeu cau bo sung thong tin: {profile.ReviewNote}",
+            Type = "Partner"
+        });
 
         return Ok(new { success = true, message = "Da yeu cau doi tac bo sung thong tin." });
     }

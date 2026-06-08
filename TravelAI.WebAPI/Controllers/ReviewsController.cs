@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using TravelAI.Application.DTOs.Notification;
 using TravelAI.Application.DTOs.Review;
 using TravelAI.Application.Helpers;
 using TravelAI.Application.Interfaces;
@@ -18,11 +19,16 @@ public class ReviewsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly IAuditLogService _auditLogService;
+    private readonly INotificationService _notificationService;
 
-    public ReviewsController(ApplicationDbContext context, IAuditLogService auditLogService)
+    public ReviewsController(
+        ApplicationDbContext context,
+        IAuditLogService auditLogService,
+        INotificationService notificationService)
     {
         _context = context;
         _auditLogService = auditLogService;
+        _notificationService = notificationService;
     }
 
     [HttpPost]
@@ -86,6 +92,13 @@ public class ReviewsController : ControllerBase
         }
 
         await RecalculateRatingAsync(request.ServiceId);
+        await _notificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = service.PartnerId,
+            Title = "Co danh gia moi",
+            Message = $"Dich vu {service.Name} vua nhan danh gia {request.Rating}/5.",
+            Type = "Review"
+        });
 
         return Ok(new { success = true, message = "Da gui danh gia thanh cong." });
     }

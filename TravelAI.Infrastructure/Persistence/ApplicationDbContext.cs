@@ -26,9 +26,11 @@ public class ApplicationDbContext : DbContext {
     public DbSet<BookingItem> BookingItems => Set<BookingItem>();
     public DbSet<CartItem> CartItems => Set<CartItem>();
     public DbSet<Payment> Payments => Set<Payment>();
+    public DbSet<ElectronicTicket> ElectronicTickets => Set<ElectronicTicket>();
     public DbSet<Refund> Refunds => Set<Refund>();
     public DbSet<Review> Reviews => Set<Review>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<Notification> Notifications => Set<Notification>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder) {
         base.OnModelCreating(modelBuilder);

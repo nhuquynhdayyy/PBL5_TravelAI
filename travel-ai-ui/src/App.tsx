@@ -31,10 +31,12 @@ import DestinationDetail from './pages/DestinationDetail';
 import Destinations from './pages/Destinations';
 import SpotList from './pages/Destinations/SpotList';
 import Home from './pages/Home';
+import Notifications from './pages/Notifications';
 import UserPreferences from './pages/Preferences/UserPreferences';
 import Timeline from './pages/Planner/Timeline';
 import CreateItinerary from './pages/Planner/CreateItinerary';
 import Profile from './pages/Profile/Profile';
+import PublicETicket from './pages/PublicETicket';
 import ManageAvailability from './pages/partner/ManageAvailability';
 import PartnerDashboard from './pages/partner/PartnerDashboard';
 import PartnerProfile from './pages/partner/PartnerProfile';
@@ -43,6 +45,7 @@ import PartnerOrders from './pages/partner/PartnerOrders';
 import PartnerOrderDetail from './pages/partner/PartnerOrderDetail';
 import PartnerReviews from './pages/partner/PartnerReviews';
 import ServiceConsole from './pages/partner/ServiceConsole';
+import TicketScanner from './pages/partner/TicketScanner';
 import ServiceDetail from './pages/ServiceDetail';
 import TransportDetail from './pages/TransportDetail';
 import Services from './pages/Services';
@@ -83,6 +86,7 @@ function App() {
         <Route path="/payment-result/:method" element={<MainLayout><PaymentResult /></MainLayout>} />
         <Route path="/mock-payment/:provider/:bookingId" element={<MainLayout><MockPayment /></MainLayout>} />
         <Route path="/booking-success/:bookingId" element={<MainLayout><BookingSuccess /></MainLayout>} />
+        <Route path="/e-ticket/:ticketCode" element={<MainLayout><PublicETicket /></MainLayout>} />
 
         <Route
           path="/my-bookings"
@@ -173,6 +177,14 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/partner/tickets/verify"
+          element={
+            <ProtectedRoute allowedRoles={['partner']}>
+              <MainLayout><TicketScanner /></MainLayout>
+            </ProtectedRoute>
+          }
+        />
 
         <Route
           path="/admin/stats"
@@ -246,8 +258,24 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/admin/tickets/verify"
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <MainLayout><TicketScanner /></MainLayout>
+            </ProtectedRoute>
+          }
+        />
 
         <Route path="/profile" element={<MainLayout><Profile /></MainLayout>} />
+        <Route
+          path="/notifications"
+          element={
+            <ProtectedRoute allowedRoles={['customer', 'partner', 'admin']}>
+              <MainLayout><Notifications /></MainLayout>
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/preferences"
           element={

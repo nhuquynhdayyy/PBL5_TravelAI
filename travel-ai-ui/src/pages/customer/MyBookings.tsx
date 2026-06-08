@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   CalendarDays,
   ClipboardList,
   CreditCard,
+  Download,
   Loader2,
   Package,
+  QrCode,
   Receipt,
   RefreshCw,
   X,
@@ -30,6 +32,27 @@ type CustomerBooking = {
   canCancel: boolean;
   cancelPolicy: string;
   cancellationReason?: string; // Lý do hủy đơn
+  tickets?: ElectronicTicket[];
+};
+
+type ElectronicTicket = {
+  ticketId: number;
+  ticketCode: string;
+  bookingId: number;
+  bookingItemId: number;
+  customerName: string;
+  serviceName: string;
+  serviceType: string;
+  bookingDate: string;
+  travelDate: string;
+  quantity: number;
+  totalAmount: number;
+  status: string;
+  qrPayloadJson: string;
+  qrImageBase64: string;
+  qrCodeBase64?: string;
+  createdAt: string;
+  usedAt?: string | null;
 };
 
 const statusMap: Record<number, { label: string; className: string }> = {
@@ -129,12 +152,19 @@ function getEstimatedRefundAmount(booking: CustomerBooking) {
     : 0;
 }
 
+function getTicketQrBase64(ticket: ElectronicTicket) {
+  return ticket.qrImageBase64 || ticket.qrCodeBase64 || '';
+}
+
 const MyBookings = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [bookings, setBookings] = useState<CustomerBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState<CustomerBooking | null>(null);
+  const [selectedTicket, setSelectedTicket] = useState<ElectronicTicket | null>(null);
   const [cancellingId, setCancellingId] = useState<number | null>(null);
+  const onlyTickets = searchParams.get('tickets') === '1';
 
   const fetchBookings = async () => {
     try {
@@ -155,7 +185,7 @@ const MyBookings = () => {
 
   // Lock body scroll when modal is open
   useEffect(() => {
-    if (selectedBooking) {
+    if (selectedBooking || selectedTicket) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
@@ -165,10 +195,13 @@ const MyBookings = () => {
     return () => {
       document.body.style.overflow = 'unset';
     };
-  }, [selectedBooking]);
+  }, [selectedBooking, selectedTicket]);
 
   const pendingBookings = bookings.filter((booking) => resolveStatusKey(booking.status) === 1).length;
   const paidBookings = bookings.filter((booking) => resolveStatusKey(booking.status) === 2).length;
+  const displayedBookings = onlyTickets
+    ? bookings.filter((booking) => (booking.tickets?.length ?? 0) > 0)
+    : bookings;
 
   const updateBooking = (bookingId: number, changes: Partial<CustomerBooking>) => {
     setBookings((current) =>
@@ -218,6 +251,19 @@ const MyBookings = () => {
     } finally {
       setCancellingId(null);
     }
+  };
+
+  const downloadTicketQr = (ticket: ElectronicTicket) => {
+    const qrBase64 = getTicketQrBase64(ticket);
+    if (!qrBase64) {
+      alert('Khong tim thay anh QR cua ve nay.');
+      return;
+    }
+
+    const link = document.createElement('a');
+    link.href = `data:image/png;base64,${qrBase64}`;
+    link.download = `${ticket.ticketCode}.png`;
+    link.click();
   };
 
   return (
@@ -285,9 +331,9 @@ const MyBookings = () => {
         <div className="flex justify-center py-32">
           <Loader2 className="animate-spin text-blue-600" size={48} />
         </div>
-      ) : bookings.length > 0 ? (
+      ) : displayedBookings.length > 0 ? (
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-          {bookings.map((booking) => {
+          {displayedBookings.map((booking) => {
             const status = getStatusMeta(booking.status);
             const canCancel = canCancelBooking(booking);
             const isCancelling = cancellingId === booking.bookingId;
@@ -358,6 +404,41 @@ const MyBookings = () => {
                   </div>
                 )}
 
+                {booking.tickets && booking.tickets.length > 0 && (
+                  <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/40 p-4">
+                    <div className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-blue-600">
+                      <QrCode size={14} />
+                      Ve dien tu
+                    </div>
+                    <div className="space-y-3">
+                      {booking.tickets.map((ticket) => (
+                        <div
+                          key={ticket.ticketId}
+                          className="flex flex-col gap-3 rounded-xl bg-white p-3 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-black text-slate-900">{ticket.ticketCode}</p>
+                            <p className="truncate text-xs font-bold text-slate-500">{ticket.serviceName}</p>
+                            <p className="mt-1 text-[11px] font-bold text-slate-500">
+                              {formatVietnameseDate(ticket.travelDate)} · {ticket.status}
+                            </p>
+                          </div>
+                          <button
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setSelectedTicket(ticket);
+                            }}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white hover:bg-blue-700"
+                          >
+                            <QrCode size={14} />
+                            Xem QR
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
                   <span className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
                     Bam vao the de xem chi tiet
@@ -384,9 +465,13 @@ const MyBookings = () => {
           <div className="mx-auto mb-5 flex size-16 items-center justify-center rounded-3xl bg-white text-blue-500 shadow-sm">
             <ClipboardList size={30} />
           </div>
-          <h2 className="mb-3 text-2xl font-black text-slate-900">Chua co booking nao</h2>
+          <h2 className="mb-3 text-2xl font-black text-slate-900">
+            {onlyTickets ? 'Chua co ve dien tu nao' : 'Chua co booking nao'}
+          </h2>
           <p className="mx-auto max-w-md font-medium text-slate-500">
-            Sau khi dat dich vu, lich su booking se xuat hien tai day de ban theo doi.
+            {onlyTickets
+              ? 'Sau khi thanh toan thanh cong, ve dien tu se xuat hien tai day.'
+              : 'Sau khi dat dich vu, lich su booking se xuat hien tai day de ban theo doi.'}
           </p>
           <button
             onClick={() => navigate('/services')}
@@ -491,6 +576,33 @@ const MyBookings = () => {
               </div>
             )}
 
+            {selectedBooking.tickets && selectedBooking.tickets.length > 0 && (
+              <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5">
+                <div className="mb-4 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                  <QrCode size={16} className="text-blue-500" />
+                  E-ticket QR
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {selectedBooking.tickets.map((ticket) => (
+                    <div key={ticket.ticketId} className="rounded-2xl bg-slate-50 p-4">
+                      <img
+                        src={`data:image/png;base64,${ticket.qrImageBase64}`}
+                        alt={`QR ${ticket.ticketCode}`}
+                        className="mx-auto size-44 rounded-xl bg-white p-2"
+                      />
+                      <div className="mt-3 text-center">
+                        <p className="font-black text-slate-900">{ticket.ticketCode}</p>
+                        <p className="text-xs font-bold text-slate-500">{ticket.serviceName}</p>
+                        <span className="mt-2 inline-flex rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-black uppercase text-emerald-700">
+                          {ticket.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Hiển thị lý do hủy trong modal chi tiết - CHỈ nếu có lý do từ customer */}
             {resolveStatusKey(selectedBooking.status) === 4 && selectedBooking.cancellationReason && 
              selectedBooking.cancellationReason !== "Quá hạn duyệt" && (
@@ -523,6 +635,78 @@ const MyBookings = () => {
               )}
               <button
                 onClick={() => setSelectedBooking(null)}
+                className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-black text-white transition-all hover:bg-black"
+              >
+                Dong
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedTicket && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 px-4 py-8"
+          onClick={() => setSelectedTicket(null)}
+        >
+          <div
+            className="w-full max-w-lg rounded-[2rem] bg-white p-6 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-blue-600">
+                  {selectedTicket.ticketCode}
+                </div>
+                <h2 className="text-2xl font-black leading-tight text-slate-900">
+                  {selectedTicket.serviceName}
+                </h2>
+              </div>
+              <button
+                onClick={() => setSelectedTicket(null)}
+                className="rounded-2xl bg-slate-100 p-3 text-slate-500 transition-all hover:bg-slate-200"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="rounded-2xl bg-slate-50 p-5 text-center">
+              <img
+                src={`data:image/png;base64,${getTicketQrBase64(selectedTicket)}`}
+                alt={`QR ${selectedTicket.ticketCode}`}
+                className="mx-auto size-64 rounded-xl bg-white p-3 shadow-sm"
+              />
+            </div>
+
+            <div className="mt-5 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Trang thai</p>
+                <p className="mt-1 font-black text-slate-800">{selectedTicket.status}</p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Ngay su dung</p>
+                <p className="mt-1 font-black text-slate-800">{formatVietnameseDate(selectedTicket.travelDate)}</p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Khach hang</p>
+                <p className="mt-1 font-black text-slate-800">{selectedTicket.customerName}</p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">So luong</p>
+                <p className="mt-1 font-black text-slate-800">{selectedTicket.quantity}</p>
+              </div>
+            </div>
+
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <button
+                onClick={() => downloadTicketQr(selectedTicket)}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white hover:bg-blue-700"
+              >
+                <Download size={18} />
+                Tai anh QR
+              </button>
+              <button
+                onClick={() => setSelectedTicket(null)}
                 className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-black text-white transition-all hover:bg-black"
               >
                 Dong

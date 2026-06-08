@@ -1,3 +1,5 @@
+using TravelAI.Application.DTOs.Ticket;
+
 namespace TravelAI.Application.DTOs.Booking;
 
 public class BookingDetailResponse
@@ -15,4 +17,5 @@ public class BookingDetailResponse
     public bool CanCancel { get; set; }
     public string CancelPolicy { get; set; } = string.Empty;
     public string? CancellationReason { get; set; } // Lý do hủy đơn (từ Refund.Reason hoặc mặc định)
+    public IReadOnlyList<ElectronicTicketDto> Tickets { get; set; } = Array.Empty<ElectronicTicketDto>();
 }

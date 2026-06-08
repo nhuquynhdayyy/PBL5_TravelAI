@@ -11,6 +11,7 @@ const PaymentResult = () => {
   const [success, setSuccess] = useState(false);
   const [message, setMessage] = useState('Dang xac thuc ket qua thanh toan...');
   const [bookingId, setBookingId] = useState<string | null>(null);
+  const successMessage = 'Thanh toán thành công. Vé điện tử đã được phát hành.';
 
   const normalizedMethod = useMemo(() => method.toLowerCase(), [method]);
 
@@ -30,7 +31,7 @@ const PaymentResult = () => {
 
         setSuccess(Boolean(res.data.success));
         setBookingId(res.data.bookingId ? String(res.data.bookingId) : null);
-        setMessage(res.data.message || 'Da xu ly ket qua thanh toan.');
+        setMessage(res.data.success ? successMessage : res.data.message || 'Da xu ly ket qua thanh toan.');
 
         if (res.data.success) {
           const paidBookingId = res.data.bookingId ? String(res.data.bookingId) : null;
@@ -38,7 +39,7 @@ const PaymentResult = () => {
             () =>
               navigate(
                 paidBookingId
-                  ? `/booking-success/${paidBookingId}?paymentStatus=success&message=${encodeURIComponent(res.data.message || 'Thanh toan thanh cong')}`
+                  ? `/booking-success/${paidBookingId}?paymentStatus=success&message=${encodeURIComponent(successMessage)}`
                   : '/my-bookings'
               ),
             2000

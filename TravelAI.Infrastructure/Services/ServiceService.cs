@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using TravelAI.Application.DTOs.Notification;
 using TravelAI.Application.DTOs.Service;
 using TravelAI.Application.Interfaces;
 using TravelAI.Domain.Entities;
@@ -30,11 +31,16 @@ public class ServiceService : IServiceService
 
     private readonly ApplicationDbContext _context;
     private readonly TravelAI.Infrastructure.ExternalServices.GeminiService _geminiService;
+    private readonly INotificationService _notificationService;
 
-    public ServiceService(ApplicationDbContext context, TravelAI.Infrastructure.ExternalServices.GeminiService geminiService)
+    public ServiceService(
+        ApplicationDbContext context,
+        TravelAI.Infrastructure.ExternalServices.GeminiService geminiService,
+        INotificationService notificationService)
     {
         _context = context;
         _geminiService = geminiService;
+        _notificationService = notificationService;
     }
 
     public async Task<IEnumerable<ServiceDto>> GetAllAsync(int? type)
@@ -85,7 +91,19 @@ public class ServiceService : IServiceService
         }
 
         service.IsActive = true;
-        return await _context.SaveChangesAsync() > 0;
+        var success = await _context.SaveChangesAsync() > 0;
+        if (success)
+        {
+            await _notificationService.CreateAsync(new CreateNotificationRequest
+            {
+                UserId = service.PartnerId,
+                Title = "Dich vu da duoc duyet",
+                Message = $"Dich vu {service.Name} da duoc Admin phe duyet.",
+                Type = "Partner"
+            });
+        }
+
+        return success;
     }
 
     public async Task<bool> RejectAsync(int id, string reason, int adminUserId)
@@ -105,7 +123,19 @@ RecordId = service.ServiceId,
             Action = BuildRejectAuditMessage(reason)
         });
 
-        return await _context.SaveChangesAsync() > 0;
+        var success = await _context.SaveChangesAsync() > 0;
+        if (success)
+        {
+            await _notificationService.CreateAsync(new CreateNotificationRequest
+            {
+                UserId = service.PartnerId,
+                Title = "Dich vu bi tu choi",
+                Message = $"Dich vu {service.Name} bi tu choi. Ly do: {reason}",
+                Type = "Partner"
+            });
+        }
+
+        return success;
     }
 
     public async Task<bool> ToggleStatusAsync(int id)
@@ -170,6 +200,17 @@ public async Task<ServiceDto> CreateAsync(int partnerId, CreateServiceRequest re
 
         _context.Services.Add(service);
         await _context.SaveChangesAsync();
+        await _notificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = partnerId,
+            Title = "Da tao tour moi",
+            Message = $"Dich vu {service.Name} da duoc gui va dang cho Admin duyet.",
+            Type = "Partner"
+        });
+        await _notificationService.NotifyAdminsAsync(
+            "Partner tao tour moi",
+            $"Partner vua tao dich vu {service.Name} va can duyet.",
+            "Partner");
 
         var createdService = await BuildServiceQuery()
             .FirstAsync(s => s.ServiceId == service.ServiceId);

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TravelAI.Application.DTOs.Notification;
 using TravelAI.Application.Helpers;
 using TravelAI.Application.Interfaces;
 using TravelAI.Domain.Entities;
@@ -11,11 +12,16 @@ public class PartnerOrderService : IPartnerOrderService
 {
     private readonly ApplicationDbContext _context;
     private readonly IEmailService _emailService;
+    private readonly INotificationService _notificationService;
 
-    public PartnerOrderService(ApplicationDbContext context, IEmailService emailService)
+    public PartnerOrderService(
+        ApplicationDbContext context,
+        IEmailService emailService,
+        INotificationService notificationService)
     {
         _context = context;
         _emailService = emailService;
+        _notificationService = notificationService;
     }
 
     public async Task<bool> ApproveOrderAsync(int bookingId, int partnerId)
@@ -79,6 +85,13 @@ public class PartnerOrderService : IPartnerOrderService
                 booking.User.FullName,
                 bookingId,
                 firstService.Name);
+            await _notificationService.CreateAsync(new CreateNotificationRequest
+            {
+                UserId = booking.UserId,
+                Title = "Don dat tour da duoc xac nhan",
+                Message = $"Partner da xac nhan don #{bookingId} cho dich vu {firstService.Name}.",
+                Type = "Booking"
+            });
         }
 
         return true;
@@ -159,6 +172,13 @@ public class PartnerOrderService : IPartnerOrderService
                 bookingId,
                 firstService.Name,
                 reason);
+            await _notificationService.CreateAsync(new CreateNotificationRequest
+            {
+                UserId = booking.UserId,
+                Title = "Don dat tour bi tu choi",
+                Message = $"Partner da tu choi don #{bookingId} cho dich vu {firstService.Name}. Ly do: {reason}",
+                Type = "Booking"
+            });
         }
 
         await _context.SaveChangesAsync();
