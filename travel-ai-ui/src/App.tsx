@@ -33,6 +33,7 @@ import SpotList from './pages/Destinations/SpotList';
 import Home from './pages/Home';
 import UserPreferences from './pages/Preferences/UserPreferences';
 import Timeline from './pages/Planner/Timeline';
+import CreateItinerary from './pages/Planner/CreateItinerary';
 import Profile from './pages/Profile/Profile';
 import ManageAvailability from './pages/partner/ManageAvailability';
 import PartnerDashboard from './pages/partner/PartnerDashboard';
@@ -257,6 +258,7 @@ function App() {
         />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/planner/create" element={<MainLayout><CreateItinerary /></MainLayout>} />
         <Route path="/planner" element={<MainLayout><Timeline /></MainLayout>} />
         <Route path="/itinerary/latest" element={<MainLayout><Timeline /></MainLayout>} />
         <Route path="/itinerary/:id" element={<MainLayout><Timeline /></MainLayout>} />

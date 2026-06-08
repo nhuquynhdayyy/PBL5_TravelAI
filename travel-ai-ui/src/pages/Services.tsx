@@ -120,7 +120,7 @@ const Services: React.FC<ServicesProps> = ({ defaultType = '' }) => {
       case 'Tour':
         return 'Tour du lịch';
       case 'Transport':
-        return 'Thuê xe';
+        return 'Di chuyển';
       default:
         return 'Dịch vụ TravelAI';
     }
@@ -142,7 +142,7 @@ const Services: React.FC<ServicesProps> = ({ defaultType = '' }) => {
       <div className="mx-auto max-w-[1500px] px-4 py-10 sm:px-6 lg:px-8">
         <div className="mb-8">
           <p className="mb-2 text-xs font-black uppercase tracking-[0.28em] text-teal-600">
-            Services
+            Dịch vụ
           </p>
           <h1 className="text-4xl font-black tracking-tight text-slate-950 md:text-5xl">
             {pageTitle}

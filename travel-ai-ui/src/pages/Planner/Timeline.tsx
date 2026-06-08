@@ -61,16 +61,25 @@ const EmptyItinerary = ({ onExplore }: { onExplore: () => void }) => (
     <div>
       <h2 className="text-3xl font-black text-slate-900">Chưa có lịch trình nào</h2>
       <p className="mt-2 max-w-md text-sm font-medium leading-6 text-slate-500">
-        Hãy chọn một điểm đến hoặc mở lại lịch trình đã lưu để TravelAI hiển thị timeline và bản đồ lộ trình.
+        Hãy tạo lịch trình mới với AI hoặc khám phá các điểm đến để bắt đầu.
       </p>
     </div>
-    <button
-      type="button"
-      onClick={onExplore}
-      className="rounded-2xl bg-[#0061ff] px-7 py-4 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700"
-    >
-      Khám phá điểm đến
-    </button>
+    <div className="flex gap-3">
+      <button
+        type="button"
+        onClick={() => window.location.href = '/planner/create'}
+        className="rounded-2xl bg-[#0061ff] px-7 py-4 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700"
+      >
+        Tạo lịch trình với AI
+      </button>
+      <button
+        type="button"
+        onClick={onExplore}
+        className="rounded-2xl bg-slate-100 px-7 py-4 text-sm font-black text-slate-700 transition hover:bg-slate-200"
+      >
+        Khám phá điểm đến
+      </button>
+    </div>
   </div>
 );
 
@@ -113,7 +122,7 @@ const SavedTripsPanel = ({
         </h2>
         <button
           type="button"
-          onClick={onExplore}
+          onClick={() => window.location.href = '/planner/create'}
           className="rounded-2xl bg-[#0061ff] px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700"
         >
           Tạo lịch trình mới
@@ -223,8 +232,14 @@ const Timeline: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    console.log('🔍 Timeline useEffect triggered');
+    console.log('  - stateData:', stateData);
+    console.log('  - routeItineraryId:', routeItineraryId);
+    
     if (stateData) {
+      console.log('✅ Found stateData, normalizing...');
       const normalized = normalizeItinerary(stateData);
+      console.log('📋 Normalized itinerary:', normalized);
       setItinerary(normalized);
       setActiveDay(normalized.days[0]?.day || 1);
       setLoading(false);
@@ -232,10 +247,12 @@ const Timeline: React.FC = () => {
     }
 
     if (routeItineraryId) {
+      console.log('🔄 Fetching itinerary by ID:', routeItineraryId);
       fetchItineraryById(routeItineraryId);
       return;
     }
 
+    console.log('📂 Fetching saved trips...');
     fetchSavedTrips();
   }, [fetchItineraryById, fetchSavedTrips, routeItineraryId, stateData]);
 

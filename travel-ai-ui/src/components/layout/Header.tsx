@@ -62,8 +62,8 @@ const Header: React.FC = () => {
           <nav className="hidden md:flex space-x-8 items-center">
             {role !== 'partner' && role !== 'admin' && (
               <>
-                <Link to="/" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all">Home</Link>
-                <Link to="/destinations" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all">Destinations</Link>
+                <Link to="/" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all">Trang chủ</Link>
+                <Link to="/destinations" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all">Điểm đến</Link>
                 
                 {/* DROPDOWN SERVICES */}
                 <div 
@@ -72,7 +72,7 @@ const Header: React.FC = () => {
                     onMouseLeave={() => setIsServicesOpen(false)}
                 >
                     <button className="flex items-center gap-1 text-slate-600 hover:text-blue-500 font-medium text-sm transition-all outline-none">
-                        Services <ChevronDown size={14} className={`transition-transform duration-300 ${isServicesOpen ? 'rotate-180' : ''}`} />
+                        Dịch vụ <ChevronDown size={14} className={`transition-transform duration-300 ${isServicesOpen ? 'rotate-180' : ''}`} />
                     </button>
 
                     {isServicesOpen && (
@@ -100,8 +100,8 @@ const Header: React.FC = () => {
                                     <Plane size={20} />
                                 </div>
                                 <div className="text-left">
-                                    <p className="text-sm font-black text-slate-800">Vé xe & Máy bay</p>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Di chuyển tiện lợi</p>
+                                    <p className="text-sm font-black text-slate-800">Di chuyển</p>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Tiện lợi, dễ dàng</p>
                                 </div>
                             </Link>
                         </div>
@@ -113,7 +113,7 @@ const Header: React.FC = () => {
                   <span>Gợi ý AI</span>
                 </Link>
 
-                <Link to="/planner" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all">Itinerary</Link>
+                <Link to="/planner" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all">Lịch trình</Link>
                 <Link to="/cart" className="relative text-slate-600 hover:text-blue-500 font-medium text-sm transition-all">
                   Giỏ hàng
                   {items.length > 0 && (

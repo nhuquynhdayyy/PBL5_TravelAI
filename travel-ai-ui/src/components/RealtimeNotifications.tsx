@@ -59,7 +59,13 @@ const RealtimeNotifications = () => {
 
     connection
       .start()
-      .catch((error) => console.error('SignalR connection failed', error));
+      .then(() => {
+        console.log('✅ SignalR connected successfully');
+      })
+      .catch((error) => {
+        console.warn('⚠️ SignalR connection failed (this is optional):', error.message);
+        // SignalR is for real-time notifications only, not critical for app functionality
+      });
 
     return () => {
       if (connection.state !== HubConnectionState.Disconnected) {
