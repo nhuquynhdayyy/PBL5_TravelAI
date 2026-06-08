@@ -5,6 +5,7 @@ public class ItineraryItem {
     public int ItineraryId { get; set; }
     public int? ServiceId { get; set; }
     public int? SpotId { get; set; }
+    public string? CustomTitle { get; set; }
     public DateTime StartTime { get; set; }
     public DateTime EndTime { get; set; }
     public int ActivityOrder { get; set; }

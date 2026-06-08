@@ -291,6 +291,10 @@ namespace TravelAI.Infrastructure.Migrations
                     b.Property<int>("ActivityOrder")
                         .HasColumnType("int");
 
+                    b.Property<string>("CustomTitle")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
                     b.Property<DateTime>("EndTime")
                         .HasColumnType("datetime2");
 

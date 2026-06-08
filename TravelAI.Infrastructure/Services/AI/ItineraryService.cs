@@ -326,6 +326,7 @@ public class ItineraryService : IItineraryService
                         ItineraryId = itinerary.ItineraryId,
                         SpotId = spot?.SpotId,
                         ServiceId = service?.ServiceId,
+                        CustomTitle = (service == null && spot == null) ? activity.Title : null,
                         StartTime = startTime,
                         EndTime = endTime,
                         ActivityOrder = order++
@@ -821,7 +822,7 @@ public class ItineraryService : IItineraryService
 
         return new ActivityDto
         {
-            Title = service?.Name ?? spot?.Name ?? $"Activity {item.ActivityOrder.ToString(CultureInfo.InvariantCulture)}",
+            Title = service?.Name ?? spot?.Name ?? item.CustomTitle ?? "Hoạt động tự do",
             Location = spot?.Name ?? service?.Name ?? "Custom activity",
             Description = service?.Description ?? spot?.Description ?? "No description available.",
             Duration = FormatDuration(durationMinutes, service?.ServiceType),

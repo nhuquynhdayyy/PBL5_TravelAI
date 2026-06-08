@@ -466,8 +466,8 @@ const Timeline: React.FC = () => {
       setSaving(true);
       const response = await axiosClient.post('/itinerary/save', itinerary.raw);
       if (response.data?.success || response.data?.data) {
-        alert("Lịch trình đã được lưu vào mục 'Chuyến đi của tôi'.");
-        navigate('/profile');
+        alert("Lịch trình đã được lưu thành công!");
+        navigate('/planner');
       }
     } catch (saveError) {
       console.error(saveError);
