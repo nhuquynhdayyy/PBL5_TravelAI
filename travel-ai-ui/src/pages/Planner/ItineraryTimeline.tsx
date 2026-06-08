@@ -147,6 +147,7 @@ const ItineraryTimeline = ({ days, activeDay, onActiveDayChange, onBook, onActiv
                   activity={activity}
                   isRecommended={activity.serviceId !== null}
                   onBook={onBook}
+                  onActivityClick={onActivityClick}
                 />
               );
             }

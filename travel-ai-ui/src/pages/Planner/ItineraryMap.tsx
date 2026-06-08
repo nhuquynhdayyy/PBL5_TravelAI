@@ -116,16 +116,23 @@ const FitBounds = ({ points }: { points: LatLngTuple[] }) => {
   return null;
 };
 
-const FlyTo = ({ target }: { target: LatLngTuple | null }) => {
+const FlyTo = ({ target, activityId }: { target: LatLngTuple | null; activityId?: string | null }) => {
   const map = useMap();
-  const prev = useRef<string>('');
+  // Dedup by activityId (not coords) so clicking the same spot twice still flies
+  const prevId = useRef<string>('');
   useEffect(() => {
     if (!target) return;
-    const key = target.join(',');
-    if (key === prev.current) return;
-    prev.current = key;
+    // Use activityId as the dedup key; fall back to coords string if no id
+    const key = activityId ?? target.join(',');
+    console.log(`🗺️ FlyTo triggered — id="${key}" coords=${target} (prev="${prevId.current}")`);
+    if (key === prevId.current) {
+      console.log('🗺️ FlyTo skipped — same key as previous');
+      return;
+    }
+    prevId.current = key;
+    console.log(`🗺️ FlyTo executing flyTo(${target}, zoom=16)`);
     map.flyTo(target, 16, { duration: 1.3, easeLinearity: 0.3 });
-  }, [map, target]);
+  }, [map, target, activityId]);
   return null;
 };
 
@@ -237,10 +244,34 @@ const ItineraryMap = ({ days, activeDay, focusedActivity }: Props) => {
   // Stable initial center — will be overridden by FitBounds immediately
   const initCenter: LatLngTuple = allPoints[0] ?? [16.0471, 108.2068];
 
+  // ── Resolve focusedActivity coords from enrichedDays ───────────────────────
+  // The focusedActivity passed in may have null/0 coords if backend didn't provide them.
+  // We look up the same activity in enrichedDays (which may have geocoded coords) by id.
+  const resolvedFocusedActivity = useMemo(() => {
+    if (!focusedActivity) return null;
+    for (const day of enrichedDays) {
+      const found = day.activities.find((a) => a.id === focusedActivity.id);
+      if (found) return found;
+    }
+    // Fallback to original if not found in enriched
+    return focusedActivity;
+  }, [focusedActivity, enrichedDays]);
+
   const focusedPos: LatLngTuple | null = useMemo(() => {
-    if (!focusedActivity || !hasCoord(focusedActivity)) return null;
-    return [focusedActivity.latitude as number, focusedActivity.longitude as number];
-  }, [focusedActivity]);
+    if (!resolvedFocusedActivity) return null;
+    const lat = resolvedFocusedActivity.latitude;
+    const lng = resolvedFocusedActivity.longitude;
+    console.log(
+      `🎯 focusedActivity changed → "${resolvedFocusedActivity.title}" ` +
+      `id=${resolvedFocusedActivity.id} lat=${lat} lng=${lng} ` +
+      `valid=${hasCoord(resolvedFocusedActivity)}`
+    );
+    if (!hasCoord(resolvedFocusedActivity)) {
+      console.warn(`⚠️ Activity "${resolvedFocusedActivity.title}" has invalid/zero coords (${lat}, ${lng}) — FlyTo will be skipped`);
+      return null;
+    }
+    return [lat as number, lng as number];
+  }, [resolvedFocusedActivity]);
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
@@ -301,7 +332,7 @@ const ItineraryMap = ({ days, activeDay, focusedActivity }: Props) => {
 
               {/* Re-fits every time coordinates actually change */}
               <FitBounds points={allPoints} />
-              <FlyTo target={focusedPos} />
+              <FlyTo target={focusedPos} activityId={resolvedFocusedActivity?.id} />
 
               {daysWithPoints.map(({ day, dayIdx, points }) => {
                 const color = DAY_COLORS[dayIdx % DAY_COLORS.length];
@@ -322,7 +353,7 @@ const ItineraryMap = ({ days, activeDay, focusedActivity }: Props) => {
                     )}
 
                     {points.map(({ activity, position }, idx) => {
-                      const isFocused = focusedActivity?.id === activity.id;
+                      const isFocused = resolvedFocusedActivity?.id === activity.id;
                       const active = isActive || isFocused;
                       const size = active ? 40 : 32;
 

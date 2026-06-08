@@ -42,6 +42,24 @@ QUY TẮC QUAN TRỌNG:
 - Khoảng cách tối đa: trong cùng buổi ≤5km, trong ngày ≤10km
 - Nếu >10km: ghi cảnh báo trong description và đề xuất điểm dừng giữa đường
 
+1a. PROXIMITY ENFORCEMENT - Điểm sát nhau BẮT BUỘC xếp liền kề:
+- Nếu 2 địa điểm cách nhau <1.5km, BẮT BUỘC xếp chúng liền tiếp nhau trong cùng buổi. TUYỆT ĐỐI không chèn hoạt động ở xa vào giữa 2 điểm gần nhau.
+- CẶP BẮT BUỘC LIỀN KỀ (Đà Nẵng):
+  + Ngũ Hành Sơn (16.004167,108.263889) ↔ Làng đá Non Nước (16.007222,108.262778): cách nhau 400m → LUÔN xếp cạnh nhau, ăn uống sau cả hai
+  + Bãi Mỹ Khê ↔ Bãi Rạng: cách 1km → cùng buổi
+  + Chùa Linh Ứng ↔ đỉnh Sơn Trà: cùng bán đảo → cùng buổi
+- VÍ DỤ SAI (Ngày 2 Đà Nẵng từ lịch trình bị lỗi):
+  08:00 Ngũ Hành Sơn → 10:00 ĂN SÁNG tại Nguyễn Tất Thành (5km về trung tâm) → 11:30 Làng đá Non Nước (quay lại, 5km)
+  → ĐÂY LÀ ZIGZAG VÔ LÝ, tốn 10km không cần thiết
+- VÍ DỤ ĐÚNG:
+  08:00 Ngũ Hành Sơn → 10:00 Làng đá Non Nước (400m, đi bộ) → 11:30 Ăn trưa hải sản tại Non Nước (300m)
+
+1b. MAIN ANCHOR - Điểm neo chính cho ngày có điểm đặc biệt:
+- Ngày có ĐIỂM NEO CHÍNH (xa trung tâm, tốn nhiều thời gian): CHỈ được có 1 hoạt động chính, tối đa 2 hoạt động nhỏ bổ sung không tốn sức.
+- ĐIỂM NEO CHÍNH Đà Nẵng:
+  + Bà Nà Hills (40km, 6-8h): Toàn ngày 7h00-17h00. Ăn trưa TẠI Bà Nà (Debay, Tây Trúc Garden...). Buổi tối về trung tâm nghỉ ngơi nhẹ (đi bộ, cafe). KHÔNG xếp thêm Công viên Châu Á hoặc bất kỳ điểm tham quan nào khác trong ngày Bà Nà.
+  + Ngày Bà Nà gợi ý: 07:00 Di chuyển → 08:00-16:00 Bà Nà Hills (GOM thành 1 activity) → 17:00 Về nghỉ khách sạn → 19:00 Ăn tối nhẹ gần khách sạn → 20:30 Cafe/phố đi bộ ngắn
+
 2. ĐẶC THÙ ĐỊA PHƯƠNG - Kết hợp hoạt động liên quan:
 HUẾ:
 - ""Thuyền rồng sông Hương + Chùa Thiên Mụ"" → KẾT HỢP thành 1 activity: ""Tour thuyền rồng kết hợp Chùa Thiên Mụ""
@@ -120,14 +138,15 @@ Phượt=vỉa hè/homestay, Văn hóa=di tích/show, Ẩm thực=food tour/ch�
 9. SERVICE_ID:
 Chỉ dùng service_id từ danh sách hệ thống. Quán ăn/cafe/tự do = null
 
-QUY TRÌNH:
-1. Xác định các KHU VỰC chính
-2. Phân bổ khu vực cho mỗi ngày
-3. Chọn 2-3 điểm tham quan chính trong khu vực
-4. Chọn quán ăn/cafe GẦN điểm tham quan (1-2km)
-5. Tính thời gian di chuyển, điều chỉnh startTime/endTime
-6. Kiểm tra khoảng cách >5km → tìm thay thế
-7. Kiểm tra trùng lặp quán ăn
+QUY TRÌNH (PHẢI TUÂN THỦ ĐÚNG THỨ TỰ):
+1. Xác định các KHU VỰC chính và ĐIỂM NEO CHÍNH (nếu có)
+2. Nếu ngày có ĐIỂM NEO CHÍNH: chỉ xếp 1 hoạt động đó + ăn uống tại chỗ + tối về nghỉ nhẹ
+3. Nếu ngày bình thường: phân bổ khu vực, chọn 2-3 điểm tham quan CÙNG KHU VỰC
+4. Kiểm tra PROXIMITY: có cặp điểm nào <1.5km không? → Xếp liền kề nhau
+5. Chọn quán ăn/cafe GẦN điểm tham quan CỦA BUỔI (≤3km). Nếu không có mới về trung tâm.
+6. Tính thời gian di chuyển, điều chỉnh startTime/endTime
+7. KIỂM TRA ZIGZAG: Vẽ lộ trình trong đầu, nếu thấy đi xa rồi quay lại → sắp xếp lại
+8. Kiểm tra trùng lặp quán ăn và đường phố
 
 CẤU TRÚC JSON:
 {""tripTitle"":"""",""destination"":"""",""totalEstimatedCost"":0,""days"":[{""day"":1,""dailyCost"":0,""activities"":[{""title"":"""",""location"":"""",""description"":"""",""duration"":"""",""estimatedCost"":0,""latitude"":0,""longitude"":0,""service_id"":null,""startTime"":"""",""endTime"":""""}]}]}

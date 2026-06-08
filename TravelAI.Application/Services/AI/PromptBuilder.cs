@@ -124,6 +124,26 @@ public class PromptBuilder
         prompt.AppendLine("7. Chi su dung cac dia danh co gio mo cua phu hop voi lich trinh du kien.");
         prompt.AppendLine("8. Neu tra ve bat ky danh sach dich vu goi y nao trong JSON, moi object dich vu BAT BUOC co field \"service_id\" bang ID that tu danh sach DICH VU HE THONG; neu khong tim thay ID hop le thi de \"service_id\": null va khong bia ID.");
         prompt.AppendLine();
+        prompt.AppendLine("### UU TIEN SO THICH TUYET DOI (STRICT PREFERENCE):");
+        prompt.AppendLine("- Neu nguoi dung da nhac den mot dia diem CU THE trong yeu cau ca nhan (vi du: 'Trinh Ca Phe', 'Bana Hills', 'Hoi An Ancient Town'...), dia diem do BAT BUOC phai xuat hien trong lich trinh.");
+        prompt.AppendLine("- KHONG duoc thay the bang cac dia diem tuong tu hoac loai bo no. Day la rang buoc bat buoc, khong co ngoai le.");
+        prompt.AppendLine("- Neu can thiet, hay dieu chinh lich trinh cua cac ngay khac de dam bao dia diem yeu cau xuat hien.");
+        prompt.AppendLine();
+        prompt.AppendLine($"### SU KIEN DINH KY THEO LICH (CALENDAR-BASED EVENTS):");
+        prompt.AppendLine(BuildCalendarEvents(dest.Name, startDate, days));
+        prompt.AppendLine();
+        prompt.AppendLine("### TOI UU HOA CHECK-IN:");
+        prompt.AppendLine("- KHONG duoc danh 2 tieng lien tuc de check-in. Thay vao do:");
+        prompt.AppendLine("  * Buoi sang khi moi den: Ghi chep ngan gon 'gui hanh ly tai khach san' (15-20 phut) truoc khi di tham quan.");
+        prompt.AppendLine("  * Viec check-in chinh thuc chi nen duoc long ghep vao cuoi mot hoat dong buoi sang, hoac dat vao khoang nghi trua (12:00-14:00).");
+        prompt.AppendLine("  * Cai thien thoi gian tham quan bang cach tranh xep check-in vao buoi sang som (8h-11h) vi day la khung gio vang de tham quan.");
+        prompt.AppendLine();
+        prompt.AppendLine("### THOI LUONG THUC TE (REALITY CHECK - BAT BUOC TUAN THU):");
+        prompt.AppendLine("- Ba Na Hills (Sun World): TOI THIEU 6 tieng (khuyen nghi 7-8 tieng). Khong duoc xep duoi 6 tieng.");
+        prompt.AppendLine("- Lang moc/Bao tang lich su/Di tich quoc gia: 1.5 den 2 tieng.");
+        prompt.AppendLine("- Lich trinh di chuyen KHONG duoc kieu 'nhay coc': Tranh xep qua 3 dia diem xa nhau trong cung mot buoi sang. Nhom cac dia diem gan nhau theo khu vuc dia ly de giam thoi gian di chuyen.");
+        prompt.AppendLine("- Thoi gian an uong thuc te: An sang 30-45 phut, an trua 60-90 phut, an toi 60-90 phut.");
+        prompt.AppendLine();
         prompt.AppendLine("### NGU CANH LICH SU:");
         prompt.AppendLine(historyLines);
         prompt.AppendLine();
@@ -325,6 +345,67 @@ public class PromptBuilder
         var lines = holidays.Select(h => $"- {h}");
         return string.Join("\n", lines)
             + "\n- Luu y: cac diem tham quan co the dong cua hoac tang gia vao ngay le. Uu tien goi y cac hoat dong phu hop voi khong khi le hoi.";
+    }
+
+    /// <summary>
+    /// Tạo hướng dẫn sự kiện định kỳ theo địa phương và lịch.
+    /// Ví dụ: Cầu Rồng phun lửa tại Đà Nẵng vào Thứ 6, Thứ 7, Chủ Nhật.
+    /// AI được yêu cầu tự tra cứu thêm các sự kiện định kỳ khác.
+    /// </summary>
+    private static string BuildCalendarEvents(string destinationName, DateTime startDate, int days)
+    {
+        var lines = new List<string>();
+        var normalizedDest = RemoveDiacritics(destinationName).ToLowerInvariant();
+
+        // Kiểm tra Đà Nẵng
+        if (normalizedDest.Contains("da nang", StringComparison.Ordinal)
+            || normalizedDest.Contains("danang", StringComparison.Ordinal))
+        {
+            var tripDays = Enumerable.Range(0, days).Select(offset => startDate.AddDays(offset)).ToList();
+            var dragonDays = tripDays
+                .Where(d => d.DayOfWeek is DayOfWeek.Friday or DayOfWeek.Saturday or DayOfWeek.Sunday)
+                .ToList();
+
+            if (dragonDays.Count > 0)
+            {
+                var dayLabels = dragonDays.Select(d => d.ToString("ddd dd/MM", System.Globalization.CultureInfo.InvariantCulture));
+                lines.Add("*** SU KIEN BAT BUOC - DA NANG ***");
+                lines.Add($"- Trong cac ngay trong lich trinh co: {string.Join(", ", dayLabels)} la Thu 6/7/CN.");
+                lines.Add("- BAT BUOC chen hoat dong 'Xem Cau Rong phun lua va phun nuoc' vao luc 21:00 cua (cac) ngay nay.");
+                lines.Add("- Cau Rong (Dragon Bridge) phun lua vao 21:00 moi Thu 7 va CN, phun nuoc vao 21:00 moi Thu 6.");
+                lines.Add("- Day la su kien mien phi, khong can dat truoc. Dia diem: Cau Rong, Song Han, Da Nang.");
+                lines.Add("- Du kien thoi gian: 30 phut. service_id = null.");
+            }
+            else
+            {
+                lines.Add("- Da Nang: Cau Rong phun lua vao 21:00 moi Thu 7 va CN, phun nuoc moi Thu 6. Lich trinh nay khong trung cac ngay do, nhung hay goi y du khach neu o lai.");
+            }
+        }
+
+        // Hội An
+        if (normalizedDest.Contains("hoi an", StringComparison.Ordinal)
+            || normalizedDest.Contains("hoian", StringComparison.Ordinal))
+        {
+            lines.Add("- Hoi An: Dem pho co lung den dien ra hang thang vao ngay 14 am lich (tat dien, thap den long). Hay kiem tra lich cu the va goi y neu trung lich trinh.");
+        }
+
+        // Huế
+        if (normalizedDest.Contains("hue", StringComparison.Ordinal)
+            && !normalizedDest.Contains("hung", StringComparison.Ordinal))
+        {
+            lines.Add("- Hue: Cac lang tang, bao tang thuong dong cua vao Thu 2. Hay kiem tra lich khi xep cac hoat dong tham quan lang tam vao dau tuan.");
+        }
+
+        if (lines.Count == 0)
+        {
+            lines.Add("- Hay tu tra cuu cac su kien dinh ky cua dia phuong trong lich trinh va tu dong goi y neu co su kien phu hop (vi du: le hoi dem, trien lam, bieu dien nghe thuat...).");
+        }
+        else
+        {
+            lines.Add("- Ngoai cac su kien tren, hay tu tra cuu them cac su kien dinh ky khac cua dia phuong va goi y cho du khach.");
+        }
+
+        return string.Join("\n", lines);
     }
 
     private static string BuildWeatherContext(dynamic? weatherData)
