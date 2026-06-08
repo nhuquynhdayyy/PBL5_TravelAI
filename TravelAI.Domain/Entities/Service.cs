@@ -23,5 +23,6 @@ public class Service {
     public ICollection<ServiceAvailability> Availabilities { get; set; } = new List<ServiceAvailability>();
     public ICollection<Service_Spot> ServiceSpots { get; set; } = new List<Service_Spot>();
     public ICollection<BookingItem> BookingItems { get; set; } = new List<BookingItem>();
+    public ICollection<ElectronicTicket> ElectronicTickets { get; set; } = new List<ElectronicTicket>();
     public ICollection<Review> Reviews { get; set; } = new List<Review>();
 }

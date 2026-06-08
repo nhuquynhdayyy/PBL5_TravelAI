@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using TravelAI.Application.DTOs.Notification;
 using TravelAI.Application.DTOs.Payment;
 using TravelAI.Application.Interfaces;
 using TravelAI.Domain.Entities;
@@ -21,19 +22,25 @@ public sealed class PaymentController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly IConfiguration _configuration;
     private readonly ILogger<PaymentController> _logger;
+    private readonly INotificationService _notificationService;
+    private readonly IElectronicTicketService _ticketService;
 
     public PaymentController(
         IPaymentService paymentService,
         IMomoService momoService,
         ApplicationDbContext context,
         IConfiguration configuration,
-        ILogger<PaymentController> logger)
+        ILogger<PaymentController> logger,
+        INotificationService notificationService,
+        IElectronicTicketService ticketService)
     {
         _paymentService = paymentService;
         _momoService = momoService;
         _context = context;
         _configuration = configuration;
         _logger = logger;
+        _notificationService = notificationService;
+        _ticketService = ticketService;
     }
 
     [HttpPost("vnpay/create")]
@@ -656,6 +663,7 @@ public sealed class PaymentController : ControllerBase
 
         var booking = await _context.Bookings
             .Include(b => b.BookingItems)
+                .ThenInclude(item => item.Service)
             .Include(b => b.Payments)
             .FirstOrDefaultAsync(b => b.BookingId == bookingId);
 
@@ -674,6 +682,8 @@ public sealed class PaymentController : ControllerBase
 
         if (payment?.Status == PaymentStatus.Paid)
         {
+            await _ticketService.GenerateForBookingAsync(booking.BookingId);
+            await transaction.CommitAsync();
             return (true, "Giao dich da duoc ghi nhan truoc do.");
         }
 
@@ -739,7 +749,40 @@ public sealed class PaymentController : ControllerBase
         }
 
         await _context.SaveChangesAsync();
+        var generatedTickets = await _ticketService.GenerateForBookingAsync(booking.BookingId);
         await transaction.CommitAsync();
+        await _notificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = booking.UserId,
+            Title = "Thanh toan thanh cong",
+            Message = $"Don dat tour #{booking.BookingId} da duoc thanh toan qua {method}.",
+            Type = "Payment"
+        });
+        if (generatedTickets.Count > 0)
+        {
+            await _notificationService.CreateAsync(new CreateNotificationRequest
+            {
+                UserId = booking.UserId,
+                Title = "Vé điện tử đã được phát hành",
+                Message = "Thanh toán thành công. Vé điện tử của bạn đã sẵn sàng. Bạn có thể xem mã QR trong mục Dịch vụ đã đặt.",
+                Type = "Ticket"
+            });
+        }
+
+        var partnerIds = booking.BookingItems
+            .Select(item => item.Service.PartnerId)
+            .Distinct()
+            .ToList();
+        foreach (var partnerId in partnerIds)
+        {
+            await _notificationService.CreateAsync(new CreateNotificationRequest
+            {
+                UserId = partnerId,
+                Title = "Co booking moi da thanh toan",
+                Message = $"Don #{booking.BookingId} da thanh toan cho dich vu cua ban.",
+                Type = "Booking"
+            });
+        }
 
         _logger.LogInformation(
             "Payment {Provider} {TransactionRef} marked paid for booking {BookingId}.",
@@ -832,6 +875,19 @@ public sealed class PaymentController : ControllerBase
 
         payment.Status = PaymentStatus.Failed;
         await _context.SaveChangesAsync();
+        var booking = await _context.Bookings
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.BookingId == payment.BookingId);
+        if (booking != null)
+        {
+            await _notificationService.CreateAsync(new CreateNotificationRequest
+            {
+                UserId = booking.UserId,
+                Title = "Thanh toan that bai",
+                Message = $"Giao dich cho don #{booking.BookingId} khong thanh cong.",
+                Type = "Payment"
+            });
+        }
 
         _logger.LogWarning(
             "Marked payment {TransactionRef} failed. Reason: {Reason}",

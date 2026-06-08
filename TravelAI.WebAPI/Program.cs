@@ -21,6 +21,10 @@ using TravelAI.WebAPI.Hubs;
 using TravelAI.WebAPI.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+Console.WriteLine("Environment: " + builder.Environment.EnvironmentName);
+
+var cs = builder.Configuration.GetConnectionString("DefaultConnection");
+Console.WriteLine("ConnectionString = " + (cs ?? "NULL"));
 
 // --- 1. Cấu hình SQL SERVER & DB CONTEXT ---
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -95,6 +99,8 @@ builder.Services.AddScoped<IPartnerOrderService, PartnerOrderService>();
 builder.Services.AddScoped<IEmailService, TravelAI.Infrastructure.ExternalServices.Mail.SendGridEmailService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IAIAnalyticsService, AIAnalyticsService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IElectronicTicketService, ElectronicTicketService>();
 
 builder.Services.Configure<VnPayOptions>(builder.Configuration.GetSection("VnPay"));
 builder.Services.AddHttpClient<IPaymentService, VnPayService>();
@@ -258,6 +264,81 @@ using (var scope = app.Services.CreateScope())
         BEGIN
             ALTER TABLE [Bookings]
             ADD [ApprovalDeadline] DATETIME2 NULL;
+        END
+        """);
+
+    // Patch: Add persistent notifications table
+    dbContext.Database.ExecuteSqlRaw(
+        """
+        IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[Notifications]') AND type in (N'U'))
+        BEGIN
+            CREATE TABLE [dbo].[Notifications] (
+                [Id] INT IDENTITY(1,1) NOT NULL,
+                [UserId] INT NOT NULL,
+                [Title] NVARCHAR(200) NOT NULL,
+                [Message] NVARCHAR(1000) NOT NULL,
+                [Type] NVARCHAR(50) NOT NULL,
+                [IsRead] BIT NOT NULL DEFAULT 0,
+                [CreatedAt] DATETIME2 NOT NULL,
+                [UpdatedAt] DATETIME2 NULL,
+                CONSTRAINT [PK_Notifications] PRIMARY KEY CLUSTERED ([Id] ASC),
+                CONSTRAINT [FK_Notifications_Users_UserId] FOREIGN KEY([UserId])
+                    REFERENCES [dbo].[Users] ([UserId])
+                    ON DELETE CASCADE
+            );
+
+            CREATE NONCLUSTERED INDEX [IX_Notifications_UserId_IsRead_CreatedAt]
+            ON [dbo].[Notifications]([UserId] ASC, [IsRead] ASC, [CreatedAt] ASC);
+        END
+        """);
+
+    // Patch: Add ElectronicTickets table for QR e-ticket workflow
+    dbContext.Database.ExecuteSqlRaw(
+        """
+        IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[ElectronicTickets]') AND type in (N'U'))
+        BEGIN
+            CREATE TABLE [dbo].[ElectronicTickets] (
+                [TicketId] INT IDENTITY(1,1) NOT NULL,
+                [TicketCode] NVARCHAR(30) NOT NULL,
+                [BookingId] INT NOT NULL,
+                [BookingItemId] INT NOT NULL,
+                [UserId] INT NOT NULL,
+                [ServiceId] INT NOT NULL,
+                [CustomerName] NVARCHAR(200) NOT NULL,
+                [ServiceName] NVARCHAR(250) NOT NULL,
+                [ServiceType] NVARCHAR(50) NOT NULL,
+                [BookingDate] DATETIME2 NOT NULL,
+                [TravelDate] DATETIME2 NOT NULL,
+                [Quantity] INT NOT NULL,
+                [TotalAmount] DECIMAL(18,2) NOT NULL,
+                [Status] INT NOT NULL,
+                [QrPayloadJson] NVARCHAR(MAX) NOT NULL,
+                [QrImageBase64] NVARCHAR(MAX) NOT NULL,
+                [CreatedAt] DATETIME2 NOT NULL,
+                [UsedAt] DATETIME2 NULL,
+                [VerifiedByUserId] INT NULL,
+                CONSTRAINT [PK_ElectronicTickets] PRIMARY KEY CLUSTERED ([TicketId] ASC),
+                CONSTRAINT [FK_ElectronicTickets_Bookings_BookingId] FOREIGN KEY([BookingId])
+                    REFERENCES [dbo].[Bookings] ([BookingId])
+                    ON DELETE CASCADE,
+                CONSTRAINT [FK_ElectronicTickets_BookingItems_BookingItemId] FOREIGN KEY([BookingItemId])
+                    REFERENCES [dbo].[BookingItems] ([ItemId]),
+                CONSTRAINT [FK_ElectronicTickets_Users_UserId] FOREIGN KEY([UserId])
+                    REFERENCES [dbo].[Users] ([UserId]),
+                CONSTRAINT [FK_ElectronicTickets_Services_ServiceId] FOREIGN KEY([ServiceId])
+                    REFERENCES [dbo].[Services] ([ServiceId]),
+                CONSTRAINT [FK_ElectronicTickets_Users_VerifiedByUserId] FOREIGN KEY([VerifiedByUserId])
+                    REFERENCES [dbo].[Users] ([UserId])
+            );
+
+            CREATE UNIQUE INDEX [IX_ElectronicTickets_TicketCode]
+            ON [dbo].[ElectronicTickets]([TicketCode] ASC);
+
+            CREATE UNIQUE INDEX [IX_ElectronicTickets_BookingItemId]
+            ON [dbo].[ElectronicTickets]([BookingItemId] ASC);
+
+            CREATE NONCLUSTERED INDEX [IX_ElectronicTickets_BookingId]
+            ON [dbo].[ElectronicTickets]([BookingId] ASC);
         END
         """);
 

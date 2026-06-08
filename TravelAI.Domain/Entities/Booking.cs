@@ -16,4 +16,5 @@ public class Booking {
     public Promotion? Promotion { get; set; }
     public ICollection<BookingItem> BookingItems { get; set; } = new List<BookingItem>();
     public ICollection<Payment> Payments { get; set; } = new List<Payment>();
+    public ICollection<ElectronicTicket> ElectronicTickets { get; set; } = new List<ElectronicTicket>();
 }

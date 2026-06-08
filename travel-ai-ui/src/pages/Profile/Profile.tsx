@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Mail, Phone, ShieldCheck, LogOut, Edit3, Loader2, Settings2, Save, X, Camera } from 'lucide-react';
+import { User, Mail, Phone, ShieldCheck, LogOut, Edit3, Loader2, Settings2, Save, X, Camera, QrCode } from 'lucide-react';
 import axiosClient from '../../api/axiosClient';
 import MainLayout from '../../layouts/MainLayout';
 import { DollarSign, ChevronRight, Calendar, MapPin } from 'lucide-react';
@@ -318,6 +318,15 @@ const Profile: React.FC = () => {
                             className="rounded-full border border-slate-200 px-5 py-2 text-sm font-black text-slate-500 transition-all hover:border-slate-300 hover:text-slate-700"
                         >
                             Dich vu da dat
+                        </button>
+                    )}
+                    {profile?.roleName?.toLowerCase() === 'customer' && (
+                        <button
+                            onClick={() => navigate('/my-bookings?tickets=1')}
+                            className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-5 py-2 text-sm font-black text-blue-600 transition-all hover:border-blue-300 hover:bg-blue-100"
+                        >
+                            <QrCode size={16} />
+                            Ve dien tu cua toi
                         </button>
                     )}
                 </div>
