@@ -471,7 +471,14 @@ const Destinations: React.FC = () => {
             })}
           </div>
 
-          <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={(page) => {
+              setCurrentPage(page);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          />
         </>
       ) : (
         <div className="rounded-3xl border-2 border-dashed border-slate-200 bg-white p-12 text-center">

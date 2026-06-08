@@ -223,7 +223,10 @@ const Services: React.FC<ServicesProps> = ({ defaultType = '' }) => {
                       <button
                         key={page}
                         type="button"
-                        onClick={() => setPageNumber(page)}
+                        onClick={() => {
+                          setPageNumber(page);
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
                         className={`h-10 min-w-10 rounded-xl px-3 text-sm font-black transition ${
                           pageNumber === page
                             ? 'bg-teal-600 text-white'

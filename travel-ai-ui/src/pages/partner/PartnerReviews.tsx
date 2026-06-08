@@ -449,7 +449,10 @@ const PartnerReviews = () => {
           {totalPages > 1 && (
             <div className="mt-8 flex items-center justify-center gap-2">
               <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                onClick={() => {
+                  setPage((p) => Math.max(1, p - 1));
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
                 disabled={page === 1}
                 className="rounded-xl bg-slate-900 px-4 py-2 font-bold text-white transition-all hover:bg-blue-600 disabled:bg-slate-300"
               >
@@ -459,7 +462,10 @@ const PartnerReviews = () => {
                 Trang {page} / {totalPages}
               </span>
               <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                onClick={() => {
+                  setPage((p) => Math.min(totalPages, p + 1));
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
                 disabled={page === totalPages}
                 className="rounded-xl bg-slate-900 px-4 py-2 font-bold text-white transition-all hover:bg-blue-600 disabled:bg-slate-300"
               >

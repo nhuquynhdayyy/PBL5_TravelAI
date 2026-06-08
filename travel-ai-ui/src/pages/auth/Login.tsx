@@ -38,11 +38,34 @@ const Login = () => {
       // Bước 2: Sync cart từ database về client
       await syncCart();
 
-      const nextPath = data.roleName?.toLowerCase() === 'partner'
-        ? '/partner/profile'
-        : data.roleName?.toLowerCase() === 'admin'
-          ? '/admin/stats'
-          : '/';
+      let nextPath = '/';
+      if (data.roleName?.toLowerCase() === 'partner') {
+        try {
+          const profileRes = await axiosClient.get('/partner/profile');
+          const profile = profileRes.data || {};
+          
+          // Merge verification info into user object in localStorage
+          const updatedUser = {
+            ...data,
+            canCreateServices: profile.canCreateServices || false,
+            verificationStatus: profile.verificationStatus || 'Pending'
+          };
+          localStorage.setItem('user', JSON.stringify(updatedUser));
+          
+          if (profile.canCreateServices) {
+            nextPath = '/partner/dashboard';
+          } else {
+            nextPath = '/partner/profile';
+          }
+        } catch {
+          nextPath = '/partner/profile';
+        }
+      } else if (data.roleName?.toLowerCase() === 'admin') {
+        nextPath = '/admin/stats';
+      } else {
+        nextPath = '/';
+      }
+
       navigate(nextPath);
       window.location.reload();
     } catch (err: any) {
