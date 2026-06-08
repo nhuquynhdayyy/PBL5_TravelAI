@@ -25,6 +25,7 @@ import PlannerSidebar from './PlannerSidebar';
 import StickyFooter from './StickyFooter';
 import { exportItineraryPdf } from './itineraryPdf';
 import type { ItineraryActivity, ItineraryViewModel } from './itineraryTypes';
+import { usePreferences } from '../../hooks/usePreferences';
 import {
   flattenActivities,
   formatCurrency,
@@ -32,6 +33,8 @@ import {
   normalizeItinerary,
   parseLocalDate,
   toInputDateValue,
+  formatDateToYmd,
+  formatRelativeTime,
 } from './itineraryUtils';
 
 const getErrorMessage = (error: unknown, fallback: string) => {
@@ -154,7 +157,7 @@ const SavedTripsPanel = ({
                     )}
                     <span className="inline-flex items-center gap-1 rounded-xl bg-slate-50 px-3 py-2">
                       <CalendarDays size={13} />
-                      {trip.createdAt ? new Date(trip.createdAt).toLocaleDateString('vi-VN') : 'Vừa tạo'}
+                      {formatRelativeTime(trip.createdAt)}
                     </span>
                     <span className="inline-flex items-center gap-1 rounded-xl bg-emerald-50 px-3 py-2 text-emerald-700">
                       <DollarSign size={13} />
@@ -180,9 +183,26 @@ const Timeline: React.FC = () => {
   const routeItineraryId = params.id;
   const stateData = (location.state as { data?: unknown } | null)?.data;
 
-  const [itinerary, setItinerary] = useState<ItineraryViewModel | null>(
-    stateData ? normalizeItinerary(stateData) : null,
-  );
+  const { pref } = usePreferences();
+  const [destinations, setDestinations] = useState<any[]>([]);
+
+  const getInitialItinerary = () => {
+    if (stateData) {
+      localStorage.setItem('latest_itinerary', JSON.stringify(stateData));
+      return normalizeItinerary(stateData);
+    }
+    const saved = localStorage.getItem('latest_itinerary');
+    if (saved) {
+      try {
+        return normalizeItinerary(JSON.parse(saved));
+      } catch (e) {
+        console.error('Lỗi khi khôi phục lịch trình:', e);
+      }
+    }
+    return null;
+  };
+
+  const [itinerary, setItinerary] = useState<ItineraryViewModel | null>(getInitialItinerary());
   const [loading, setLoading] = useState(Boolean(routeItineraryId && !stateData));
   const [optimizing, setOptimizing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -200,9 +220,11 @@ const Timeline: React.FC = () => {
       setLoading(true);
       setError(null);
       const response = await axiosClient.get(`/itinerary/${id}`);
-      const normalized = normalizeItinerary(response.data?.data || response.data);
+      const rawData = response.data?.data || response.data;
+      const normalized = normalizeItinerary(rawData);
       setItinerary(normalized);
       setActiveDay(normalized.days[0]?.day || 1);
+      localStorage.setItem('latest_itinerary', JSON.stringify(rawData));
     } catch (fetchError) {
       console.error(fetchError);
       setError(getErrorMessage(fetchError, 'Không thể tải lịch trình từ hệ thống.'));
@@ -255,6 +277,129 @@ const Timeline: React.FC = () => {
     console.log('📂 Fetching saved trips...');
     fetchSavedTrips();
   }, [fetchItineraryById, fetchSavedTrips, routeItineraryId, stateData]);
+
+  useEffect(() => {
+    const fetchDestinations = async () => {
+      try {
+        const res = await axiosClient.get('/destinations');
+        setDestinations(res.data?.data || res.data || []);
+      } catch (err) {
+        console.error('Lỗi khi tải danh sách điểm đến:', err);
+      }
+    };
+    fetchDestinations();
+  }, []);
+
+  const queryParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+
+  const resolvedDestination = useMemo(() => {
+    return queryParams.get('destination') || itinerary?.destination || '';
+  }, [queryParams, itinerary]);
+
+  const resolvedStartDate = useMemo(() => {
+    return queryParams.get('startDate') || itinerary?.startDate || '';
+  }, [queryParams, itinerary]);
+
+  const resolvedDuration = useMemo(() => {
+    const paramDur = queryParams.get('duration');
+    if (paramDur) {
+      const parsed = parseInt(paramDur, 10);
+      if (!isNaN(parsed)) return parsed;
+    }
+    return itinerary?.days?.length || 3;
+  }, [queryParams, itinerary]);
+
+  const resolvedBudget = useMemo(() => {
+    const paramBudget = queryParams.get('budget') || queryParams.get('budgetLevel');
+    if (paramBudget) {
+      const parsed = parseInt(paramBudget, 10);
+      if (!isNaN(parsed)) return parsed;
+    }
+    if (pref?.budgetLevel !== undefined) {
+      return pref.budgetLevel;
+    }
+    return 1;
+  }, [queryParams, pref]);
+
+  const resolvedInterests = useMemo(() => {
+    const paramInterests = queryParams.get('interests') || queryParams.get('travelStyle');
+    if (paramInterests) {
+      return paramInterests.split(',').map((s) => s.trim());
+    }
+    if (pref?.travelStyle) {
+      return pref.travelStyle.split(',').map((s) => s.trim());
+    }
+    return ['Thư giãn'];
+  }, [queryParams, pref]);
+
+  const syncConfigWithItinerary = async (config: {
+    destination: string;
+    startDate: string;
+    duration: number;
+    budgetLevel: number;
+    interests: string[];
+  }) => {
+    let destId = itinerary?.destinationId || itinerary?.raw?.destinationId;
+    if (!destId) {
+      const match = destinations.find(
+        (d) =>
+          d.name?.toLowerCase().includes(config.destination.toLowerCase()) ||
+          config.destination.toLowerCase().includes(d.name?.toLowerCase())
+      );
+      if (match) {
+        destId = match.id || match.destinationId;
+      }
+    }
+
+    if (!destId) {
+      alert('Không tìm thấy địa điểm phù hợp trong hệ thống để tạo lại lịch trình.');
+      return;
+    }
+
+    try {
+      setOptimizing(true);
+
+      const budgetStr = config.budgetLevel === 0 ? 'low' : config.budgetLevel === 2 ? 'high' : 'medium';
+      const travelStyleStr = config.interests.join(', ');
+      
+      try {
+        await axiosClient.put('/preferences', {
+          travelStyle: travelStyleStr,
+          budgetLevel: config.budgetLevel,
+          travelPace: pref?.travelPace ?? 1,
+          cuisinePref: pref?.cuisinePref ?? ''
+        });
+      } catch (prefErr) {
+        console.error('Failed to update preferences on backend:', prefErr);
+      }
+
+      const formattedStartDate = formatDateToYmd(config.startDate) || toInputDateValue(new Date());
+
+      const specialRequestPrompt = `Người dùng muốn đi ${config.destination} trong ${config.duration} ngày, bắt đầu từ ngày ${formattedStartDate}. Phong cách chuyến đi: ${travelStyleStr}. Ngân sách: ${budgetStr}.`;
+
+      const response = await axiosClient.post('/itinerary/generate', {
+        destinationId: destId,
+        numberOfDays: config.duration,
+        startDate: formattedStartDate,
+        specialRequest: specialRequestPrompt,
+      });
+
+      const newItinerary = response.data?.data || response.data;
+      if (newItinerary) {
+        const normalized = normalizeItinerary(newItinerary);
+        setItinerary(normalized);
+        setActiveDay(normalized.days[0]?.day || 1);
+        localStorage.setItem('latest_itinerary', JSON.stringify(newItinerary));
+      } else {
+        alert('Không nhận được dữ liệu lịch trình mới từ AI.');
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(getErrorMessage(err, 'Có lỗi xảy ra khi tạo lại lịch trình.'));
+    } finally {
+      setOptimizing(false);
+    }
+  };
 
   const handleOpenSavedTrip = async (tripId: number | string) => {
     await fetchItineraryById(tripId);
@@ -494,13 +639,14 @@ const Timeline: React.FC = () => {
           {/* Left Sidebar */}
           {showSidebar && (
             <PlannerSidebar
-              destination={itinerary.destination}
-              startDate={itinerary.startDate}
-              duration={itinerary.days.length}
-              budgetLevel={1}
-              interests={['Biển', 'Thư giãn']}
+              destination={resolvedDestination}
+              startDate={resolvedStartDate}
+              duration={resolvedDuration}
+              budgetLevel={resolvedBudget}
+              interests={resolvedInterests}
               onRegenerate={handleOptimize}
               regenerating={optimizing}
+              onConfigChange={syncConfigWithItinerary}
             />
           )}
 

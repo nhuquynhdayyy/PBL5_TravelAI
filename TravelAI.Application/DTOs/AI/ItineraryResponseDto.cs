@@ -36,6 +36,9 @@ public class ItineraryResponseDto {
     [JsonPropertyName("total_estimated_cost")]
     public decimal TotalEstimatedCostAlias { get => TotalEstimatedCost; set => TotalEstimatedCost = value; }
 
+    [JsonPropertyName("createdAt")]
+    public DateTime CreatedAt { get; set; }
+
     [JsonPropertyName("days")]
     public List<DayPlanDto> Days { get; set; } = new();
 }

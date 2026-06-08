@@ -218,6 +218,7 @@ public class ItineraryService : IItineraryService
 
         parsed.StartDate = tripStartDate;
         parsed.EndDate = tripStartDate.AddDays(parsed.Days.Count);
+        parsed.CreatedAt = DateTime.UtcNow;
 
         // Lưu metadata vào log để analytics query thẳng DB — chỉ khi user đã đăng nhập
         if (aiLog != null)
@@ -361,7 +362,8 @@ public class ItineraryService : IItineraryService
                 Destination = i.Title,
                 StartDate = i.StartDate,
                 EndDate = i.EndDate,
-                TotalEstimatedCost = i.EstimatedCost
+                TotalEstimatedCost = i.EstimatedCost,
+                CreatedAt = i.CreatedAt
             })
             .ToListAsync();
     }
@@ -407,7 +409,8 @@ public class ItineraryService : IItineraryService
             StartDate = itinerary.StartDate,
             EndDate = itinerary.EndDate,
             TotalEstimatedCost = totalEstimatedCost,
-            Days = days
+            Days = days,
+            CreatedAt = itinerary.CreatedAt
         };
     }
 

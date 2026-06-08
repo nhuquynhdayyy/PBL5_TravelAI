@@ -46,8 +46,14 @@ const PlannerSidebar = ({
 
   useEffect(() => {
     if (startDate) {
-      const datePart = startDate.split('T')[0];
-      setLocalStartDate(datePart);
+      const datePart = startDate.split('T')[0].trim();
+      const matchDmy = datePart.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (matchDmy) {
+        const [, d, m, y] = matchDmy;
+        setLocalStartDate(`${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`);
+      } else {
+        setLocalStartDate(datePart);
+      }
     } else {
       setLocalStartDate('');
     }
@@ -113,10 +119,11 @@ const PlannerSidebar = ({
           <input
             type="text"
             value={localDestination}
+            disabled={regenerating}
             onChange={(e) => setLocalDestination(e.target.value)}
             onBlur={() => handleConfigChange({ destination: localDestination })}
             onKeyDown={(e) => e.key === 'Enter' && handleConfigChange({ destination: localDestination })}
-            className="w-full rounded-xl border border-slate-100 bg-slate-50/50 py-2 pl-9 pr-3 text-xs font-medium text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+            className="w-full rounded-xl border border-slate-100 bg-slate-50/50 py-2 pl-9 pr-3 text-xs font-medium text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed"
             placeholder="Nhập điểm đến..."
           />
         </div>
@@ -133,11 +140,12 @@ const PlannerSidebar = ({
             <input
               type="date"
               value={localStartDate}
+              disabled={regenerating}
               onChange={(e) => {
                 setLocalStartDate(e.target.value);
                 handleConfigChange({ startDate: e.target.value });
               }}
-              className="w-full rounded-xl border border-slate-100 bg-slate-50/50 py-2 pl-8 pr-2 text-[10px] font-medium text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              className="w-full rounded-xl border border-slate-100 bg-slate-50/50 py-2 pl-8 pr-2 text-[10px] font-medium text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed"
             />
           </div>
         </div>
@@ -148,12 +156,13 @@ const PlannerSidebar = ({
           </label>
           <select
             value={localDuration}
+            disabled={regenerating}
             onChange={(e) => {
               const val = Number(e.target.value);
               setLocalDuration(val);
               handleConfigChange({ duration: val });
             }}
-            className="w-full rounded-xl border border-slate-100 bg-slate-50/50 py-2 px-3 text-xs font-medium text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+            className="w-full rounded-xl border border-slate-100 bg-slate-50/50 py-2 px-3 text-xs font-medium text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <option value={3}>3 Ngày</option>
             <option value={5}>5 Ngày</option>
@@ -172,6 +181,7 @@ const PlannerSidebar = ({
             <button
               key={level}
               type="button"
+              disabled={regenerating}
               onClick={() => {
                 setLocalBudget(level);
                 handleConfigChange({ budgetLevel: level });
@@ -180,7 +190,7 @@ const PlannerSidebar = ({
                 localBudget === level
                   ? 'bg-blue-600 text-white shadow-md'
                   : 'bg-slate-50 text-slate-400 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-500'
-              }`}
+              } disabled:opacity-60 disabled:cursor-not-allowed`}
             >
               {'$'.repeat(level + 1)}
             </button>
@@ -199,8 +209,9 @@ const PlannerSidebar = ({
           </span>
           <button
             type="button"
+            disabled={regenerating}
             onClick={() => setIsEditingInterests(!isEditingInterests)}
-            className="flex items-center gap-1 text-[10px] font-black text-blue-600 hover:underline dark:text-blue-400"
+            className="flex items-center gap-1 text-[10px] font-black text-blue-600 hover:underline dark:text-blue-400 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <Edit3 size={10} />
             {isEditingInterests ? 'Xong' : 'Sửa'}
@@ -215,12 +226,13 @@ const PlannerSidebar = ({
                 <button
                   key={interest}
                   type="button"
+                  disabled={regenerating}
                   onClick={() => toggleInterest(interest)}
                   className={`rounded-lg px-2.5 py-1 text-[10px] font-bold transition ${
                     isSelected
                       ? 'bg-blue-600 text-white shadow-sm'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400'
-                  }`}
+                  } disabled:opacity-60 disabled:cursor-not-allowed`}
                 >
                   {interest}
                 </button>
