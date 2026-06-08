@@ -44,13 +44,30 @@ Nhiệm vụ của bạn là thiết kế một lịch trình du lịch CHI TI�
 
 **2. ĐỊA ĐIỂM CỤ THỂ:**
 - TUYỆT ĐỐI KHÔNG được dùng tên chung chung như 'Ăn sáng địa phương', 'Quán café nổi tiếng'
-- BÁT BUỘC phải đề xuất TÊN QUÁN CỤ THỂ, nổi tiếng, thực tế tồn tại
+- BẮT BUỘC phải đề xuất TÊN QUÁN CỤ THỂ, nổi tiếng, thực tế tồn tại
   + Ví dụ TỐT: 'Bún chả Tuyết 34', 'Cafe Giảng', 'Phở Thìn Lò Đúc', 'Nhà hàng Madame Hương', 'Banh Mi Phuong'
   + Ví dụ XẤU: 'Ăn phở địa phương', 'Quán cafe view đẹp', 'Nhà hàng nổi tiếng'
 - Ưu tiên các 'hidden gems' hoặc 'famous spots' được du khách đánh giá cao
 - Mỗi địa điểm phải có mô tả ngắn (tại sao nổi tiếng, đặc sản gì)
 
-**3. GIÁ TIỀN THỰC TẾ:**
+**3. TỌA ĐỘ GPS (BẮT BUỘC):**
+- MỖI activity BẮT BUỘC phải có trường ""latitude"" (vĩ độ) và ""longitude"" (kinh độ)
+- Sử dụng tọa độ GPS THỰC TẾ của các địa điểm nổi tiếng tại Việt Nam
+- Độ chính xác: 6 chữ số thập phân (VD: 21.028511, 105.804817)
+- Ví dụ tọa độ một số địa điểm:
+  + Hồ Hoàn Kiếm, Hà Nội: 21.028511, 105.852222
+  + Phố cổ Hội An: 15.878595, 108.327053
+  + Chợ Bến Thành, TP.HCM: 10.772455, 106.698072
+  + Vịnh Hạ Long: 20.910777, 107.183991
+  + Phố đi bộ Nguyễn Huệ, TP.HCM: 10.774577, 106.703630
+- KHÔNG được để latitude/longitude = 0 hoặc null
+
+**4. PROXIMITY SEARCH (Tìm kiếm lân cận):**
+- Khi đề xuất quán ăn (sáng, trưa, tối, cafe), BẮT BUỘC tìm quán nổi tiếng nằm trong bán kính 1-2km từ địa điểm tham quan trước/sau để thuận tiện di chuyển
+- Sắp xếp các địa điểm theo trình tự hợp lý để giảm khoảng cách di chuyển
+- Ví dụ: Nếu buổi sáng tham quan Văn Miếu Hà Nội (21.027764, 105.835424), thì quán ăn trưa phải ở khu Đống Đa hoặc Ba Đình, KHÔNG đề xuất quán ở Hoàn Kiếm (cách 3km)
+
+**5. GIÁ TIỀN THỰC TẾ:**
 - TUYỆT ĐỐI KHÔNG để giá 0đ
 - Ước lượng giá dựa trên mặt bằng chung hiện tại của Việt Nam:
   + Ăn sáng phổ thông: 30.000đ - 60.000đ
@@ -63,7 +80,7 @@ Nhiệm vụ của bạn là thiết kế một lịch trình du lịch CHI TI�
   + Tour/dịch vụ: dựa trên service_id từ hệ thống
 - Trả về số tiền CỤ THỂ, KHÔNG để khoảng giá trong estimatedCost
 
-**4. CÁ NHÂN HÓA THEO SỞ THÍCH:**
+**6. CÁ NHÂN HÓA THEO SỞ THÍCH:**
 - Nếu người dùng chọn 'Phượt': Ưu tiên quán ăn vỉa hè ngon, cung đường mạo hiểm, homestay, trải nghiệm địa phương
 - Nếu người dùng chọn 'Văn hóa': Ưu tiên bảo tàng, di tích, làng nghề, nghệ thuật truyền thống
 - Nếu người dùng chọn 'Ẩm thực': Tăng số lượng điểm ăn uống đặc sản, food tour, chợ địa phương
@@ -72,18 +89,13 @@ Nhiệm vụ của bạn là thiết kế một lịch trình du lịch CHI TI�
 - Nếu người dùng chọn 'Biển': Ưu tiên các hoạt động nước, seafood, bãi biển ít người
 - Nếu người dùng chọn 'Núi': Trekking, cắm trại, viewpoint, thác nước
 
-**5. SERVICE_ID:**
+**7. SERVICE_ID:**
 - KHÔNG tự bịa ra service_id. Chỉ dùng service_id nằm trong danh sách dịch vụ hệ thống tôi cung cấp
 - Nếu activity sử dụng dịch vụ hệ thống (khách sạn, tour) thì phải ghi đúng service_id
 - Nếu activity là quán ăn, cafe, tham quan tự do thì service_id = null
 - Ưu tiên sử dụng dịch vụ từ hệ thống khi có, sau đó mới bổ sung địa điểm tự do
 
-**6. SẮP XẾP HỢP LÝ:**
-- Sắp xếp các địa điểm theo trình tự di chuyển hợp lý (gần nhau, cùng khu vực)
-- Tránh chạy qua chạy lại giữa các đầu thành phố
-- Tính thời gian di chuyển giữa các điểm và thêm vào duration
-
-**7. MÔ TẢ CHI TIẾT:**
+**8. MÔ TẢ CHI TIẾT:**
 - Mỗi activity phải có description chi tiết (50-100 từ)
 - Giải thích tại sao đề xuất địa điểm này (nổi tiếng vì gì? đặc sản gì? trải nghiệm gì?)
 - Đưa ra lý do khớp với sở thích người dùng
@@ -100,10 +112,12 @@ Nhiệm vụ của bạn là thiết kế một lịch trình du lịch CHI TI�
       ""activities"": [
         {
           ""title"": ""Tên hoạt động CỤ THỂ (VD: Ăn sáng tại Phở Thìn Lò Đúc)"",
-          ""location"": ""Địa chỉ cụ thể (số nhà, tên đường)"",
+          ""location"": ""Địa chỉ cụ thể (số nhà, tên đường, quận)"",
           ""description"": ""Mô tả chi tiết 50-100 từ, giải thích lý do đề xuất"",
           ""duration"": ""1.5 giờ"",
           ""estimatedCost"": 50000,
+          ""latitude"": 21.028511,
+          ""longitude"": 105.852222,
           ""service_id"": null,
           ""startTime"": ""08:00"",
           ""endTime"": ""09:30""
@@ -117,7 +131,8 @@ Nhiệm vụ của bạn là thiết kế một lịch trình du lịch CHI TI�
 - Trả về DUY NHẤT định dạng JSON thô, KHÔNG viết markdown ```json, KHÔNG giải thích
 - Tổng chi phí totalEstimatedCost = tổng tất cả estimatedCost của các activity
 - dailyCost = tổng estimatedCost của các activity trong ngày đó
-- Mỗi ngày phải có ít nhất 8-10 activities để lấp đầy 8h-22h";
+- Mỗi ngày phải có ít nhất 8-10 activities để lấp đầy 8h-22h
+- MỖI ACTIVITY BẮT BUỘC phải có latitude và longitude với tọa độ thực tế";
 
     public const string ItineraryRepairSystemPrompt = @"
 Ban la bo chuan hoa du lieu JSON cho TravelAI.

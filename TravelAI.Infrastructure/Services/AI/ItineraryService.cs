@@ -329,7 +329,9 @@ public class ItineraryService : IItineraryService
                         CustomTitle = (service == null && spot == null) ? activity.Title : null,
                         StartTime = startTime,
                         EndTime = endTime,
-                        ActivityOrder = order++
+                        ActivityOrder = order++,
+                        Latitude = activity.Latitude,
+                        Longitude = activity.Longitude
                     });
 
                     // Cập nhật thời gian hiện tại và địa điểm trước đó
@@ -794,11 +796,17 @@ public class ItineraryService : IItineraryService
             durationMinutes = ResolveDurationMinutes(service, spot);
         }
 
-        // Get coordinates from service or spot
+        // Get coordinates - prioritize AI coordinates from item, then service, then spot
         double? latitude = null;
         double? longitude = null;
         
-        if (service != null && service.Latitude != 0 && service.Longitude != 0)
+        if (item.Latitude.HasValue && item.Longitude.HasValue && 
+            item.Latitude.Value != 0 && item.Longitude.Value != 0)
+        {
+            latitude = item.Latitude;
+            longitude = item.Longitude;
+        }
+        else if (service != null && service.Latitude != 0 && service.Longitude != 0)
         {
             latitude = service.Latitude;
             longitude = service.Longitude;
