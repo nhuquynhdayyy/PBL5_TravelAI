@@ -464,6 +464,8 @@ const SummaryCard: React.FC<{ data: PlanData; onConfirm: () => void; onReset: ()
 const CreateItinerary: React.FC = () => {
   const navigate = useNavigate();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const isFirstMount = useRef(true);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [destinations, setDestinations] = useState<Destination[]>([]);
@@ -488,9 +490,16 @@ const CreateItinerary: React.FC = () => {
     specialRequest: '',
   });
 
-  // Scroll to bottom on new messages
+  // Scroll to bottom inside chat container on new messages (skip on first mount)
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      return;
+    }
+    // Scroll within the chat container only, not the whole page
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
   }, [messages, isTyping]);
 
   // Load destinations and preferences
@@ -923,7 +932,7 @@ const CreateItinerary: React.FC = () => {
         </div>
 
         {/* ── Chat Area ── */}
-        <div className="flex-1 overflow-y-auto">
+        <div ref={chatContainerRef} className="flex-1 overflow-y-auto">
           <div className="max-w-2xl mx-auto px-4 py-6">
             {/* Loading destinations */}
             {destinations.length === 0 && (

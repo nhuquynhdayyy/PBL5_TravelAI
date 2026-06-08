@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
+import ScrollToTop from './components/ScrollToTop';
 import { useEffect } from 'react';
 import Chatbox from './components/chat/Chatbox';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -65,6 +66,7 @@ function App() {
 
   return (
     <>
+      <ScrollToTop />
       <Routes>
         <Route path="/" element={<MainLayout hideFooter><Home /></MainLayout>} />
         <Route path="/destinations" element={<MainLayout><Destinations /></MainLayout>} />
