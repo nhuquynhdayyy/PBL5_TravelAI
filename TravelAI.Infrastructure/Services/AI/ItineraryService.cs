@@ -148,6 +148,13 @@ public class ItineraryService : IItineraryService
             weatherData,
             availableServiceEntities,
             request.ServiceFilters);
+
+        if (!string.IsNullOrWhiteSpace(request.SpecialRequest))
+        {
+            prompt = prompt.Replace("### YEU CAU CA NHAN HOA:", 
+                $"### YEU CAU CA NHAN HOA:\n- Yeu cau chi tiet: {request.SpecialRequest}");
+        }
+
         var rawAiResponse = await _gemini.CallApiAsync(
             prompt,
             systemPrompt: AIPrompts.ItinerarySystemPrompt,

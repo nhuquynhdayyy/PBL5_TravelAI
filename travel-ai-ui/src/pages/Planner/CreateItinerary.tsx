@@ -123,6 +123,76 @@ function getBudgetLabel(val: string) {
   return BUDGET_OPTIONS.find((b) => b.value === val)?.label || val;
 }
 
+export function generateTravelPrompt(userData: PlanData, chatHistory: ChatMessage[]): string {
+  const parts: string[] = [];
+
+  // Destination & Duration
+  if (userData.destinationName) {
+    parts.push(`Người dùng muốn đi ${userData.destinationName}`);
+  }
+  if (userData.numberOfDays) {
+    parts.push(`${userData.numberOfDays} ngày`);
+  }
+  if (userData.startDate) {
+    parts.push(`khởi hành vào ngày ${formatDate(userData.startDate)}`);
+  }
+
+  // Budget
+  if (userData.budgetLevel) {
+    const budgetLabel = getBudgetLabel(userData.budgetLevel);
+    parts.push(`ngân sách ${budgetLabel.toLowerCase()}`);
+  }
+
+  // Landscape Preference
+  if (userData.naturePrefs && userData.naturePrefs.length > 0) {
+    const natureLabels = userData.naturePrefs.map(
+      (val) => NATURE_OPTIONS.find((o) => o.value === val)?.label || val
+    );
+    parts.push(`phong cảnh yêu thích: ${natureLabels.join(', ')}`);
+  }
+
+  // Activity Preference
+  if (userData.activityPrefs && userData.activityPrefs.length > 0) {
+    const activityLabels = userData.activityPrefs.map(
+      (val) => ACTIVITY_OPTIONS.find((o) => o.value === val)?.label || val
+    );
+    parts.push(`hoạt động mong muốn: ${activityLabels.join(', ')}`);
+  }
+
+  // Special Request
+  if (userData.specialRequest) {
+    parts.push(`yêu cầu đặc biệt: "${userData.specialRequest}"`);
+  }
+
+  // Chat history analysis
+  const chatNotes: string[] = [];
+  chatHistory.forEach((msg) => {
+    if (msg.role === 'user') {
+      const text = msg.text.trim();
+      // Filter out automated quick reply tags or trigger commands
+      if (
+        text.startsWith('✨') ||
+        text.startsWith('⏭️') ||
+        text.startsWith('📍') ||
+        text.startsWith('🗓️') ||
+        text.startsWith('📅') ||
+        text.startsWith('💰') ||
+        text.startsWith('💵') ||
+        text.startsWith('💎')
+      ) {
+        return;
+      }
+      chatNotes.push(text);
+    }
+  });
+
+  if (chatNotes.length > 0) {
+    parts.push(`ghi chú thêm từ trò chuyện: ${chatNotes.map(n => `"${n}"`).join(', ')}`);
+  }
+
+  return parts.join(', ') + '.';
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 const TypingIndicator = () => (
@@ -404,6 +474,8 @@ const CreateItinerary: React.FC = () => {
   const [generating, setGenerating] = useState(false);
   const [selectedValues, setSelectedValues] = useState<Record<string, string[]>>({});
   const [pendingMulti, setPendingMulti] = useState<string[]>([]);
+  const [pref, setPref] = useState<any>(null);
+  const [loadingPref, setLoadingPref] = useState<boolean>(true);
 
   const [planData, setPlanData] = useState<PlanData>({
     destinationId: null,
@@ -421,8 +493,9 @@ const CreateItinerary: React.FC = () => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
-  // Load destinations
+  // Load destinations and preferences
   useEffect(() => {
+    // Load destinations
     axiosClient
       .get('/destinations')
       .then((res) => {
@@ -430,19 +503,56 @@ const CreateItinerary: React.FC = () => {
         setDestinations(Array.isArray(data) ? data : []);
       })
       .catch(console.error);
+
+    // Load user preferences from Profile
+    axiosClient
+      .get('/preferences')
+      .then((res) => {
+        if (res.data && res.data.success && res.data.data) {
+          const userPref = res.data.data;
+          setPref(userPref);
+
+          // Map budgetLevel enum (0 -> 'low', 1 -> 'medium', 2 -> 'high')
+          let budgetStr = 'medium';
+          if (userPref.budgetLevel === 0) budgetStr = 'low';
+          if (userPref.budgetLevel === 2) budgetStr = 'high';
+
+          setPlanData((prev) => {
+            const next = { ...prev, budgetLevel: budgetStr };
+
+            // If style is Phượt or Thám hiểm, pre-populate adventure-related context
+            if (userPref.travelStyle === 'Phượt' || userPref.travelStyle === 'Thám hiểm') {
+              next.naturePrefs = ['Núi'];
+              next.activityPrefs = ['Phiêu lưu'];
+              next.specialRequest = 'Ưu tiên các điểm đến mạo hiểm';
+            }
+            return next;
+          });
+        }
+      })
+      .catch(console.error)
+      .finally(() => {
+        setLoadingPref(false);
+      });
   }, []);
 
-  // Kick off greeting after destinations load
+  // Kick off greeting after destinations and preferences load
   useEffect(() => {
-    if (destinations.length > 0 && messages.length === 0) {
-      pushAiMessage(
-        'Xin chào! Tôi là AI Planner của TravelAI 🌏\nHãy để tôi giúp bạn lập kế hoạch chuyến đi trong mơ!\n\nBạn muốn đến đâu lần này?',
-        buildDestinationReplies(destinations),
-      );
+    if (destinations.length > 0 && !loadingPref && messages.length === 0) {
+      const isPhuot = pref?.travelStyle === 'Phượt' || pref?.travelStyle === 'Thám hiểm';
+      const isDayDac = pref?.travelPace === 2; // 2: Dày đặc
+
+      let greetingText = 'Xin chào! Tôi là AI Planner của TravelAI 🌏\nHãy để tôi giúp bạn lập kế hoạch chuyến đi trong mơ!\n\nBạn muốn đến đâu lần này?';
+
+      if (isPhuot && isDayDac) {
+        greetingText = 'Xin chào! Tôi là AI Planner của TravelAI 🌏\nTôi thấy bạn thích đi phượt và lịch trình dày đặc, tôi sẽ ưu tiên các điểm đến mạo hiểm nhé?\n\nBạn muốn đến đâu lần này?';
+      }
+
+      pushAiMessage(greetingText, buildDestinationReplies(destinations));
       setStep('destination');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [destinations]);
+  }, [destinations, loadingPref, pref]);
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -674,10 +784,12 @@ const CreateItinerary: React.FC = () => {
     setIsTyping(true);
 
     try {
+      const specialRequestPrompt = generateTravelPrompt(planData, messages);
       const requestBody = {
         destinationId: planData.destinationId,
         numberOfDays: planData.numberOfDays,
         startDate: planData.startDate,
+        specialRequest: specialRequestPrompt,
       };
 
       const response = await axiosClient.post('/itinerary/generate', requestBody);
@@ -713,21 +825,44 @@ const CreateItinerary: React.FC = () => {
     setInputValue('');
     setSelectedValues({});
     setPendingMulti([]);
-    setPlanData({
+
+    // Map budgetLevel enum (0 -> 'low', 1 -> 'medium', 2 -> 'high')
+    let budgetStr = 'medium';
+    if (pref?.budgetLevel === 0) budgetStr = 'low';
+    if (pref?.budgetLevel === 2) budgetStr = 'high';
+
+    const initialPlanData = {
       destinationId: null,
       destinationName: '',
       numberOfDays: 3,
       startDate: getTodayVietnam(),
-      budgetLevel: 'medium',
-      naturePrefs: [],
-      activityPrefs: [],
+      budgetLevel: budgetStr,
+      naturePrefs: [] as string[],
+      activityPrefs: [] as string[],
       specialRequest: '',
-    });
+    };
+
+    if (pref?.travelStyle === 'Phượt' || pref?.travelStyle === 'Thám hiểm') {
+      initialPlanData.naturePrefs = ['Núi'];
+      initialPlanData.activityPrefs = ['Phiêu lưu'];
+      initialPlanData.specialRequest = 'Ưu tiên các điểm đến mạo hiểm';
+    }
+
+    setPlanData(initialPlanData);
 
     // Re-trigger greeting
     setTimeout(() => {
+      const isPhuot = pref?.travelStyle === 'Phượt' || pref?.travelStyle === 'Thám hiểm';
+      const isDayDac = pref?.travelPace === 2; // 2: Dày đặc
+
+      let greetingText = 'Bắt đầu lại nào! 🔄\n\nBạn muốn đến đâu lần này?';
+
+      if (isPhuot && isDayDac) {
+        greetingText = 'Bắt đầu lại nào! 🔄\nTôi thấy bạn thích đi phượt và lịch trình dày đặc, tôi sẽ ưu tiên các điểm đến mạo hiểm nhé?\n\nBạn muốn đến đâu lần này?';
+      }
+
       pushAiMessage(
-        'Bắt đầu lại nào! 🔄\n\nBạn muốn đến đâu lần này?',
+        greetingText,
         buildDestinationReplies(destinations),
       );
       setStep('destination');

@@ -168,6 +168,12 @@ public class PromptBuilder
         prompt.AppendLine("- Hay lap lich trinh PHU HOP voi toan bo so thich tren.");
         prompt.AppendLine("- Neu nguoi dung uu tien nghi duong va ngan sach cao, hay uu tien cac goi nghi duong, resort, spa va cac trai nghiem thoai mai.");
         prompt.AppendLine("- Neu nguoi dung uu tien kham pha va ngan sach thap, hay uu tien cac lua chon tiet kiem, linh hoat, trai nghiem dia phuong va di chuyen don gian.");
+        if (normalizedTravelStyle.Contains("phuot", StringComparison.Ordinal)
+            || normalizedTravelStyle.Contains("mao hiem", StringComparison.Ordinal)
+            || normalizedTravelStyle.Contains("tham hiem", StringComparison.Ordinal))
+        {
+            prompt.AppendLine("- Nguoi dung co phong cach Phuot/Mao hiem/Tham hiem va nhip do Day dac. Hay uu tien cac diem den trai nghiem doc dao, mang tinh mao hiem, kham pha thien nhien da ngoai.");
+        }
         prompt.AppendLine("- Nhip do moi ngay phai phu hop voi so thich ve toc do chuyen di.");
         prompt.AppendLine("- Goi y an uong va diem dung chan phai phu hop voi so thich am thuc neu co.");
         prompt.AppendLine();
