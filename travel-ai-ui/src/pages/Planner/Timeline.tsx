@@ -187,18 +187,17 @@ const Timeline: React.FC = () => {
   const [destinations, setDestinations] = useState<any[]>([]);
 
   const getInitialItinerary = () => {
+    // Only load initial itinerary if we're viewing a specific one
+    if (!routeItineraryId) {
+      return null; // Show list view
+    }
+    
     if (stateData) {
       localStorage.setItem('latest_itinerary', JSON.stringify(stateData));
       return normalizeItinerary(stateData);
     }
-    const saved = localStorage.getItem('latest_itinerary');
-    if (saved) {
-      try {
-        return normalizeItinerary(JSON.parse(saved));
-      } catch (e) {
-        console.error('Lỗi khi khôi phục lịch trình:', e);
-      }
-    }
+    
+    // Don't load from localStorage for list view
     return null;
   };
 
@@ -401,8 +400,8 @@ const Timeline: React.FC = () => {
     }
   };
 
-  const handleOpenSavedTrip = async (tripId: number | string) => {
-    await fetchItineraryById(tripId);
+  const handleOpenSavedTrip = (tripId: number | string) => {
+    navigate(`/planner/${tripId}`);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
