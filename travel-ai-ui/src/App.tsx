@@ -22,7 +22,6 @@ import Cart from './pages/customer/Cart';
 import Checkout from './pages/customer/Checkout';
 import CheckoutFailed from './pages/customer/CheckoutFailed';
 import HotelsPage from './pages/customer/HotelsPage';
-import MockPayment from './pages/customer/MockPayment';
 import MyBookings from './pages/customer/MyBookings';
 import PaymentResult from './pages/customer/PaymentResult';
 import ToursPage from './pages/customer/ToursPage';
@@ -34,6 +33,7 @@ import Notifications from './pages/Notifications';
 import UserPreferences from './pages/Preferences/UserPreferences';
 import Timeline from './pages/Planner/Timeline';
 import Profile from './pages/Profile/Profile';
+import PublicBookingQr from './pages/PublicBookingQr';
 import PublicETicket from './pages/PublicETicket';
 import ManageAvailability from './pages/partner/ManageAvailability';
 import PartnerDashboard from './pages/partner/PartnerDashboard';
@@ -80,10 +80,11 @@ function App() {
         <Route path="/checkout/:bookingId" element={<MainLayout><Checkout /></MainLayout>} />
         <Route path="/checkout/failed/:bookingId" element={<MainLayout><CheckoutFailed /></MainLayout>} />
         <Route path="/checkout/success/:bookingId" element={<MainLayout><BookingSuccess /></MainLayout>} />
+        <Route path="/payment/result" element={<MainLayout><PaymentResult /></MainLayout>} />
         <Route path="/payment-result/:method" element={<MainLayout><PaymentResult /></MainLayout>} />
-        <Route path="/mock-payment/:provider/:bookingId" element={<MainLayout><MockPayment /></MainLayout>} />
         <Route path="/booking-success/:bookingId" element={<MainLayout><BookingSuccess /></MainLayout>} />
         <Route path="/e-ticket/:ticketCode" element={<MainLayout><PublicETicket /></MainLayout>} />
+        <Route path="/booking-qr/:bookingCode" element={<MainLayout><PublicBookingQr /></MainLayout>} />
 
         <Route
           path="/my-bookings"

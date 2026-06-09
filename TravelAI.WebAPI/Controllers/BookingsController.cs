@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using System.Globalization;
+using QRCoder;
 using TravelAI.Application.DTOs.Booking;
 using TravelAI.Application.DTOs.Notification;
 using TravelAI.Application.DTOs.Payment;
@@ -20,6 +21,7 @@ namespace TravelAI.WebAPI.Controllers;
 [Authorize]
 public class BookingsController : ControllerBase
 {
+    private const string DefaultFrontendBaseUrl = "https://travelai.vn";
     private readonly IBookingService _bookingService;
     private readonly IPaymentService _paymentService;
     private readonly IMomoService _momoService;
@@ -70,6 +72,7 @@ public class BookingsController : ControllerBase
         var bookings = await _context.Bookings
             .AsNoTracking()
             .Where(b => b.UserId == userId)
+            .Include(b => b.User)
             .Include(b => b.BookingItems)
                 .ThenInclude(bi => bi.Service)
             .Include(b => b.Payments)
@@ -83,6 +86,41 @@ public class BookingsController : ControllerBase
             .ToList();
 
         return Ok(result);
+    }
+
+    [HttpGet("public-qr/{bookingCode}")]
+    [AllowAnonymous]
+    public async Task<ActionResult<PublicBookingQrDto>> GetPublicBookingQr(string bookingCode)
+    {
+        var bookingId = ParseBookingCode(bookingCode);
+        if (bookingId == null)
+        {
+            return NotFound(new { message = "Booking QR khong hop le." });
+        }
+
+        var booking = await _context.Bookings
+            .AsNoTracking()
+            .Include(item => item.User)
+            .Include(item => item.BookingItems)
+                .ThenInclude(item => item.Service)
+            .FirstOrDefaultAsync(item => item.BookingId == bookingId.Value);
+
+        if (booking == null)
+        {
+            return NotFound(new { message = "Khong tim thay booking." });
+        }
+
+        var bookingItem = booking.BookingItems
+            .OrderBy(item => item.ItemId)
+            .FirstOrDefault();
+
+        if (bookingItem == null)
+        {
+            return NotFound(new { message = "Booking khong co dich vu." });
+        }
+
+        var formattedBookingCode = FormatBookingCode(booking.BookingId);
+        return Ok(BuildPublicBookingQr(booking, bookingItem, BuildBookingQrUrl(formattedBookingCode)));
     }
 
     [HttpPost("draft")]
@@ -278,6 +316,7 @@ public class BookingsController : ControllerBase
     {
         var booking = await _context.Bookings
             .AsNoTracking()
+            .Include(b => b.User)
             .Include(b => b.BookingItems)
                 .ThenInclude(bi => bi.Service)
             .Include(b => b.Payments)
@@ -531,7 +570,7 @@ public class BookingsController : ControllerBase
             });
         }
 
-        var momoResult = await _momoService.CreatePaymentRequestAsync(
+        var momoResult = await _momoService.CreatePaymentAsync(
             booking.BookingId,
             booking.TotalAmount,
             transactionRef);
@@ -752,7 +791,7 @@ public class BookingsController : ControllerBase
         });
     }
 
-    private static BookingDetailResponse MapToBookingDetail(Booking booking)
+    private BookingDetailResponse MapToBookingDetail(Booking booking)
     {
         var evaluation = EvaluateCancellationPolicy(booking, DateTimeHelper.Now);
         var item = booking.BookingItems
@@ -786,6 +825,9 @@ public class BookingsController : ControllerBase
         {
             BookingId = booking.BookingId,
             ServiceName = item?.Service?.Name ?? "Dich vu du lich",
+            ServiceType = item?.Service?.ServiceType.ToString()
+                ?? booking.ElectronicTickets.FirstOrDefault()?.ServiceType
+                ?? string.Empty,
             CheckInDate = item?.CheckInDate ?? booking.CreatedAt,
             Quantity = item?.Quantity ?? 0,
             TotalAmount = booking.TotalAmount,
@@ -797,6 +839,7 @@ public class BookingsController : ControllerBase
             CanCancel = evaluation.CanCancel,
             CancelPolicy = evaluation.PolicyMessage,
             CancellationReason = cancellationReason,
+            BookingQr = booking.Status == BookingStatus.Pending ? BuildBookingQr(booking, item) : null,
             Tickets = booking.ElectronicTickets
                 .OrderBy(ticket => ticket.TicketId)
                 .Select(MapTicketToDto)
@@ -804,7 +847,7 @@ public class BookingsController : ControllerBase
         };
     }
 
-    private static MyBookingSummaryDto MapToBookingSummary(Booking booking)
+    private MyBookingSummaryDto MapToBookingSummary(Booking booking)
     {
         var detail = MapToBookingDetail(booking);
 
@@ -812,6 +855,7 @@ public class BookingsController : ControllerBase
         {
             BookingId = detail.BookingId,
             ServiceName = detail.ServiceName,
+            ServiceType = detail.ServiceType,
             CheckInDate = detail.CheckInDate,
             Quantity = detail.Quantity,
             TotalAmount = detail.TotalAmount,
@@ -823,8 +867,98 @@ public class BookingsController : ControllerBase
             CanCancel = detail.CanCancel,
             CancelPolicy = detail.CancelPolicy,
             CancellationReason = detail.CancellationReason,
+            BookingQr = detail.BookingQr,
             Tickets = detail.Tickets
         };
+    }
+
+    private BookingQrDto? BuildBookingQr(Booking booking, BookingItem? item)
+    {
+        if (item == null)
+        {
+            return null;
+        }
+
+        var bookingCode = FormatBookingCode(booking.BookingId);
+        var payload = BuildBookingQrUrl(bookingCode);
+
+        return new BookingQrDto
+        {
+            BookingCode = bookingCode,
+            BookingId = booking.BookingId,
+            CustomerName = booking.User?.FullName ?? string.Empty,
+            ServiceName = item.Service?.Name ?? "Dich vu du lich",
+            UseDate = item.CheckInDate,
+            Quantity = item.Quantity,
+            PaymentStatus = "Pending",
+            TicketType = "Booking QR",
+            QrPayloadJson = payload,
+            QrImageBase64 = GenerateQrImageBase64(payload)
+        };
+    }
+
+    private static PublicBookingQrDto BuildPublicBookingQr(Booking booking, BookingItem item, string qrPayload)
+    {
+        var bookingCode = FormatBookingCode(booking.BookingId);
+
+        return new PublicBookingQrDto
+        {
+            BookingCode = bookingCode,
+            BookingId = booking.BookingId,
+            CustomerName = booking.User?.FullName ?? string.Empty,
+            CustomerEmail = booking.User?.Email ?? string.Empty,
+            CustomerPhone = booking.User?.Phone ?? string.Empty,
+            ServiceName = item.Service?.Name ?? "Dich vu du lich",
+            ServiceType = item.Service?.ServiceType.ToString() ?? string.Empty,
+            UseDate = item.CheckInDate,
+            CreatedAt = booking.CreatedAt,
+            Quantity = item.Quantity,
+            TotalAmount = booking.TotalAmount,
+            PaymentStatus = booking.Status.ToString(),
+            TicketType = "Booking QR",
+            QrPayloadJson = qrPayload,
+            QrImageBase64 = GenerateQrImageBase64(qrPayload)
+        };
+    }
+
+    private string BuildBookingQrUrl(string bookingCode)
+    {
+        var baseUrl = _configuration["Ticket:FrontendBaseUrl"]
+            ?? _configuration["Frontend:BaseUrl"]
+            ?? DefaultFrontendBaseUrl;
+
+        return $"{baseUrl.Trim().TrimEnd('/')}/booking-qr/{Uri.EscapeDataString(bookingCode)}";
+    }
+
+    private static string FormatBookingCode(int bookingId)
+    {
+        return FormattableString.Invariant($"BK{bookingId:000000}");
+    }
+
+    private static int? ParseBookingCode(string? bookingCode)
+    {
+        if (string.IsNullOrWhiteSpace(bookingCode))
+        {
+            return null;
+        }
+
+        var normalized = bookingCode.Trim().ToUpperInvariant();
+        if (!normalized.StartsWith("BK", StringComparison.Ordinal) || normalized.Length <= 2)
+        {
+            return null;
+        }
+
+        return int.TryParse(normalized[2..], NumberStyles.None, CultureInfo.InvariantCulture, out var bookingId)
+            ? bookingId
+            : null;
+    }
+
+    private static string GenerateQrImageBase64(string qrContent)
+    {
+        using var generator = new QRCodeGenerator();
+        using var qrData = generator.CreateQrCode(qrContent, QRCodeGenerator.ECCLevel.Q);
+        var pngQrCode = new PngByteQRCode(qrData);
+        return Convert.ToBase64String(pngQrCode.GetGraphic(20));
     }
 
     private static ElectronicTicketDto MapTicketToDto(ElectronicTicket ticket)

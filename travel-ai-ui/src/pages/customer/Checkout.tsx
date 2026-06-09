@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
 import {
   ArrowLeft,
@@ -26,6 +26,7 @@ const promotions: Record<string, { percent: number; maxAmount: number }> = {
 
 const Checkout = () => {
   const { bookingId } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [booking, setBooking] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -37,6 +38,13 @@ const Checkout = () => {
   const [appliedPromotion, setAppliedPromotion] = useState<string | null>(null);
   const [promotionMessage, setPromotionMessage] = useState('');
   const [offlinePayment, setOfflinePayment] = useState<any>(null);
+
+  useEffect(() => {
+    const method = searchParams.get('method')?.toLowerCase();
+    if (method === 'momo' || method === 'vnpay' || method === 'vietqr' || method === 'counter') {
+      setPaymentMethod(method);
+    }
+  }, [searchParams]);
 
   // Lấy thông tin người dùng từ localStorage
   useEffect(() => {
@@ -170,9 +178,15 @@ const Checkout = () => {
       console.error(err);
       const message =
         err && typeof err === 'object' && 'response' in err
-          ? (err as any).response?.data?.message
+          ? (err as any).response?.data?.message || (err as any).response?.data?.title
           : null;
-      alert(message || 'Khong tao duoc cong thanh toan. Vui long thu lai.');
+      const hasResponse = err && typeof err === 'object' && 'response' in err && (err as any).response;
+      alert(
+        message ||
+          (hasResponse
+            ? 'Khong tao duoc cong thanh toan. Vui long thu lai.'
+            : 'Khong ket noi duoc backend thanh toan. Vui long kiem tra API dang chay.')
+      );
     } finally {
       setPaying(false);
     }
@@ -259,8 +273,8 @@ const Checkout = () => {
                     <Wallet className="text-pink-600" />
                   </span>
                   <span>
-                    <span className="block font-black text-slate-800">MoMo Wallet</span>
-                    <span className="text-xs font-medium text-slate-400">Redirect sang cong MoMo</span>
+                    <span className="block font-black text-slate-800">Thanh toan qua MoMo</span>
+                    <span className="text-xs font-medium text-slate-400">Redirect sang cong MoMo UAT</span>
                   </span>
                 </span>
                 {paymentMethod === 'momo' && <CheckCircle2 className="text-blue-600" size={24} />}

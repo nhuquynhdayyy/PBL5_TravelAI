@@ -12,4 +12,5 @@ public class PublicTicketDto
     public DateTime UseDate { get; set; }
     public string Status { get; set; } = string.Empty;
     public string QrCodeUrl { get; set; } = string.Empty;
+    public string QrImageBase64 { get; set; } = string.Empty;
 }

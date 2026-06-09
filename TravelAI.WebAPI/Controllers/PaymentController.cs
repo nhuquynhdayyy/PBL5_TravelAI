@@ -17,6 +17,9 @@ namespace TravelAI.WebAPI.Controllers;
 [Route("api/payment")]
 public sealed class PaymentController : ControllerBase
 {
+    private const decimal MomoMinAmount = 1000m;
+    private const decimal MomoMaxAmount = 50000000m;
+
     private readonly IPaymentService _paymentService;
     private readonly IMomoService _momoService;
     private readonly ApplicationDbContext _context;
@@ -76,18 +79,6 @@ public sealed class PaymentController : ControllerBase
         if (paymentAmount > booking.TotalAmount)
         {
             return BadRequest(new { message = "So tien thanh toan khong hop le." });
-        }
-
-        if (UseMockGatewayWhenConfigured("VnPay"))
-        {
-            var mockTransactionRef = CreateTransactionRef(booking.BookingId, "MOCKVNPAY");
-            await CreatePendingPaymentAsync(booking.BookingId, "VNPay", mockTransactionRef, paymentAmount);
-            return Ok(new
-            {
-                success = true,
-                transactionRef = mockTransactionRef,
-                paymentUrl = BuildMockPaymentUrl("vnpay", booking.BookingId, paymentAmount)
-            });
         }
 
         var transactionRef = CreateTransactionRef(booking.BookingId, "VNPAY");
@@ -226,34 +217,55 @@ public sealed class PaymentController : ControllerBase
         }
 
         // Dùng amount từ request nếu có (đã áp dụng giảm giá), ngược lại dùng totalAmount của booking
-        var paymentAmount = (request.Amount.HasValue && request.Amount.Value > 0)
-            ? request.Amount.Value
-            : booking.TotalAmount;
+        var paymentAmount = booking.TotalAmount;
 
         // Đảm bảo số tiền không vượt quá giá gốc (tránh gian lận)
-        if (paymentAmount > booking.TotalAmount)
+        if (paymentAmount < MomoMinAmount || paymentAmount > MomoMaxAmount)
         {
-            return BadRequest(new { message = "So tien thanh toan khong hop le." });
-        }
-
-        if (UseMockGatewayWhenConfigured("Momo"))
-        {
-            var mockOrderId = CreateTransactionRef(booking.BookingId, "MOCKMOMO");
-            await CreatePendingPaymentAsync(booking.BookingId, "MoMo", mockOrderId, paymentAmount);
-            var mockPaymentUrl = BuildMockPaymentUrl("momo", booking.BookingId, paymentAmount);
-            return Ok(new
+            return BadRequest(new
             {
-                isSuccess = true,
-                orderId = mockOrderId,
-                paymentUrl = mockPaymentUrl,
-                payUrl = mockPaymentUrl,
-                message = "Dang dung cong thanh toan demo vi MoMo chua cau hinh merchant credentials."
+                message = "So tien MoMo phai tu 1.000 VND den 50.000.000 VND."
             });
         }
 
         var orderId = CreateTransactionRef(booking.BookingId, "MOMO");
+        MomoPaymentResponse result;
+        try
+        {
+            result = await _momoService.CreatePaymentAsync(booking.BookingId, paymentAmount, orderId);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "MoMo payment configuration is invalid for booking {BookingId}.", booking.BookingId);
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "MoMo payment gateway request failed for booking {BookingId}.", booking.BookingId);
+            return StatusCode(StatusCodes.Status502BadGateway, new
+            {
+                message = "Khong ket noi duoc cong thanh toan MoMo. Vui long thu lai."
+            });
+        }
+        catch (TaskCanceledException ex)
+        {
+            _logger.LogError(ex, "MoMo payment gateway request timed out for booking {BookingId}.", booking.BookingId);
+            return StatusCode(StatusCodes.Status504GatewayTimeout, new
+            {
+                message = "Cong thanh toan MoMo phan hoi qua cham. Vui long thu lai."
+            });
+        }
+
+        if (!result.IsSuccess || string.IsNullOrWhiteSpace(result.PaymentUrl ?? result.PayUrl))
+        {
+            return BadRequest(new
+            {
+                message = result.Message ?? "MoMo khong tao duoc duong dan thanh toan.",
+                result.ResultCode
+            });
+        }
+
         await CreatePendingPaymentAsync(booking.BookingId, "MoMo", orderId, paymentAmount);
-        var result = await _momoService.CreatePaymentRequestAsync(booking.BookingId, paymentAmount, orderId);
         return Ok(result);
     }
 
@@ -599,9 +611,10 @@ public sealed class PaymentController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("momo/return")]
     [HttpPost("momo/callback")]
     [AllowAnonymous]
-    public async Task<IActionResult> MomoCallback([FromBody] Dictionary<string, string> callbackData)
+    public async Task<IActionResult> MomoReturn([FromBody] Dictionary<string, string> callbackData)
     {
         var result = _momoService.ValidateIPN(callbackData);
 
@@ -926,33 +939,6 @@ public sealed class PaymentController : ControllerBase
         {
             yield return date;
         }
-    }
-
-    private bool UseMockGatewayWhenConfigured(string provider)
-    {
-        if (!bool.TryParse(_configuration["Payments:EnableMockGateway"], out var enableMockGateway) || !enableMockGateway)
-        {
-            return false;
-        }
-
-        return provider.Equals("Momo", StringComparison.OrdinalIgnoreCase)
-            ? string.IsNullOrWhiteSpace(_configuration["Momo:PartnerCode"])
-                || string.IsNullOrWhiteSpace(_configuration["Momo:AccessKey"])
-                || string.IsNullOrWhiteSpace(_configuration["Momo:SecretKey"])
-            : string.IsNullOrWhiteSpace(_configuration[$"{provider}:TmnCode"])
-                || string.IsNullOrWhiteSpace(_configuration[$"{provider}:HashSecret"]);
-    }
-
-    private string BuildMockPaymentUrl(string provider, int bookingId, decimal amount)
-    {
-        var frontendBaseUrl = _configuration["Payments:MockGatewayFrontendUrl"];
-        if (!string.IsNullOrWhiteSpace(frontendBaseUrl))
-        {
-            var origin = new Uri(frontendBaseUrl).GetLeftPart(UriPartial.Authority);
-            return $"{origin}/mock-payment/{provider}/{bookingId}?amount={decimal.ToInt64(decimal.Round(amount, 0, MidpointRounding.AwayFromZero))}";
-        }
-
-        return $"http://localhost:5173/mock-payment/{provider}/{bookingId}?amount={decimal.ToInt64(decimal.Round(amount, 0, MidpointRounding.AwayFromZero))}";
     }
 
     private static Dictionary<string, string> JsonElementToDictionary(JsonElement element)

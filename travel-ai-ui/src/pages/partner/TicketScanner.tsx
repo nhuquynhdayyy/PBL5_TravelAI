@@ -16,6 +16,16 @@ type VerifyResponse = {
     totalAmount: number;
     status: string;
   };
+  booking?: {
+    bookingCode: string;
+    bookingId: number;
+    customerName: string;
+    serviceName: string;
+    useDate: string;
+    quantity: number;
+    paymentStatus: string;
+    ticketType: string;
+  };
 };
 
 const currencyFormatter = new Intl.NumberFormat('vi-VN');
@@ -181,9 +191,21 @@ const TicketScanner = () => {
                   <p>Status: {result.ticket.status}</p>
                 </div>
               )}
+              {result.booking && (
+                <div className="space-y-3 rounded-2xl bg-amber-50 p-4 text-sm font-bold text-slate-700">
+                  <p>Loai ve: {result.booking.ticketType}</p>
+                  <p>Ma don: {result.booking.bookingCode}</p>
+                  <p>Booking: #{result.booking.bookingId}</p>
+                  <p>Khach hang: {result.booking.customerName}</p>
+                  <p>Dich vu: {result.booking.serviceName}</p>
+                  <p>Ngay su dung: {new Date(result.booking.useDate).toLocaleDateString('vi-VN')}</p>
+                  <p>So luong: {result.booking.quantity}</p>
+                  <p>Trang thai: Cho thanh toan</p>
+                </div>
+              )}
             </div>
           ) : (
-            <p className="text-sm font-semibold text-slate-500">No ticket has been verified yet.</p>
+            <p className="text-sm font-semibold text-slate-500">No QR has been verified yet.</p>
           )}
         </div>
       </div>

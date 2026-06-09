@@ -18,7 +18,7 @@ const DestinationCard: React.FC<DestinationCardProps> = ({ destination, isAdmin,
   };
 
   return (
-    <div className="group relative bg-white rounded-3xl shadow-md overflow-hidden hover:shadow-2xl transition-all duration-300 border border-slate-100 flex flex-col h-full">
+    <div className="app-image-card group relative flex h-full flex-col overflow-hidden bg-white rounded-3xl shadow-md transition-all duration-300 border border-slate-100">
       
       {/* Nút Admin - Chỉ hiện khi là Admin và đang hover vào thẻ */}
       {isAdmin && (
@@ -53,7 +53,7 @@ const DestinationCard: React.FC<DestinationCardProps> = ({ destination, isAdmin,
           alt={destination.name} 
           className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500" 
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/30 to-transparent"></div>
       </div>
 
       {/* Nội dung */}
@@ -61,7 +61,7 @@ const DestinationCard: React.FC<DestinationCardProps> = ({ destination, isAdmin,
         <div className="flex items-center gap-1 text-blue-500 text-xs font-bold uppercase tracking-widest mb-2">
             <MapPin size={14} /> Vietnam
         </div>
-        <h3 className="text-xl font-black text-slate-800 line-clamp-1 mb-2 group-hover:text-blue-600 transition-colors">
+        <h3 className="text-xl font-black text-slate-800 line-clamp-1 mb-2 group-hover:text-blue-400 transition-colors">
             {destination.name}
         </h3>
         <p className="text-slate-500 text-sm line-clamp-3 leading-relaxed mb-6">

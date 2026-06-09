@@ -16,6 +16,8 @@ public sealed class MomoOptions
     public string PartnerCode { get; set; } = string.Empty;
     public string AccessKey { get; set; } = string.Empty;
     public string SecretKey { get; set; } = string.Empty;
+    public string ReturnUrl { get; set; } = string.Empty;
+    public string NotifyUrl { get; set; } = string.Empty;
     public string RedirectUrl { get; set; } = string.Empty;
     public string IpnUrl { get; set; } = string.Empty;
     public string RequestType { get; set; } = "captureWallet";
@@ -37,7 +39,7 @@ public sealed class MomoService : IMomoService
         _options = options.Value;
     }
 
-    public async Task<MomoPaymentResponse> CreatePaymentRequestAsync(int bookingId, decimal amount, string? orderId = null)
+    public async Task<MomoPaymentResponse> CreatePaymentAsync(int bookingId, decimal amount, string? orderId = null)
     {
         if (bookingId <= 0)
         {
@@ -57,37 +59,44 @@ public sealed class MomoService : IMomoService
         var requestId = $"REQ-{orderId}";
         var orderInfo = $"Thanh toan booking {bookingId}";
         const string extraData = "";
+        var returnUrl = GetReturnUrl();
+        var notifyUrl = GetNotifyUrl();
 
         var rawSignature = string.Join('&',
             $"accessKey={_options.AccessKey}",
             $"amount={amountValue}",
             $"extraData={extraData}",
-            $"ipnUrl={_options.IpnUrl}",
+            $"ipnUrl={notifyUrl}",
             $"orderId={orderId}",
             $"orderInfo={orderInfo}",
             $"partnerCode={_options.PartnerCode}",
-            $"redirectUrl={_options.RedirectUrl}",
+            $"redirectUrl={returnUrl}",
             $"requestId={requestId}",
             $"requestType={_options.RequestType}");
 
         var payload = new Dictionary<string, object?>
         {
             ["partnerCode"] = _options.PartnerCode,
+            ["accessKey"] = _options.AccessKey,
             ["partnerName"] = _options.PartnerName,
             ["storeId"] = _options.StoreId,
             ["requestType"] = _options.RequestType,
-            ["ipnUrl"] = _options.IpnUrl,
-            ["redirectUrl"] = _options.RedirectUrl,
+            ["ipnUrl"] = notifyUrl,
+            ["redirectUrl"] = returnUrl,
             ["orderId"] = orderId,
             ["amount"] = amountValue,
             ["orderInfo"] = orderInfo,
             ["requestId"] = requestId,
             ["extraData"] = extraData,
-            ["orderGroupId"] = _options.OrderGroupId,
             ["autoCapture"] = _options.AutoCapture,
             ["lang"] = _options.Lang,
             ["signature"] = ComputeHmacSha256(_options.SecretKey, rawSignature)
         };
+
+        if (!string.IsNullOrWhiteSpace(_options.OrderGroupId))
+        {
+            payload["orderGroupId"] = _options.OrderGroupId;
+        }
 
         var rawData = await PostJsonAsync(GetCreatePaymentUrl(), payload);
 
@@ -292,11 +301,12 @@ public sealed class MomoService : IMomoService
         if (string.IsNullOrWhiteSpace(GetCreatePaymentUrl())
             || string.IsNullOrWhiteSpace(_options.PartnerCode)
             || string.IsNullOrWhiteSpace(_options.AccessKey)
-            || string.IsNullOrWhiteSpace(_options.RedirectUrl)
-            || string.IsNullOrWhiteSpace(_options.IpnUrl))
+            || string.IsNullOrWhiteSpace(GetReturnUrl())
+            || string.IsNullOrWhiteSpace(GetNotifyUrl()))
         {
-            throw new InvalidOperationException("Cau hinh MoMo Endpoint/PartnerCode/AccessKey/RedirectUrl/IpnUrl chua day du.");
+            throw new InvalidOperationException("Cau hinh MoMo Endpoint/PartnerCode/AccessKey/ReturnUrl/NotifyUrl chua day du.");
         }
+
     }
 
     private void EnsureRefundConfig()
@@ -322,4 +332,15 @@ public sealed class MomoService : IMomoService
     {
         return string.IsNullOrWhiteSpace(_options.Endpoint) ? _options.CreatePaymentUrl : _options.Endpoint;
     }
+
+    private string GetReturnUrl()
+    {
+        return string.IsNullOrWhiteSpace(_options.ReturnUrl) ? _options.RedirectUrl : _options.ReturnUrl;
+    }
+
+    private string GetNotifyUrl()
+    {
+        return string.IsNullOrWhiteSpace(_options.NotifyUrl) ? _options.IpnUrl : _options.NotifyUrl;
+    }
+
 }

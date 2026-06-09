@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
 import { AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
 
 const PaymentResult = () => {
-  const { method = 'vnpay' } = useParams();
+  const { method } = useParams();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [success, setSuccess] = useState(false);
@@ -13,7 +14,10 @@ const PaymentResult = () => {
   const [bookingId, setBookingId] = useState<string | null>(null);
   const successMessage = 'Thanh toán thành công. Vé điện tử đã được phát hành.';
 
-  const normalizedMethod = useMemo(() => method.toLowerCase(), [method]);
+  const normalizedMethod = useMemo(
+    () => (method ?? (location.pathname === '/payment/result' ? 'momo' : 'vnpay')).toLowerCase(),
+    [location.pathname, method]
+  );
 
   useEffect(() => {
     const confirmPayment = async () => {
@@ -26,7 +30,7 @@ const PaymentResult = () => {
         }
 
         const endpoint =
-          normalizedMethod === 'momo' ? '/payment/momo/callback' : '/payment/vnpay/callback';
+          normalizedMethod === 'momo' ? '/payment/momo/return' : '/payment/vnpay/callback';
         const res = await axiosClient.post(endpoint, callbackData);
 
         setSuccess(Boolean(res.data.success));
