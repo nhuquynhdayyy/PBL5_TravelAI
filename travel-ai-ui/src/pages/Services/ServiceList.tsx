@@ -15,6 +15,7 @@ export interface ServiceDTO {
   name: string;
   basePrice: number;
   ratingAvg: number;
+  reviewCount?: number;
   latitude?: number;
   longitude?: number;
   imageUrl?: string;
@@ -62,10 +63,12 @@ const HotelCard: React.FC<{ hotel: ServiceDTO; index: number }> = ({ hotel, inde
         </button>
 
         {/* Rating bubble */}
-        <div className="absolute bottom-3 right-3 flex items-center gap-1 bg-white/95 backdrop-blur-sm px-2 py-1 rounded-full shadow-sm">
-          <Star size={11} className="fill-amber-400 text-amber-400" />
-          <span className="text-[11px] font-bold text-slate-800">{hotel.ratingAvg?.toFixed(1) || '5.0'}</span>
-        </div>
+        {hotel.reviewCount !== undefined && hotel.reviewCount > 0 && (
+          <div className="absolute bottom-3 right-3 flex items-center gap-1 bg-white/95 backdrop-blur-sm px-2 py-1 rounded-full shadow-sm">
+            <Star size={11} className="fill-amber-400 text-amber-400" />
+            <span className="text-[11px] font-bold text-slate-800">{hotel.ratingAvg?.toFixed(1)}</span>
+          </div>
+        )}
       </div>
 
       {/* Content */}

@@ -6,6 +6,7 @@ public class UpdateDestinationRequest
 {
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
+    public string? Categories { get; set; }
     // Cho phép null vì Admin có thể không muốn đổi ảnh
     public IFormFile? Image { get; set; } 
 }

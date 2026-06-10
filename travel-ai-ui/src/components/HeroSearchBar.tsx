@@ -118,7 +118,7 @@ const HeroSearchBar: React.FC = () => {
       {/* Search Button */}
       <button
         onClick={handleSearch}
-        className="flex h-14 items-center justify-center gap-2 rounded-xl bg-blue-600 px-8 font-black text-white shadow-lg shadow-blue-200 transition-all hover:bg-blue-700 hover:shadow-xl active:scale-95"
+        className="flex h-14 items-center justify-center gap-2 rounded-xl bg-white/10 px-8 font-black text-white ring-1 ring-white/20 transition-all hover:bg-white/15 active:scale-95"
       >
         <Search size={20} />
         <span>Tìm kiếm</span>

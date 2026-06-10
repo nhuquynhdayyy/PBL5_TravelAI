@@ -21,6 +21,7 @@ type BookingStatus = number | string;
 type CustomerBooking = {
   bookingId: number;
   serviceName: string;
+  serviceType?: string | number | null;
   checkInDate: string;
   quantity: number;
   totalAmount: number;
@@ -32,7 +33,21 @@ type CustomerBooking = {
   canCancel: boolean;
   cancelPolicy: string;
   cancellationReason?: string; // Lý do hủy đơn
+  bookingQr?: BookingQr | null;
   tickets?: ElectronicTicket[];
+};
+
+type BookingQr = {
+  bookingCode: string;
+  bookingId: number;
+  customerName: string;
+  serviceName: string;
+  useDate: string;
+  quantity: number;
+  paymentStatus: string;
+  ticketType: string;
+  qrPayloadJson: string;
+  qrImageBase64: string;
 };
 
 type ElectronicTicket = {
@@ -71,6 +86,45 @@ const stringStatusMap: Record<string, number> = {
 
 const currencyFormatter = new Intl.NumberFormat('vi-VN');
 
+type BookingTypeFilter = 'All' | 'Hotel' | 'Tour' | 'Transport';
+type BookingStateFilter = 'all' | 'pending' | 'bookingQr' | 'tickets' | 'paid' | 'cancelled';
+
+const bookingTypeFilters: Array<{ value: BookingTypeFilter; label: string }> = [
+  { value: 'All', label: 'All' },
+  { value: 'Hotel', label: 'Khach san' },
+  { value: 'Tour', label: 'Tour du lich' },
+  { value: 'Transport', label: 'Ve xe & May Bay' },
+];
+
+const bookingStateFilters: Array<{ value: BookingStateFilter; label: string }> = [
+  { value: 'all', label: 'Tat ca' },
+  { value: 'pending', label: 'Cho thanh toan' },
+  { value: 'bookingQr', label: 'Thanh toan tai quay' },
+  { value: 'tickets', label: 'Ve dien tu' },
+  // { value: 'paid', label: 'Da thanh toan' },
+  { value: 'cancelled', label: 'Da huy' },
+];
+
+function normalizeServiceType(value: unknown): BookingTypeFilter | 'Other' {
+  const normalized = String(value ?? '').trim().toLowerCase();
+
+  if (normalized === 'hotel' || normalized === '0') return 'Hotel';
+  if (normalized === 'tour' || normalized === '1') return 'Tour';
+  if (normalized === 'transport' || normalized === '2') return 'Transport';
+
+  return 'Other';
+}
+
+function resolveBookingServiceType(booking: CustomerBooking) {
+  const directType = normalizeServiceType(booking.serviceType);
+  if (directType !== 'Other') {
+    return directType;
+  }
+
+  const ticketType = normalizeServiceType(booking.tickets?.[0]?.serviceType);
+  return ticketType;
+}
+
 function resolveStatusKey(status: BookingStatus) {
   if (typeof status === 'number') {
     return status;
@@ -98,6 +152,53 @@ function formatPaymentMethod(paymentMethod: string | null) {
   }
 
   return paymentMethod;
+}
+
+function normalizePaymentMethod(paymentMethod: string | null) {
+  return String(paymentMethod ?? '').trim().toLowerCase();
+}
+
+function isCounterPayment(booking: CustomerBooking) {
+  return normalizePaymentMethod(booking.paymentMethod) === 'counter';
+}
+
+function hasCounterBookingQr(booking: CustomerBooking) {
+  return resolveStatusKey(booking.status) === 1 && isCounterPayment(booking) && !!booking.bookingQr;
+}
+
+function hasElectronicTickets(booking: CustomerBooking) {
+  return (booking.tickets?.length ?? 0) > 0;
+}
+
+function getCheckoutPaymentMethod(booking: CustomerBooking) {
+  const paymentMethod = normalizePaymentMethod(booking.paymentMethod);
+
+  if (paymentMethod === 'vnpay' || paymentMethod === 'vietqr' || paymentMethod === 'momo') {
+    return paymentMethod;
+  }
+
+  return 'momo';
+}
+
+function getPendingPaymentActionLabel(booking: CustomerBooking) {
+  const paymentMethod = normalizePaymentMethod(booking.paymentMethod);
+
+  if (paymentMethod === 'vnpay') return 'Thanh toan VNPay';
+  if (paymentMethod === 'vietqr') return 'Xem VietQR';
+
+  return 'Thanh toan MoMo';
+}
+
+function matchesStateFilter(booking: CustomerBooking, filter: BookingStateFilter) {
+  const statusKey = resolveStatusKey(booking.status);
+
+  if (filter === 'pending') return statusKey === 1 && !isCounterPayment(booking);
+  if (filter === 'bookingQr') return hasCounterBookingQr(booking);
+  if (filter === 'tickets') return hasElectronicTickets(booking);
+  if (filter === 'paid') return statusKey === 2;
+  if (filter === 'cancelled') return statusKey === 4;
+
+  return true;
 }
 
 function canCancelBooking(booking: CustomerBooking) {
@@ -159,11 +260,20 @@ function getTicketQrBase64(ticket: ElectronicTicket) {
 const MyBookings = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const requestedStateFilter = searchParams.get('filter') as BookingStateFilter | null;
+  const initialStateFilter: BookingStateFilter = bookingStateFilters.some((filter) => filter.value === requestedStateFilter)
+    ? requestedStateFilter as BookingStateFilter
+    : searchParams.get('tickets') === '1'
+      ? 'tickets'
+      : 'all';
   const [bookings, setBookings] = useState<CustomerBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState<CustomerBooking | null>(null);
+  const [selectedBookingQr, setSelectedBookingQr] = useState<BookingQr | null>(null);
   const [selectedTicket, setSelectedTicket] = useState<ElectronicTicket | null>(null);
   const [cancellingId, setCancellingId] = useState<number | null>(null);
+  const [typeFilter, setTypeFilter] = useState<BookingTypeFilter>('All');
+  const [stateFilter, setStateFilter] = useState<BookingStateFilter>(initialStateFilter);
   const onlyTickets = searchParams.get('tickets') === '1';
 
   const fetchBookings = async () => {
@@ -185,7 +295,7 @@ const MyBookings = () => {
 
   // Lock body scroll when modal is open
   useEffect(() => {
-    if (selectedBooking || selectedTicket) {
+    if (selectedBooking || selectedBookingQr || selectedTicket) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
@@ -195,13 +305,20 @@ const MyBookings = () => {
     return () => {
       document.body.style.overflow = 'unset';
     };
-  }, [selectedBooking, selectedTicket]);
+  }, [selectedBooking, selectedBookingQr, selectedTicket]);
 
   const pendingBookings = bookings.filter((booking) => resolveStatusKey(booking.status) === 1).length;
   const paidBookings = bookings.filter((booking) => resolveStatusKey(booking.status) === 2).length;
-  const displayedBookings = onlyTickets
+  const cancelledBookings = bookings.filter((booking) => resolveStatusKey(booking.status) === 4).length;
+  const bookingQrBookings = bookings.filter(hasCounterBookingQr).length;
+  const ticketBookings = bookings.filter(hasElectronicTickets).length;
+  const ticketScopedBookings = onlyTickets
     ? bookings.filter((booking) => (booking.tickets?.length ?? 0) > 0)
     : bookings;
+  const stateScopedBookings = ticketScopedBookings.filter((booking) => matchesStateFilter(booking, stateFilter));
+  const displayedBookings = typeFilter === 'All'
+    ? stateScopedBookings
+    : stateScopedBookings.filter((booking) => resolveBookingServiceType(booking) === typeFilter);
 
   const updateBooking = (bookingId: number, changes: Partial<CustomerBooking>) => {
     setBookings((current) =>
@@ -266,6 +383,18 @@ const MyBookings = () => {
     link.click();
   };
 
+  const downloadBookingQr = (bookingQr: BookingQr) => {
+    if (!bookingQr.qrImageBase64) {
+      alert('Khong tim thay anh QR dat cho.');
+      return;
+    }
+
+    const link = document.createElement('a');
+    link.href = `data:image/png;base64,${bookingQr.qrImageBase64}`;
+    link.download = `${bookingQr.bookingCode}.png`;
+    link.click();
+  };
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
       <div className="mb-8 flex flex-wrap items-center gap-3">
@@ -301,7 +430,7 @@ const MyBookings = () => {
         </button>
       </div>
 
-      <div className="mb-10 grid grid-cols-1 gap-5 md:grid-cols-3">
+      <div className="mb-10 grid grid-cols-1 gap-5 md:grid-cols-3 xl:grid-cols-5">
         <div className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Tổng booking</span>
@@ -325,6 +454,68 @@ const MyBookings = () => {
           </div>
           <div className="text-3xl font-black text-slate-900">{paidBookings}</div>
         </div>
+
+        <div className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Vé điện tử</span>
+            <QrCode className="text-blue-500" size={22} />
+          </div>
+          <div className="text-3xl font-black text-slate-900">{ticketBookings}</div>
+        </div>
+
+        <div className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Đã hủy</span>
+            <X className="text-rose-500" size={22} />
+          </div>
+          <div className="text-3xl font-black text-slate-900">{cancelledBookings}</div>
+        </div>
+      </div>
+
+      <div className="mb-4 overflow-x-auto custom-scrollbar-hide">
+        <div className="inline-flex min-w-max items-center rounded-[1.25rem] border border-slate-200 bg-white p-1.5 shadow-sm">
+          {bookingStateFilters.map((filter) => {
+            const active = stateFilter === filter.value;
+
+            return (
+              <button
+                key={filter.value}
+                type="button"
+                onClick={() => setStateFilter(filter.value)}
+                className={`rounded-2xl px-5 py-2.5 text-sm font-black transition-all ${
+                  active
+                    ? 'bg-slate-900 text-white shadow-lg'
+                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                {filter.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="mb-8 overflow-x-auto custom-scrollbar-hide">
+        <div className="inline-flex min-w-max items-center rounded-[1.25rem] border border-slate-200 bg-white p-1.5 shadow-sm">
+          {bookingTypeFilters.map((filter) => {
+            const active = typeFilter === filter.value;
+
+            return (
+              <button
+                key={filter.value}
+                type="button"
+                onClick={() => setTypeFilter(filter.value)}
+                className={`rounded-2xl px-5 py-2.5 text-sm font-black transition-all ${
+                  active
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
+                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                {filter.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {loading ? (
@@ -337,6 +528,7 @@ const MyBookings = () => {
             const status = getStatusMeta(booking.status);
             const canCancel = canCancelBooking(booking);
             const isCancelling = cancellingId === booking.bookingId;
+            const primaryTicket = booking.tickets?.[0];
 
             return (
               <div
@@ -404,6 +596,32 @@ const MyBookings = () => {
                   </div>
                 )}
 
+                {hasCounterBookingQr(booking) && (
+                  <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50/60 p-4">
+                    <div className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">
+                      <QrCode size={14} />
+                      Booking QR
+                    </div>
+                    <div className="flex flex-col gap-3 rounded-xl bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-black text-slate-900">{booking.bookingQr?.bookingCode}</p>
+                        <p className="truncate text-xs font-bold text-slate-500">{booking.bookingQr?.serviceName}</p>
+                        <p className="mt-1 text-[11px] font-bold text-amber-700">Cho thanh toan</p>
+                      </div>
+                      <button
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setSelectedBookingQr(booking.bookingQr ?? null);
+                        }}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 py-2 text-xs font-black text-white hover:bg-amber-700"
+                      >
+                        <QrCode size={14} />
+                        Xem Booking QR
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {booking.tickets && booking.tickets.length > 0 && (
                   <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/40 p-4">
                     <div className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-blue-600">
@@ -431,7 +649,7 @@ const MyBookings = () => {
                             className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white hover:bg-blue-700"
                           >
                             <QrCode size={14} />
-                            Xem QR
+                            Xem ve dien tu
                           </button>
                         </div>
                       ))}
@@ -443,6 +661,43 @@ const MyBookings = () => {
                   <span className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
                     Bam vao the de xem chi tiet
                   </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {hasCounterBookingQr(booking) && (
+                      <button
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setSelectedBookingQr(booking.bookingQr ?? null);
+                        }}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 py-2 text-xs font-black text-white transition-all hover:bg-amber-700"
+                      >
+                        <QrCode size={14} />
+                        Xem Booking QR
+                      </button>
+                    )}
+                    {resolveStatusKey(booking.status) === 1 && !isCounterPayment(booking) && (
+                      <button
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          navigate(`/checkout/${booking.bookingId}?method=${getCheckoutPaymentMethod(booking)}`);
+                        }}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-pink-600 px-4 py-2 text-xs font-black text-white transition-all hover:bg-pink-700"
+                      >
+                        <CreditCard size={14} />
+                        {getPendingPaymentActionLabel(booking)}
+                      </button>
+                    )}
+                    {!hasCounterBookingQr(booking) && primaryTicket && (
+                      <button
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setSelectedTicket(primaryTicket);
+                        }}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white transition-all hover:bg-blue-700"
+                      >
+                        <QrCode size={14} />
+                        Xem ve dien tu
+                      </button>
+                    )}
                   {canCancel && (
                     <button
                       onClick={(event) => {
@@ -455,6 +710,7 @@ const MyBookings = () => {
                       {isCancelling ? 'Dang huy...' : 'Huy dat cho'}
                     </button>
                   )}
+                  </div>
                 </div>
               </div>
             );
@@ -576,6 +832,32 @@ const MyBookings = () => {
               </div>
             )}
 
+            {hasCounterBookingQr(selectedBooking) && (
+              <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-5">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">
+                    <QrCode size={16} />
+                    Booking QR
+                  </div>
+                  <button
+                    onClick={() => {
+                      setSelectedBooking(null);
+                      setSelectedBookingQr(selectedBooking.bookingQr ?? null);
+                    }}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 py-2 text-xs font-black text-white hover:bg-amber-700"
+                  >
+                    <QrCode size={14} />
+                    Xem Booking QR
+                  </button>
+                </div>
+                <div className="rounded-2xl bg-white p-4 text-sm font-bold text-slate-700">
+                  <p>Ma don: {selectedBooking.bookingQr?.bookingCode}</p>
+                  <p>Trang thai: Cho thanh toan</p>
+                  <p>Loai ve: {selectedBooking.bookingQr?.ticketType}</p>
+                </div>
+              </div>
+            )}
+
             {selectedBooking.tickets && selectedBooking.tickets.length > 0 && (
               <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5">
                 <div className="mb-4 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
@@ -644,6 +926,97 @@ const MyBookings = () => {
         </div>
       )}
 
+      {selectedBookingQr && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 px-4 py-8"
+          onClick={() => setSelectedBookingQr(null)}
+        >
+          <div
+            className="max-h-[calc(100vh-4rem)] w-full max-w-lg overflow-y-auto rounded-[2rem] bg-white p-6 shadow-2xl custom-scrollbar"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-amber-600">
+                  {selectedBookingQr.bookingCode}
+                </div>
+                <h2 className="text-2xl font-black leading-tight text-slate-900">
+                  {selectedBookingQr.serviceName}
+                </h2>
+              </div>
+              <button
+                onClick={() => setSelectedBookingQr(null)}
+                className="rounded-2xl bg-slate-100 p-3 text-slate-500 transition-all hover:bg-slate-200"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="rounded-2xl bg-amber-50 p-5 text-center">
+              <img
+                src={`data:image/png;base64,${selectedBookingQr.qrImageBase64}`}
+                alt={`QR ${selectedBookingQr.bookingCode}`}
+                className="mx-auto size-64 rounded-xl bg-white p-3 shadow-sm"
+              />
+            </div>
+
+            <div className="mt-5 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Ma don</p>
+                <p className="mt-1 font-black text-slate-800">{selectedBookingQr.bookingCode}</p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Loai ve</p>
+                <p className="mt-1 font-black text-slate-800">{selectedBookingQr.ticketType}</p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Khach hang</p>
+                <p className="mt-1 font-black text-slate-800">{selectedBookingQr.customerName}</p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Trang thai</p>
+                <p className="mt-1 font-black text-amber-700">Cho thanh toan</p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4 sm:col-span-2">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Dich vu</p>
+                <p className="mt-1 font-black text-slate-800">{selectedBookingQr.serviceName}</p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Ngay su dung</p>
+                <p className="mt-1 font-black text-slate-800">{formatVietnameseDate(selectedBookingQr.useDate)}</p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">So luong</p>
+                <p className="mt-1 font-black text-slate-800">{selectedBookingQr.quantity}</p>
+              </div>
+            </div>
+
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <button
+                onClick={() => navigate(`/booking-qr/${encodeURIComponent(selectedBookingQr.bookingCode)}`)}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-black text-white hover:bg-black"
+              >
+                <QrCode size={18} />
+                Xem trang dat cho
+              </button>
+              <button
+                onClick={() => downloadBookingQr(selectedBookingQr)}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-amber-600 px-5 py-3 text-sm font-black text-white hover:bg-amber-700"
+              >
+                <Download size={18} />
+                Tai anh QR
+              </button>
+              <button
+                onClick={() => setSelectedBookingQr(null)}
+                className="rounded-2xl bg-slate-200 px-5 py-3 text-sm font-black text-slate-700 transition-all hover:bg-slate-300"
+              >
+                Dong
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {selectedTicket && (
         <div
           className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 px-4 py-8"
@@ -699,6 +1072,13 @@ const MyBookings = () => {
 
             <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
               <button
+                onClick={() => navigate(`/e-ticket/${encodeURIComponent(selectedTicket.ticketCode)}`)}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-black text-white hover:bg-black"
+              >
+                <QrCode size={18} />
+                Xem trang ve dien tu
+              </button>
+              <button
                 onClick={() => downloadTicketQr(selectedTicket)}
                 className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white hover:bg-blue-700"
               >
@@ -707,7 +1087,7 @@ const MyBookings = () => {
               </button>
               <button
                 onClick={() => setSelectedTicket(null)}
-                className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-black text-white transition-all hover:bg-black"
+                className="rounded-2xl bg-slate-200 px-5 py-3 text-sm font-black text-slate-700 transition-all hover:bg-slate-300"
               >
                 Dong
               </button>

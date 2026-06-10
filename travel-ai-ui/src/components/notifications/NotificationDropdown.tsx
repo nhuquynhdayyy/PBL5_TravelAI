@@ -49,13 +49,13 @@ const NotificationDropdown = ({ trigger }: NotificationDropdownProps) => {
       <span onClick={() => setIsOpen((current) => !current)}>{trigger}</span>
 
       {isOpen && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-[min(92vw,380px)] max-h-[520px] overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-2xl animate-in fade-in slide-in-from-top-2 duration-300">
-          <div className="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-blue-50 to-slate-50 px-4 py-3">
+        <div className="absolute right-0 top-full z-50 mt-2 w-[min(92vw,380px)] max-h-[520px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-300/50 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/40 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-950">
             <div className="flex items-center gap-2">
-              <Bell size={18} className="text-blue-600" />
-              <h3 className="text-sm font-black text-slate-900">Thông báo</h3>
+              <Bell size={18} className="text-blue-600 dark:text-blue-400" />
+              <h3 className="text-sm font-black text-slate-850 dark:text-slate-100">Thông báo</h3>
               {notifications.length > 0 && (
-                <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-black text-white">
+                <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-black text-white dark:bg-blue-500">
                   {notifications.length}
                 </span>
               )}
@@ -63,7 +63,7 @@ const NotificationDropdown = ({ trigger }: NotificationDropdownProps) => {
             {notifications.length > 0 && (
               <button
                 onClick={() => markAllAsRead()}
-                className="text-xs font-bold text-blue-600 transition-colors hover:text-blue-700"
+                className="text-xs font-bold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
               >
                 Doc tat ca
               </button>
@@ -73,42 +73,44 @@ const NotificationDropdown = ({ trigger }: NotificationDropdownProps) => {
           <div className="max-h-[400px] overflow-y-auto">
             {isLoading ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="animate-spin text-blue-600" size={28} />
+                <Loader2 className="animate-spin text-blue-600 dark:text-blue-400" size={28} />
               </div>
             ) : notifications.length === 0 ? (
               <div className="flex flex-col items-center justify-center px-4 py-12">
-                <div className="mb-3 rounded-full bg-slate-100 p-4">
-                  <Bell size={32} className="text-slate-400" />
+                <div className="mb-3 rounded-full bg-slate-100 p-4 dark:bg-slate-950">
+                  <Bell size={32} className="text-slate-400 dark:text-slate-500" />
                 </div>
-                <p className="text-sm font-bold text-slate-400">Chưa có thông báo nào</p>
+                <p className="text-sm font-bold text-slate-400 dark:text-slate-500">Chưa có thông báo nào</p>
               </div>
             ) : (
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-slate-100 dark:divide-slate-800">
                 {notifications.slice(0, 8).map((item) => (
                   <div
                     key={item.id}
                     className={`group flex items-start gap-3 p-4 transition-colors ${
-                      item.isRead ? 'bg-white hover:bg-slate-50' : 'bg-blue-50/70 hover:bg-blue-50'
+                      item.isRead 
+                        ? 'bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800/60' 
+                        : 'bg-blue-50/70 hover:bg-blue-50 dark:bg-blue-950/25 dark:hover:bg-blue-950/40'
                     }`}
                   >
                     <div
                       className={`flex-shrink-0 rounded-xl p-2 text-white ${
-                        item.isRead ? 'bg-slate-400' : 'bg-blue-600'
+                        item.isRead ? 'bg-slate-300 dark:bg-slate-700' : 'bg-blue-600 dark:bg-blue-500'
                       }`}
                     >
                       {getIcon(item.type)}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-black text-slate-900">{item.title}</p>
-                      <p className="mt-1 text-xs leading-relaxed text-slate-600">{item.message}</p>
-                      <p className="mt-1.5 text-[10px] font-semibold text-slate-400">
+                      <p className="text-sm font-black text-slate-800 dark:text-slate-100">{item.title}</p>
+                      <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">{item.message}</p>
+                      <p className="mt-1.5 text-[10px] font-semibold text-slate-400 dark:text-slate-500">
                         {getTimeAgo(item.createdAt)} - {item.isRead ? 'Da doc' : 'Chua doc'}
                       </p>
                     </div>
                     {!item.isRead && (
                       <button
                         onClick={() => markAsRead(item.id)}
-                        className="rounded-lg p-1 text-slate-400 transition-all hover:bg-white hover:text-blue-600"
+                        className="rounded-lg p-1 text-slate-400 transition-all hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-blue-600 dark:hover:text-blue-400"
                         aria-label="Danh dau da doc"
                       >
                         <Eye size={16} />
@@ -116,7 +118,7 @@ const NotificationDropdown = ({ trigger }: NotificationDropdownProps) => {
                     )}
                     <button
                       onClick={() => deleteNotification(item.id)}
-                      className="flex-shrink-0 rounded-lg p-1 text-slate-400 transition-all hover:bg-white hover:text-red-600"
+                      className="flex-shrink-0 rounded-lg p-1 text-slate-400 transition-all hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-red-600 dark:hover:text-red-500"
                       aria-label="Xóa thông báo"
                     >
                       <Trash2 size={16} />
@@ -130,7 +132,7 @@ const NotificationDropdown = ({ trigger }: NotificationDropdownProps) => {
           <Link
             to="/notifications"
             onClick={() => setIsOpen(false)}
-            className="block border-t border-slate-100 px-4 py-3 text-center text-xs font-black uppercase tracking-widest text-blue-600 hover:bg-blue-50"
+            className="block border-t border-slate-100 dark:border-slate-800 px-4 py-3 text-center text-xs font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-950"
           >
             Xem tất cả thông báo
           </Link>

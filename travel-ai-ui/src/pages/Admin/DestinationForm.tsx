@@ -7,6 +7,7 @@ import { Upload, Save, X } from 'lucide-react';
 const DestinationForm = () => {
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
+    const [categories, setCategories] = useState('');
     const [image, setImage] = useState<File | null>(null);
     const [preview, setPreview] = useState('');
     const navigate = useNavigate();
@@ -24,6 +25,7 @@ const DestinationForm = () => {
         const formData = new FormData(); // Bắt buộc dùng FormData để upload file
         formData.append('name', name);
         formData.append('description', description);
+        formData.append('categories', categories);
         if (image) formData.append('image', image);
 
         try {
@@ -48,6 +50,10 @@ const DestinationForm = () => {
                     <div>
                         <label className="block text-sm font-bold mb-2">Mô tả</label>
                         <textarea className="w-full p-4 border rounded-2xl h-32" value={description} onChange={e => setDescription(e.target.value)} required />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-bold mb-2">Loại hình / Tag (Phân tách bằng dấu phẩy)</label>
+                        <input className="w-full p-4 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none" value={categories} onChange={e => setCategories(e.target.value)} placeholder="Ví dụ: Lịch sử,Ẩm thực" />
                     </div>
                     <div>
                         <label className="block text-sm font-bold mb-2">Ảnh đại diện</label>

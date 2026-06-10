@@ -9,6 +9,10 @@
   color: #f1f5f9;
 }
 
+.dark header :where(.text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600) {
+  color: #e2e8f0;
+}
+
 /* Custom Scrollbar Styles - Modern & Beautiful */
 /* For Webkit browsers (Chrome, Safari, Edge) */
 ::-webkit-scrollbar {
@@ -67,4 +71,216 @@
 .custom-scrollbar-hide:hover::-webkit-scrollbar {
   width: 5px;
   height: 5px;
+}
+
+@layer components {
+  .app-section {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
+    box-shadow: 0 18px 46px rgba(15, 23, 42, 0.08);
+  }
+
+  .app-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
+    box-shadow: 0 18px 46px rgba(15, 23, 42, 0.08);
+  }
+
+  .app-input {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    color: #0f172a;
+    border-radius: 16px;
+  }
+
+  .app-input::placeholder {
+    color: #94a3b8;
+  }
+
+  .app-dark-panel {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
+    box-shadow: 0 18px 46px rgba(15, 23, 42, 0.08);
+  }
+
+  .dark .app-section {
+    background: #162033;
+    border-color: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.22);
+  }
+
+  .dark .app-card {
+    background: #1E293B;
+    border-color: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 18px 46px rgba(0, 0, 0, 0.24);
+  }
+
+  .dark .app-input {
+    background: #111827;
+    border-color: rgba(148, 163, 184, 0.28);
+    color: #f8fafc;
+  }
+
+  .dark .app-input::placeholder {
+    color: #64748b;
+  }
+
+  .dark .app-dark-panel {
+    background: #162033;
+    border-color: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+  }
+}
+
+body {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.app-dark-content {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.dark .app-dark-content {
+  background: #0B1220;
+  color: #f8fafc;
+}
+
+.dark .app-dark-content :where(section:not([class*="bg-slate-950"]):not([class*="bg-gradient"]), .section-panel) {
+  background-color: #162033;
+}
+
+.dark .app-dark-content :where(
+  article,
+  aside,
+  table,
+  .app-card,
+  .rounded-2xl,
+  .rounded-3xl,
+  .rounded-\[2rem\],
+  .rounded-\[2\.5rem\],
+  .rounded-\[3rem\],
+  .rounded-\[28px\],
+  .rounded-\[32px\]
+):where(
+  .bg-white,
+  .bg-slate-50,
+  .bg-slate-100,
+  .bg-blue-50,
+  .bg-indigo-50\/50,
+  .bg-amber-50,
+  .bg-amber-50\/60,
+  .bg-emerald-50,
+  .bg-red-50,
+  .bg-rose-50,
+  .bg-sky-50
+) {
+  background: #1E293B !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  border-radius: 20px;
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.24);
+}
+
+.dark .app-dark-content :where(.bg-white, .bg-slate-50, .bg-slate-100, .bg-blue-50, .bg-indigo-50\/50) {
+  color: #e2e8f0;
+}
+
+.dark .app-dark-content :where(h1, h2, h3, h4, .text-slate-900, .text-slate-950, .text-slate-800, .text-slate-700) {
+  color: #ffffff !important;
+}
+
+.dark .app-dark-content :where(.text-slate-600, .text-slate-500, .text-slate-400) {
+  color: #94a3b8 !important;
+}
+
+.dark .app-dark-content :where(.text-slate-300) {
+  color: #cbd5e1 !important;
+}
+
+.dark .app-dark-content :where(.text-blue-600, .text-\[\#0061ff\]) {
+  color: #60a5fa !important;
+}
+
+.dark .app-dark-content :where(.border-slate-50, .border-slate-100, .border-slate-200, .border-blue-100, .border-indigo-100, .border-indigo-200) {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.dark .app-dark-content :where(input, select, textarea) {
+  background: #111827 !important;
+  border-color: rgba(148, 163, 184, 0.28) !important;
+  color: #f8fafc !important;
+}
+
+.dark .app-dark-content :where(input, select, textarea)::placeholder {
+  color: #64748b !important;
+}
+
+.dark .app-dark-content :where(table, thead, tbody, tr, th, td) {
+  background-color: #1E293B !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  color: #cbd5e1;
+}
+
+.dark .app-dark-content :where(thead, th) {
+  background-color: #162033 !important;
+  color: #f8fafc !important;
+}
+
+.dark .app-dark-content :where(.divide-slate-100 > :not([hidden]) ~ :not([hidden])) {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.dark .app-dark-content :where(.shadow-blue-100, .shadow-blue-200, .shadow-slate-200) {
+  --tw-shadow-color: rgba(37, 99, 235, 0.18) !important;
+}
+
+.dark .app-dark-content :where(.bg-white\/90, .bg-white\/95) {
+  background-color: rgba(15, 23, 42, 0.82) !important;
+  color: #f8fafc !important;
+}
+
+.dark .app-dark-content :where(.bg-white\/10) {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.dark .app-dark-content :where(.bg-slate-900, .bg-black) {
+  background-color: #2563eb !important;
+}
+
+.dark .app-dark-content :where(.bg-slate-900):hover {
+  background-color: #1d4ed8 !important;
+}
+
+.dark .app-dark-content :where(.bg-slate-100, .bg-slate-200) {
+  background-color: #162033 !important;
+}
+
+.dark .app-dark-content :where(img) {
+  background-color: #162033;
+}
+
+.dark .app-dark-content :where(.leaflet-container, .itm-map) {
+  background: #162033 !important;
+}
+
+.dark .app-dark-content .app-image-card {
+  background: #1E293B !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 20px !important;
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.24);
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+.dark .app-dark-content .app-image-card:hover {
+  transform: scale(1.03);
+  border-color: rgba(96, 165, 250, 0.35) !important;
+  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.34);
+}
+
+.dark .app-dark-content .app-image-card img {
+  object-fit: cover;
 }

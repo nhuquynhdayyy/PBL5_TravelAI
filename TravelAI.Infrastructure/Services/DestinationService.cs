@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using TravelAI.Application.Interfaces;
 using TravelAI.Application.DTOs.Destination;
 using TravelAI.Domain.Entities;
+using TravelAI.Domain.Enums;
 using TravelAI.Domain.Interfaces;
 using TravelAI.Infrastructure.Persistence; 
 
@@ -20,16 +21,36 @@ public class DestinationService : IDestinationService
 
     public async Task<IEnumerable<DestinationDto>> GetAllAsync()
     {
-        var data = await _repository.GetAllAsync();
-        return data.Select(x => new DestinationDto(x.DestinationId, x.Name, x.Description, x.ImageUrl));
+        var data = await _context.Destinations
+            .Select(x => new DestinationDto(
+                x.DestinationId,
+                x.Name,
+                x.Description,
+                x.ImageUrl,
+                _context.Services.Count(s => s.IsActive && s.ServiceType == ServiceType.Hotel && s.TouristSpot != null && s.TouristSpot.DestinationId == x.DestinationId),
+                _context.Services.Count(s => s.IsActive && s.ServiceType == ServiceType.Tour && s.TouristSpot != null && s.TouristSpot.DestinationId == x.DestinationId),
+                x.Categories
+            ))
+            .ToListAsync();
+        return data;
     }
 
     public async Task<DestinationDto?> GetByIdAsync(int id)
     {
-        var x = await _repository.GetByIdAsync(id);
-        if (x == null) return null;
+        var x = await _context.Destinations
+            .Where(d => d.DestinationId == id)
+            .Select(x => new DestinationDto(
+                x.DestinationId,
+                x.Name,
+                x.Description,
+                x.ImageUrl,
+                _context.Services.Count(s => s.IsActive && s.ServiceType == ServiceType.Hotel && s.TouristSpot != null && s.TouristSpot.DestinationId == x.DestinationId),
+                _context.Services.Count(s => s.IsActive && s.ServiceType == ServiceType.Tour && s.TouristSpot != null && s.TouristSpot.DestinationId == x.DestinationId),
+                x.Categories
+            ))
+            .FirstOrDefaultAsync();
         
-        return new DestinationDto(x.DestinationId, x.Name, x.Description, x.ImageUrl);
+        return x;
     }
 
     public async Task<DestinationDto> CreateAsync(CreateDestinationRequest request, string webRootPath)
@@ -51,13 +72,22 @@ public class DestinationService : IDestinationService
         {
             Name = request.Name,
             Description = request.Description,
-            ImageUrl = $"/uploads/{fileName}" // Lưu đường dẫn tương đối
+            ImageUrl = $"/uploads/{fileName}", // Lưu đường dẫn tương đối
+            Categories = request.Categories
         };
 
         await _repository.AddAsync(destination);
         await _context.SaveChangesAsync();  
 
-        return new DestinationDto(destination.DestinationId, destination.Name, destination.Description, destination.ImageUrl);
+        return new DestinationDto(
+            destination.DestinationId, 
+            destination.Name, 
+            destination.Description, 
+            destination.ImageUrl,
+            0,
+            0,
+            destination.Categories
+        );
     }
 
     private void DeletePhysicalFile(string? relativePath, string webRootPath)
@@ -79,6 +109,8 @@ public class DestinationService : IDestinationService
             
         if (!string.IsNullOrWhiteSpace(request.Description))
             destination.Description = request.Description;
+
+        destination.Categories = request.Categories;
 
         if (request.Image != null)
         {

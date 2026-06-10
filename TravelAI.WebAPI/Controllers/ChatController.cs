@@ -24,6 +24,7 @@ public class ChatController : ControllerBase
     private const string SearchHotelIntent = "search_hotel";
     private const string SearchTourIntent = "search_tour";
     private const string AskPriceIntent = "ask_price";
+    private const string ShowMoreIntent = "show_more";
     private const string GeneralQuestionIntent = "general_question";
 
     private readonly ApplicationDbContext _db;
@@ -81,6 +82,7 @@ public class ChatController : ControllerBase
             .Where(message => !string.IsNullOrWhiteSpace(message.Content))
             .ToList();
 
+        var shownIds = request.ShownServiceIds ?? new List<int>();
         var intent = await DetectIntentAsync(history, request.Message);
         var destination = await ResolveDestinationAsync(intent.Destination, history, request.Message);
         intent = ApplyIntentFallbacks(intent, request.Message, destination);
@@ -88,8 +90,9 @@ public class ChatController : ControllerBase
         ChatResponse response = intent.Intent switch
         {
             GenerateItineraryIntent => await HandleGenerateItineraryAsync(destination, intent),
-            SearchHotelIntent => await HandleServiceSearchAsync(ServiceType.Hotel, destination, intent.Budget),
-            SearchTourIntent => await HandleServiceSearchAsync(ServiceType.Tour, destination, intent.Budget),
+            SearchHotelIntent => await HandleServiceSearchAsync(ServiceType.Hotel, destination, intent.Budget, shownIds),
+            SearchTourIntent => await HandleServiceSearchAsync(ServiceType.Tour, destination, intent.Budget, shownIds),
+            ShowMoreIntent => await HandleShowMoreAsync(destination, history, shownIds),
             AskPriceIntent => await HandleAskPriceAsync(destination, request.Message),
             _ => await CreateGeneralResponseAsync(request.Message, history)
         };
@@ -100,22 +103,23 @@ public class ChatController : ControllerBase
     private async Task<ChatIntentAnalysis> DetectIntentAsync(IEnumerable<ChatMessage> history, string message)
     {
         string conversationContext = BuildConversationContext(history, message);
-        string intentPrompt = $@"Phan tich hoi thoai du lich sau:
+        string intentPrompt = $@"Phân tích hội thoại du lịch sau:
 {conversationContext}
 
-Tra ve JSON voi format:
+Trả về JSON với format:
 {{
-  ""intent"": ""generate_itinerary"" | ""search_hotel"" | ""search_tour"" | ""ask_price"" | ""general_question"",
-  ""destination"": ""ten tinh hoac null"",
-  ""days"": so ngay hoac null,
-  ""budget"": ngan sach hoac null
+  ""intent"": ""generate_itinerary"" | ""search_hotel"" | ""search_tour"" | ""ask_price"" | ""show_more"" | ""general_question"",
+  ""destination"": ""tên tỉnh hoặc null"",
+  ""days"": số ngày hoặc null,
+  ""budget"": ngân sách hoặc null
 }}
 
-Yeu cau:
-- destination la ten tinh/thanh pho Viet Nam neu co the suy ra tu context.
-- days la TONG so ngay neu nguoi dung dang noi ve lich trinh/chuyen di.
-- budget phai la so VND neu trong cau co cac cum nhu 500k, 2 trieu, 1500000.
-- Neu khong xac dinh duoc thi de null.";
+Yêu cầu:
+- destination là tên tỉnh/thành phố Việt Nam nếu có thể suy ra từ context.
+- days là TỔNG số ngày nếu người dùng đang nói về lịch trình/chuyến đi.
+- budget phải là số VND nếu trong câu có các cụm như 500k, 2 triệu, 1500000.
+- Nếu không xác định được thì để null.
+- Nếu người dùng hỏi 'còn cái nào khác không?', 'chỉ có vậy thôi à?', 'cho xem thêm', 'có lựa chọn khác không?', 'chỉ có 1 thôi à?' thì intent = show_more.";
 
         var rawIntent = await _aiService.CallApiAsync(
             intentPrompt,
@@ -134,7 +138,7 @@ Yeu cau:
         {
             return new ChatResponse
             {
-                Text = "Ban muon minh len lich trinh cho diem den nao?",
+                Text = "Bạn muốn mình lên lịch trình cho điểm đến nào?",
                 Type = "text"
             };
         }
@@ -152,49 +156,58 @@ Yeu cau:
         {
             return new ChatResponse
             {
-                Text = $"Minh chua tao duoc lich trinh {days} ngay cho {destination.Name}. Ban thu lai giup minh nhe.",
+                Text = $"Mình chưa tạo được lịch trình {days} ngày cho {destination.Name}. Bạn thử lại giúp mình nhé.",
                 Type = "text"
             };
         }
 
         return new ChatResponse
         {
-            Text = $"Toi da lap xong lich trinh {days} ngay cho chuyen di {destination.Name} cua ban!",
+            Text = $"Tôi đã lập xong lịch trình {days} ngày cho chuyến đi {destination.Name} của bạn!",
             Type = "itinerary",
             Data = itinerary
         };
     }
 
-    private async Task<ChatResponse> HandleServiceSearchAsync(ServiceType serviceType, Destination? destination, decimal? budget)
+    private async Task<ChatResponse> HandleServiceSearchAsync(
+        ServiceType serviceType,
+        Destination? destination,
+        decimal? budget,
+        IReadOnlyCollection<int>? excludeIds = null)
     {
         if (destination == null)
         {
             return new ChatResponse
             {
                 Text = serviceType == ServiceType.Hotel
-                    ? "Ban muon xem khach san o tinh/thanh nao?"
-                    : "Ban muon tim tour o tinh/thanh nao?",
+                    ? "Bạn muốn xem khách sạn ở tỉnh/thành nào?"
+                    : "Bạn muốn tìm tour ở tỉnh/thành nào?",
                 Type = "text"
             };
         }
 
         var services = await LoadServiceCandidatesAsync(serviceType, destination, requireDestination: true);
-        var items = services
+        var allItems = services
             .Select(MapChatServiceItem)
             .OrderBy(item => item.Price)
             .ThenBy(item => item.Name)
             .ToList();
 
-        if (items.Count == 0)
+        if (allItems.Count == 0)
         {
             return new ChatResponse
             {
                 Text = serviceType == ServiceType.Hotel
-                    ? $"Minh chua tim thay khach san phu hop o {destination.Name}."
-                    : $"Minh chua tim thay tour phu hop o {destination.Name}.",
+                    ? $"Mình chưa tìm thấy khách sạn còn chỗ ở {destination.Name}."
+                    : $"Mình chưa tìm thấy tour còn chỗ ở {destination.Name}.",
                 Type = "text"
             };
         }
+
+        // Loại trừ các dịch vụ đã hiển thị trước đó
+        var items = excludeIds is { Count: > 0 }
+            ? allItems.Where(item => !excludeIds.Contains(item.Id)).ToList()
+            : allItems;
 
         var filteredItems = budget.HasValue
             ? items.Where(item => item.Price <= budget.Value).Take(5).ToList()
@@ -206,20 +219,20 @@ Yeu cau:
             return new ChatResponse
             {
                 Text = serviceType == ServiceType.Hotel
-                    ? $"Minh chua thay khach san o {destination.Name} duoi {budget.Value:N0}d. Day la vai lua chon gan muc ngan sach nhat."
-                    : $"Minh chua thay tour o {destination.Name} duoi {budget.Value:N0}d. Day la vai lua chon gan muc ngan sach nhat.",
+                    ? $"Mình chưa thấy khách sạn ở {destination.Name} dưới {budget.Value:N0}đ. Đây là vài lựa chọn gần mức ngân sách nhất."
+                    : $"Mình chưa thấy tour ở {destination.Name} dưới {budget.Value:N0}đ. Đây là vài lựa chọn gần mức ngân sách nhất.",
                 Type = "service",
                 Data = fallbackItems
             };
         }
 
         var intro = serviceType == ServiceType.Hotel
-            ? $"Minh tim thay {filteredItems.Count} khach san o {destination.Name}"
-            : $"Minh tim thay {filteredItems.Count} tour o {destination.Name}";
+            ? $"Mình tìm thấy {filteredItems.Count} khách sạn còn chỗ ở {destination.Name}"
+            : $"Mình tìm thấy {filteredItems.Count} tour còn chỗ ở {destination.Name}";
 
         if (budget.HasValue)
         {
-            intro += $" duoi {budget.Value:N0}d";
+            intro += $" dưới {budget.Value:N0}đ";
         }
 
         return new ChatResponse
@@ -227,6 +240,65 @@ Yeu cau:
             Text = $"{intro}.",
             Type = "service",
             Data = filteredItems
+        };
+    }
+
+    /// <summary>
+    /// Xử lý yêu cầu "xem thêm" — trả về các dịch vụ chưa được hiển thị.
+    /// Phân tích context để xác định loại dịch vụ và điểm đến từ lịch sử hội thoại.
+    /// </summary>
+    private async Task<ChatResponse> HandleShowMoreAsync(
+        Destination? destination,
+        IEnumerable<ChatMessage> history,
+        IReadOnlyCollection<int> shownIds)
+    {
+        // Suy ra loại dịch vụ từ lịch sử hội thoại
+        var historyText = string.Join(" ", history.Select(h => h.Content));
+        var normalizedHistory = NormalizeText(historyText);
+        var serviceType = HasAny(normalizedHistory, "tour") && !HasAny(normalizedHistory, "khach san", "hotel", "resort")
+            ? ServiceType.Tour
+            : ServiceType.Hotel;
+
+        if (destination == null)
+        {
+            return new ChatResponse
+            {
+                Text = "Bạn muốn mình tìm thêm dịch vụ ở điểm đến nào?",
+                Type = "text"
+            };
+        }
+
+        var services = await LoadServiceCandidatesAsync(serviceType, destination, requireDestination: true);
+        var allItems = services
+            .Select(MapChatServiceItem)
+            .OrderBy(item => item.Price)
+            .ThenBy(item => item.Name)
+            .ToList();
+
+        // Các dịch vụ chưa hiển thị
+        var newItems = shownIds.Count > 0
+            ? allItems.Where(item => !shownIds.Contains(item.Id)).Take(5).ToList()
+            : allItems.Take(5).ToList();
+
+        var typeName = serviceType == ServiceType.Hotel ? "khách sạn" : "tour";
+
+        if (newItems.Count == 0)
+        {
+            var total = allItems.Count;
+            return new ChatResponse
+            {
+                Text = total == 0
+                    ? $"Hiện tại hệ thống chưa có {typeName} nào còn chỗ ở {destination.Name} bạn ơi."
+                    : $"Mình đã hiển thị toàn bộ {total} {typeName} còn chỗ ở {destination.Name} rồi. Hiện không còn lựa chọn nào khác trong hệ thống.",
+                Type = "text"
+            };
+        }
+
+        return new ChatResponse
+        {
+            Text = $"Đây là {newItems.Count} {typeName} khác còn chỗ ở {destination.Name} bạn chưa xem.",
+            Type = "service",
+            Data = newItems
         };
     }
 
@@ -240,8 +312,8 @@ Yeu cau:
             return new ChatResponse
             {
                 Text = destination == null
-                    ? "Ban dang hoi gia cua dich vu nao va o dau? Minh can them ten dich vu hoac diem den de tim gia chinh xac."
-                    : $"Minh chua tim thay dich vu phu hop o {destination.Name} de bao gia.",
+                    ? "Bạn đang hỏi giá của dịch vụ nào và ở đâu? Mình cần thêm tên dịch vụ hoặc điểm đến để tìm giá chính xác."
+                    : $"Mình chưa tìm thấy dịch vụ phù hợp ở {destination.Name} để báo giá.",
                 Type = "text"
             };
         }
@@ -260,7 +332,7 @@ Yeu cau:
         {
             return new ChatResponse
             {
-                Text = "Minh chua xac dinh duoc ban dang hoi gia cua dich vu nao. Ban co the noi ro ten tour hoac khach san giup minh khong?",
+                Text = "Mình chưa xác định được bạn đang hỏi giá của dịch vụ nào. Bạn có thể nói rõ tên tour hoặc khách sạn giúp mình không?",
                 Type = "text"
             };
         }
@@ -285,14 +357,14 @@ Yeu cau:
             return new ChatResponse
             {
                 Text =
-                    $"Gia gan nhat cua {bestMatch.Service.Name} hien la {nextAvailability.Price:N0}d vao ngay {nextAvailability.Date:dd/MM/yyyy}. Con {nextAvailability.RemainingStock} cho/co phong.",
+                    $"Giá gần nhất của {bestMatch.Service.Name} hiện là {nextAvailability.Price:N0}đ vào ngày {nextAvailability.Date:dd/MM/yyyy}. Còn {nextAvailability.RemainingStock} chỗ/phòng trống.",
                 Type = "text"
             };
         }
 
         return new ChatResponse
         {
-            Text = $"Hien minh chua thay availability sap toi cua {bestMatch.Service.Name}. Gia co ban dang la {bestMatch.Service.BasePrice:N0}d.",
+            Text = $"Hiện mình chưa thấy lịch còn chỗ sắp tới của {bestMatch.Service.Name}. Giá cơ bản hiện tại là {bestMatch.Service.BasePrice:N0}đ.",
             Type = "text"
         };
     }
@@ -349,6 +421,12 @@ Yeu cau:
                 || service.ServiceSpots.Any(serviceSpot => serviceSpot.TouristSpot.DestinationId == destination.DestinationId));
         }
 
+        // Chỉ trả về dịch vụ còn chỗ trống trong tương lai (tránh gợi ý dịch vụ đã hết chỗ)
+        query = query.Where(service =>
+            service.Availabilities.Any(availability =>
+                availability.Date >= DateTime.Today
+                && (availability.TotalStock - availability.BookedCount - availability.HeldCount) > 0));
+
         return await query.ToListAsync();
     }
 
@@ -390,6 +468,17 @@ Yeu cau:
         }
 
         var normalizedMessage = NormalizeText(message);
+
+        // Phát hiện yêu cầu "xem thêm" / "còn cái nào khác"
+        if (HasAny(normalizedMessage,
+            "con cai nao khac", "xem them", "cho xem them", "co lua chon khac",
+            "chi co 1 thoi", "chi co vay thoi", "co nhieu hon khong", "them lua chon",
+            "lua chon khac", "ket qua khac", "hien thi them", "tim them"))
+        {
+            intent.Intent = ShowMoreIntent;
+            return intent;
+        }
+
         var isPriceQuestion = normalizedMessage.Contains("bao nhieu", StringComparison.Ordinal)
             || normalizedMessage.Contains("gia", StringComparison.Ordinal)
             || normalizedMessage.Contains("chi phi", StringComparison.Ordinal);
@@ -774,6 +863,7 @@ Yeu cau:
             SearchHotelIntent => SearchHotelIntent,
             SearchTourIntent => SearchTourIntent,
             AskPriceIntent => AskPriceIntent,
+            ShowMoreIntent => ShowMoreIntent,
             _ => GeneralQuestionIntent
         };
     }

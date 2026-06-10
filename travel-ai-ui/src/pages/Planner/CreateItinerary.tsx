@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ChevronRight,
   Loader2,
@@ -41,6 +41,7 @@ type Step =
   | 'greeting'
   | 'destination'
   | 'duration'
+  | 'guests'
   | 'startDate'
   | 'budget'
   | 'naturePreference'
@@ -58,6 +59,9 @@ interface PlanData {
   naturePrefs: string[];
   activityPrefs: string[];
   specialRequest: string;
+  adults: number;
+  children: number;
+  estimatedBudget?: number;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -66,6 +70,7 @@ const STEP_ORDER: Step[] = [
   'greeting',
   'destination',
   'duration',
+  'guests',
   'startDate',
   'budget',
   'naturePreference',
@@ -137,10 +142,18 @@ export function generateTravelPrompt(userData: PlanData, chatHistory: ChatMessag
     parts.push(`khởi hành vào ngày ${formatDate(userData.startDate)}`);
   }
 
+  // Guests
+  if (userData.adults) {
+    parts.push(`số lượng khách: ${userData.adults} người lớn${userData.children > 0 ? `, ${userData.children} trẻ em` : ''}`);
+  }
+
   // Budget
   if (userData.budgetLevel) {
     const budgetLabel = getBudgetLabel(userData.budgetLevel);
     parts.push(`ngân sách ${budgetLabel.toLowerCase()}`);
+  }
+  if (userData.estimatedBudget) {
+    parts.push(`tổng chi phí dự kiến cho chuyến đi là ${userData.estimatedBudget.toLocaleString('vi-VN')}đ`);
   }
 
   // Landscape Preference
@@ -223,6 +236,8 @@ interface AiBubbleProps {
   pendingMulti?: string[];
   onMultiToggle?: (val: string) => void;
   onMultiConfirm?: () => void;
+  showGuestPicker?: boolean;
+  onGuestsSubmit?: (adults: number, children: number) => void;
 }
 
 const COLOR_MAP: Record<string, string> = {
@@ -262,8 +277,12 @@ const AiBubble: React.FC<AiBubbleProps> = ({
   pendingMulti = [],
   onMultiToggle,
   onMultiConfirm,
+  showGuestPicker = false,
+  onGuestsSubmit,
 }) => {
   const [dateVal, setDateVal] = useState(getTodayVietnam());
+  const [adultsCount, setAdultsCount] = useState(2);
+  const [childrenCount, setChildrenCount] = useState(0);
 
   return (
     <div className="flex items-end gap-3 mb-6 animate-fadeInUp">
@@ -342,6 +361,72 @@ const AiBubble: React.FC<AiBubbleProps> = ({
             </button>
           </div>
         )}
+
+        {/* Guest Picker */}
+        {showGuestPicker && onGuestsSubmit && (
+          <div className="mt-4 bg-white/5 border border-white/10 rounded-2xl p-4 max-w-xs backdrop-blur-sm shadow-xl">
+            <div className="flex flex-col gap-4">
+              {/* Người lớn */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white font-bold text-sm">Người lớn</p>
+                  <p className="text-white/40 text-[10px] font-bold uppercase tracking-wider">Từ 12 tuổi</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setAdultsCount((prev) => Math.max(1, prev - 1))}
+                    className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/15 active:scale-90 text-white font-bold flex items-center justify-center transition-all border border-white/10"
+                  >
+                    -
+                  </button>
+                  <span className="text-white font-black text-sm w-5 text-center">{adultsCount}</span>
+                  <button
+                    onClick={() => setAdultsCount((prev) => Math.min(20, prev + 1))}
+                    className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/15 active:scale-90 text-white font-bold flex items-center justify-center transition-all border border-white/10"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="border-t border-white/5" />
+
+              {/* Trẻ em */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white font-bold text-sm">Trẻ em</p>
+                  <p className="text-white/40 text-[10px] font-bold uppercase tracking-wider">2 - 11 tuổi</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setChildrenCount((prev) => Math.max(0, prev - 1))}
+                    className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/15 active:scale-90 text-white font-bold flex items-center justify-center transition-all border border-white/10"
+                  >
+                    -
+                  </button>
+                  <span className="text-white font-black text-sm w-5 text-center">{childrenCount}</span>
+                  <button
+                    onClick={() => setChildrenCount((prev) => Math.min(20, prev + 1))}
+                    className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/15 active:scale-90 text-white font-bold flex items-center justify-center transition-all border border-white/10"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="border-t border-white/5" />
+
+              <button
+                onClick={() => onGuestsSubmit(adultsCount, childrenCount)}
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-black transition-all active:scale-95 shadow-lg shadow-blue-500/30 flex items-center justify-center gap-1"
+              >
+                Xác nhận <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -357,20 +442,21 @@ const UserBubble: React.FC<{ text: string }> = ({ text }) => (
 
 // ─── Progress Steps ───────────────────────────────────────────────────────────
 
-const PROGRESS_LABELS = ['Điểm đến', 'Thời gian', 'Ngày đi', 'Ngân sách', 'Sở thích', 'Hoàn tất'];
+const PROGRESS_LABELS = ['Điểm đến', 'Thời gian', 'Số lượng khách', 'Ngày đi', 'Ngân sách', 'Sở thích', 'Hoàn tất'];
 
 const ProgressBar: React.FC<{ currentStep: Step }> = ({ currentStep }) => {
   const stepMap: Record<Step, number> = {
     greeting: 0,
     destination: 1,
     duration: 2,
-    startDate: 3,
-    budget: 4,
-    naturePreference: 5,
-    activityPreference: 5,
-    specialRequest: 5,
-    summary: 6,
-    generating: 6,
+    guests: 3,
+    startDate: 4,
+    budget: 5,
+    naturePreference: 6,
+    activityPreference: 6,
+    specialRequest: 6,
+    summary: 7,
+    generating: 7,
   };
   const current = stepMap[currentStep] || 0;
   const total = PROGRESS_LABELS.length;
@@ -426,6 +512,7 @@ const SummaryCard: React.FC<{ data: PlanData; onConfirm: () => void; onReset: ()
       {[
         { icon: '📍', label: 'Điểm đến', value: data.destinationName },
         { icon: '🗓️', label: 'Thời gian', value: `${data.numberOfDays} ngày, từ ${formatDate(data.startDate)}` },
+        { icon: '👥', label: 'Số lượng khách', value: `${data.adults} người lớn${data.children > 0 ? `, ${data.children} trẻ em` : ''}` },
         { icon: '💰', label: 'Ngân sách', value: getBudgetLabel(data.budgetLevel) },
         { icon: '🌿', label: 'Phong cảnh', value: data.naturePrefs.join(', ') || 'Chưa chọn' },
         { icon: '🎯', label: 'Hoạt động', value: data.activityPrefs.join(', ') || 'Chưa chọn' },
@@ -463,6 +550,7 @@ const SummaryCard: React.FC<{ data: PlanData; onConfirm: () => void; onReset: ()
 
 const CreateItinerary: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const bottomRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const isFirstMount = useRef(true);
@@ -488,6 +576,8 @@ const CreateItinerary: React.FC = () => {
     naturePrefs: [],
     activityPrefs: [],
     specialRequest: '',
+    adults: 2,
+    children: 0,
   });
 
   // Scroll to bottom inside chat container on new messages (skip on first mount)
@@ -557,11 +647,127 @@ const CreateItinerary: React.FC = () => {
         greetingText = 'Xin chào! Tôi là AI Planner của TravelAI 🌏\nTôi thấy bạn thích đi phượt và lịch trình dày đặc, tôi sẽ ưu tiên các điểm đến mạo hiểm nhé?\n\nBạn muốn đến đâu lần này?';
       }
 
-      pushAiMessage(greetingText, buildDestinationReplies(destinations));
-      setStep('destination');
+      const destIdParam = searchParams.get('destinationId');
+      const daysParam = searchParams.get('days');
+      const peopleParam = searchParams.get('people');
+      const budgetStyleParam = searchParams.get('budgetStyle');
+      const budgetTotalParam = searchParams.get('budgetTotal');
+
+      const matchingDest = destIdParam
+        ? destinations.find((d) => d.id === parseInt(destIdParam, 10))
+        : null;
+
+      if (matchingDest) {
+        if (daysParam && peopleParam) {
+          const daysNum = parseInt(daysParam, 10);
+          const peopleNum = parseInt(peopleParam, 10);
+
+          setMessages([
+            {
+              id: genId(),
+              role: 'ai',
+              text: greetingText,
+              timestamp: Date.now() - 6000,
+            },
+            {
+              id: genId(),
+              role: 'user',
+              text: `📍 ${matchingDest.name}`,
+              timestamp: Date.now() - 5000,
+            },
+            {
+              id: genId(),
+              role: 'ai',
+              text: `Tuyệt vời! ${matchingDest.name} là lựa chọn tuyệt vời 🎉\n\nBạn muốn đi trong bao nhiêu ngày?`,
+              timestamp: Date.now() - 4000,
+            },
+            {
+              id: genId(),
+              role: 'user',
+              text: `🗓️ ${daysNum} ngày`,
+              timestamp: Date.now() - 3000,
+            },
+            {
+              id: genId(),
+              role: 'ai',
+              text: `${daysNum} ngày đủ để khám phá nhiều điều thú vị!\n\nChuyến đi của bạn có bao nhiêu người? Hãy chọn số lượng người lớn và trẻ em.`,
+              timestamp: Date.now() - 2000,
+            },
+            {
+              id: genId(),
+              role: 'user',
+              text: `👥 ${peopleNum} người lớn`,
+              timestamp: Date.now() - 1000,
+            },
+            {
+              id: genId(),
+              role: 'ai',
+              text: `Đã nhận thông tin hành khách! 👥\n\nBạn dự định khởi hành vào ngày nào?`,
+              showDatePicker: true,
+              timestamp: Date.now(),
+            },
+          ]);
+
+          markSelected('destination', String(matchingDest.id));
+          markSelected('duration', String(daysNum));
+          if (budgetStyleParam) {
+            markSelected('budget', budgetStyleParam);
+          }
+
+          setPlanData((prev) => ({
+            ...prev,
+            destinationId: matchingDest.id,
+            destinationName: matchingDest.name,
+            numberOfDays: daysNum,
+            adults: peopleNum,
+            children: 0,
+            budgetLevel: budgetStyleParam || prev.budgetLevel,
+            estimatedBudget: budgetTotalParam ? parseInt(budgetTotalParam, 10) : undefined,
+          }));
+
+          setStep('startDate');
+        } else {
+          const gId = genId();
+          const uId = genId();
+          const aId = genId();
+
+          setMessages([
+            {
+              id: gId,
+              role: 'ai',
+              text: greetingText,
+              timestamp: Date.now() - 2000,
+            },
+            {
+              id: uId,
+              role: 'user',
+              text: `📍 ${matchingDest.name}`,
+              timestamp: Date.now() - 1000,
+            },
+            {
+              id: aId,
+              role: 'ai',
+              text: `Tuyệt vời! ${matchingDest.name} là lựa chọn tuyệt vời 🎉\n\nBạn muốn đi trong bao nhiêu ngày?`,
+              quickReplies: DURATION_OPTIONS,
+              timestamp: Date.now(),
+            },
+          ]);
+
+          markSelected('destination', String(matchingDest.id));
+          setPlanData((prev) => ({
+            ...prev,
+            destinationId: matchingDest.id,
+            destinationName: matchingDest.name,
+          }));
+          setStep('duration');
+        }
+      } else {
+        pushAiMessage(greetingText, buildDestinationReplies(destinations));
+        setStep('destination');
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [destinations, loadingPref, pref]);
+  }, [destinations, loadingPref, pref, searchParams]);
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -573,6 +779,7 @@ const CreateItinerary: React.FC = () => {
     text: string,
     quickReplies?: QuickReply[],
     showDatePicker = false,
+    showGuestPicker = false,
   ) {
     const msg: ChatMessage = {
       id: genId(),
@@ -580,6 +787,7 @@ const CreateItinerary: React.FC = () => {
       text,
       quickReplies,
       showDatePicker,
+      showGuestPicker,
       timestamp: Date.now(),
     };
     setMessages((prev) => [...prev, msg]);
@@ -628,11 +836,30 @@ const CreateItinerary: React.FC = () => {
     pushUserMessage(`🗓️ ${reply.label}`);
     markSelected('duration', reply.value);
     setPlanData((prev) => ({ ...prev, numberOfDays: days }));
+    setStep('guests');
+
+    aiThinkThen(() => {
+      pushAiMessage(
+        `${days} ngày đủ để khám phá nhiều điều thú vị!\n\nChuyến đi của bạn có bao nhiêu người? Hãy chọn số lượng người lớn và trẻ em.`,
+        undefined,
+        false,
+        true, // showGuestPicker
+      );
+    });
+  }
+
+  function handleGuestsSubmit(adults: number, children: number) {
+    let text = `👥 ${adults} người lớn`;
+    if (children > 0) {
+      text += `, ${children} trẻ em`;
+    }
+    pushUserMessage(text);
+    setPlanData((prev) => ({ ...prev, adults, children }));
     setStep('startDate');
 
     aiThinkThen(() => {
       pushAiMessage(
-        `${days} ngày đủ để khám phá nhiều điều thú vị!\n\nBạn dự định khởi hành vào ngày nào?`,
+        `Đã nhận thông tin hành khách! 👥\n\nBạn dự định khởi hành vào ngày nào?`,
         undefined,
         true, // showDatePicker
       );
@@ -642,14 +869,26 @@ const CreateItinerary: React.FC = () => {
   function handleDateSubmit(date: string) {
     pushUserMessage(`📅 ${formatDate(date)}`);
     setPlanData((prev) => ({ ...prev, startDate: date }));
-    setStep('budget');
 
-    aiThinkThen(() => {
-      pushAiMessage(
-        `Ngày ${formatDate(date)} nghe có vẻ tuyệt! ☀️\n\nBạn có ngân sách dự kiến như thế nào cho chuyến đi này?`,
-        BUDGET_OPTIONS,
-      );
-    });
+    const hasPreFilledBudget = !!searchParams.get('budgetStyle');
+
+    if (hasPreFilledBudget) {
+      setStep('naturePreference');
+      aiThinkThen(() => {
+        pushAiMessage(
+          `Ngày ${formatDate(date)} nghe có vẻ tuyệt! ☀️\n\nĐể AI gợi ý đúng hơn, bạn thích loại phong cảnh nào?\n(Có thể chọn nhiều)`,
+          NATURE_OPTIONS,
+        );
+      });
+    } else {
+      setStep('budget');
+      aiThinkThen(() => {
+        pushAiMessage(
+          `Ngày ${formatDate(date)} nghe có vẻ tuyệt! ☀️\n\nBạn có ngân sách dự kiến như thế nào cho chuyến đi này?`,
+          BUDGET_OPTIONS,
+        );
+      });
+    }
   }
 
   function handleBudgetReply(reply: QuickReply) {
@@ -799,6 +1038,8 @@ const CreateItinerary: React.FC = () => {
         numberOfDays: planData.numberOfDays,
         startDate: planData.startDate,
         specialRequest: specialRequestPrompt,
+        adults: planData.adults,
+        children: planData.children,
       };
 
       const response = await axiosClient.post('/itinerary/generate', requestBody);
@@ -849,6 +1090,8 @@ const CreateItinerary: React.FC = () => {
       naturePrefs: [] as string[],
       activityPrefs: [] as string[],
       specialRequest: '',
+      adults: 2,
+      children: 0,
     };
 
     if (pref?.travelStyle === 'Phượt' || pref?.travelStyle === 'Thám hiểm') {
@@ -956,6 +1199,7 @@ const CreateItinerary: React.FC = () => {
                     ...msg,
                     quickReplies: showReplies ? msg.quickReplies : [],
                     showDatePicker: showReplies && msg.showDatePicker,
+                    showGuestPicker: showReplies && msg.showGuestPicker,
                   }}
                   onQuickReply={handleQuickReply}
                   onDateSubmit={handleDateSubmit}
@@ -964,6 +1208,8 @@ const CreateItinerary: React.FC = () => {
                   pendingMulti={pendingMulti}
                   onMultiToggle={handleMultiToggle}
                   onMultiConfirm={handleMultiConfirm}
+                  showGuestPicker={showReplies && msg.showGuestPicker}
+                  onGuestsSubmit={handleGuestsSubmit}
                 />
               ) : (
                 <UserBubble key={msg.id} text={msg.text} />

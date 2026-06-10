@@ -12,6 +12,8 @@ public class ChatRequest
 {
     public string Message { get; set; } = string.Empty;
     public List<ChatMessage> History { get; set; } = new();
+    /// <summary>Danh sách ServiceId đã được hiển thị trong cuộc hội thoại. Backend sẽ loại trừ khi tìm thêm kết quả.</summary>
+    public List<int> ShownServiceIds { get; set; } = new();
 }
 
 public class ChatIntentAnalysis

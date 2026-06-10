@@ -17,6 +17,16 @@ type VerifyResponse = {
     totalAmount: number;
     status: string;
   };
+  booking?: {
+    bookingCode: string;
+    bookingId: number;
+    customerName: string;
+    serviceName: string;
+    useDate: string;
+    quantity: number;
+    paymentStatus: string;
+    ticketType: string;
+  };
 };
 
 const TicketScanner = () => {
@@ -241,61 +251,98 @@ const TicketScanner = () => {
                     <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">{result.message}</p>
                   </div>
                 </div>
-
-                {result.ticket && (
-                  <div className="space-y-4 rounded-3xl bg-slate-50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-800/80 p-5 text-sm font-bold text-slate-700 dark:text-slate-300">
-                    <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-slate-800/65">
-                      <span className="text-slate-400">Mã vé (Code):</span>
-                      <span className="font-black text-slate-900 dark:text-white text-base">{result.ticket.ticketCode}</span>
-                    </div>
-                    <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-slate-800/65">
-                      <span className="text-slate-400">Mã đơn hàng (Booking):</span>
-                      <span className="text-slate-900 dark:text-white">#{result.ticket.bookingId}</span>
-                    </div>
-                    <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-slate-800/65">
-                      <span className="text-slate-400">Khách hàng:</span>
-                      <span className="text-slate-900 dark:text-white">{result.ticket.customerName}</span>
-                    </div>
-                    <div className="flex justify-between items-start py-2 border-b border-slate-100 dark:border-slate-800/65 gap-4">
-                      <span className="text-slate-400 whitespace-nowrap">Dịch vụ đặt:</span>
-                      <span className="text-slate-900 dark:text-white text-right leading-snug">{result.ticket.serviceName}</span>
-                    </div>
-                    <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-slate-800/65">
-                      <span className="text-slate-400">Ngày sử dụng:</span>
-                      <span className="text-slate-900 dark:text-white flex items-center gap-1.5">
-                        <Calendar size={14} className="text-blue-500" />
-                        {formatVietnameseDate(result.ticket.travelDate)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-slate-800/65">
-                      <span className="text-slate-400">Số lượng người đi:</span>
-                      <span className="text-slate-900 dark:text-white text-base font-black">{result.ticket.quantity} người</span>
-                    </div>
-                    <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-slate-800/65">
-                      <span className="text-slate-400">Tổng tiền đơn vé:</span>
-                      <span className="text-emerald-600 dark:text-emerald-400 text-base font-black">{formatVietnameseCurrency(result.ticket.totalAmount)}₫</span>
-                    </div>
-                    <div className="flex justify-between items-center py-2">
-                      <span className="text-slate-400">Trạng thái vé:</span>
-                      <span className={`inline-flex px-3 py-1 rounded-full text-xs font-black border ${
-                        result.ticket.status.toLowerCase() === 'used' || result.ticket.status === 'Đã sử dụng'
-                          ? 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-950/20 dark:text-slate-400 dark:border-slate-900/50'
-                          : 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/50'
-                      }`}>
-                        {result.ticket.status}
-                      </span>
-                    </div>
-                  </div>
-                )}
+{/* HIỂN THỊ KẾT QUẢ VÉ (TICKET) */}
+            {result.ticket && (
+              <div className="space-y-4 rounded-3xl bg-slate-50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-800/80 p-5 text-sm font-bold text-slate-700 dark:text-slate-300 animate-in fade-in zoom-in duration-300">
+                <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-slate-800/65">
+                  <span className="text-slate-400">Mã vé (Code):</span>
+                  <span className="font-black text-slate-900 dark:text-white text-base">{result.ticket.ticketCode}</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-slate-800/65">
+                  <span className="text-slate-400">Mã đơn hàng (Booking):</span>
+                  <span className="text-slate-900 dark:text-white">#{result.ticket.bookingId}</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-slate-800/65">
+                  <span className="text-slate-400">Khách hàng:</span>
+                  <span className="text-slate-900 dark:text-white">{result.ticket.customerName}</span>
+                </div>
+                <div className="flex justify-between items-start py-2 border-b border-slate-100 dark:border-slate-800/65 gap-4">
+                  <span className="text-slate-400 whitespace-nowrap">Dịch vụ đặt:</span>
+                  <span className="text-slate-900 dark:text-white text-right leading-snug">{result.ticket.serviceName}</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-slate-800/65">
+                  <span className="text-slate-400">Ngày sử dụng:</span>
+                  <span className="text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <Calendar size={14} className="text-blue-500" />
+                    {formatVietnameseDate(result.ticket.travelDate)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-slate-800/65">
+                  <span className="text-slate-400">Số lượng người đi:</span>
+                  <span className="text-slate-900 dark:text-white text-base font-black">{result.ticket.quantity} người</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-slate-800/65">
+                  <span className="text-slate-400">Tổng tiền đơn vé:</span>
+                  <span className="text-emerald-600 dark:text-emerald-400 text-base font-black">{formatVietnameseCurrency(result.ticket.totalAmount)}₫</span>
+                </div>
+                <div className="flex justify-between items-center py-2">
+                  <span className="text-slate-400">Trạng thái vé:</span>
+                  <span className={`inline-flex px-3 py-1 rounded-full text-xs font-black border ${
+                    result.ticket.status.toLowerCase() === 'used' || result.ticket.status === 'Đã sử dụng'
+                      ? 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-950/20 dark:text-slate-400 dark:border-slate-900/50'
+                      : 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/50'
+                  }`}>
+                    {result.ticket.status}
+                  </span>
+                </div>
               </div>
-            ) : (
-              <div className="text-center py-10 text-slate-500 dark:text-slate-400">
-                <FileText size={48} className="mx-auto mb-3 opacity-30 text-slate-400" />
-                <p className="font-semibold text-sm">Chưa có vé nào được xác minh trong phiên này.</p>
-                <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">Vui lòng quét QR bằng camera hoặc nhập mã vé bên trái, sau đó nhấn xác minh để xem thông tin chi tiết.</p>
+            )}
+
+            {/* HIỂN THỊ KẾT QUẢ ĐƠN HÀNG (BOOKING) - Cập nhật từ nhánh main */}
+            {result.booking && (
+              <div className="space-y-4 rounded-3xl bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-800/50 p-5 text-sm font-bold text-slate-700 dark:text-slate-300 animate-in fade-in zoom-in duration-300">
+                <div className="flex justify-between items-center py-2 border-b border-amber-100/50 dark:border-slate-800/65">
+                  <span className="text-amber-700/70 dark:text-amber-500/70">Loại đơn:</span>
+                  <span className="font-black text-slate-900 dark:text-white">{result.booking.ticketType}</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-amber-100/50 dark:border-slate-800/65">
+                  <span className="text-amber-700/70 dark:text-amber-500/70">Mã đơn (Code):</span>
+                  <span className="font-black text-slate-900 dark:text-white text-base">{result.booking.bookingCode}</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-amber-100/50 dark:border-slate-800/65">
+                  <span className="text-amber-700/70 dark:text-amber-500/70">Khách hàng:</span>
+                  <span className="text-slate-900 dark:text-white">{result.booking.customerName}</span>
+                </div>
+                <div className="flex justify-between items-start py-2 border-b border-amber-100/50 dark:border-slate-800/65 gap-4">
+                  <span className="text-amber-700/70 dark:text-amber-500/70 whitespace-nowrap">Dịch vụ:</span>
+                  <span className="text-slate-900 dark:text-white text-right leading-snug">{result.booking.serviceName}</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-amber-100/50 dark:border-slate-800/65">
+                  <span className="text-amber-700/70 dark:text-amber-500/70">Ngày sử dụng:</span>
+                  <span className="text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <Calendar size={14} className="text-amber-500" />
+                    {new Date(result.booking.useDate).toLocaleDateString('vi-VN')}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center py-2">
+                  <span className="text-amber-700/70 dark:text-amber-500/70">Trạng thái:</span>
+                  <span className="bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 px-3 py-1 rounded-full text-xs font-black border border-amber-200 dark:border-amber-900/50">
+                    Chờ thanh toán
+                  </span>
+                </div>
               </div>
             )}
           </div>
+        ) : (
+          /* TRẠNG THÁI TRỐNG (EMPTY STATE) */
+          <div className="text-center py-12 text-slate-500 dark:text-slate-400">
+            <FileText size={48} className="mx-auto mb-4 opacity-20 text-slate-400" />
+            <p className="font-bold text-sm">Chưa có thông tin xác minh</p>
+            <p className="text-xs text-slate-500 mt-2 max-w-[200px] mx-auto leading-relaxed">
+              Vui lòng quét mã QR hoặc nhập mã vé để bắt đầu kiểm tra.
+            </p>
+          </div>
+        )}
         </div>
       </div>
       

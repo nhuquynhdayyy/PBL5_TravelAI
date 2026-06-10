@@ -85,13 +85,13 @@ const HeroSection = () => (
         <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
           <Link
             to="/planner/create"
-            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-6 py-3.5 text-sm font-black text-slate-900 shadow-xl transition hover:scale-105 hover:shadow-2xl"
+            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-6 py-3.5 text-sm font-black text-white ring-1 ring-white/20 transition hover:scale-105 hover:bg-white/15"
           >
             Tạo lịch trình AI <ArrowRight size={18} />
           </Link>
           <Link
             to="/destinations"
-            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900/80 px-6 py-3.5 text-sm font-black text-white shadow-lg backdrop-blur-sm transition hover:bg-slate-900"
+            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-6 py-3.5 text-sm font-black text-white ring-1 ring-white/20 transition hover:bg-white/15"
           >
             Khám phá điểm đến
           </Link>
@@ -141,27 +141,27 @@ const ServicesStripSection = () => {
     <section className="py-8">
       <div className="mx-auto flex max-w-4xl justify-center">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6 w-full">
-        {services.map((service) => {
-          const Icon = service.icon;
-          return (
-            <button
-              key={service.label}
-              onClick={() => navigate(service.path)}
-              className={`group flex flex-col items-center gap-3 rounded-2xl ${service.bgColor} p-6 transition-all duration-300 ${service.hoverBg} hover:-translate-y-1 hover:shadow-xl`}
-            >
-              <div className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-white ${service.iconColor} shadow-sm transition-transform duration-300 group-hover:scale-110`}>
-                <Icon size={28} strokeWidth={2} />
-              </div>
-              <div className="text-center">
-                <h3 className="text-sm font-black text-slate-900">{service.label}</h3>
-                <p className="mt-1 text-xs font-medium text-slate-500">{service.description}</p>
-              </div>
-            </button>
-          );
-        })}
+          {services.map((service) => {
+            const Icon = service.icon;
+            return (
+              <button
+                key={service.label}
+                onClick={() => navigate(service.path)}
+                className="app-card group flex flex-col items-center gap-3 p-6 transition-all duration-300 hover:scale-[1.03] hover:shadow-xl"
+              >
+                <div className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-white ${service.iconColor} shadow-sm transition-transform duration-300 group-hover:scale-110`}>
+                  <Icon size={28} strokeWidth={2} />
+                </div>
+                <div className="text-center">
+                  <h3 className="text-sm font-black text-slate-900">{service.label}</h3>
+                  <p className="mt-1 text-xs font-medium text-slate-500">{service.description}</p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
-    </div>
-  </section>
+    </section>
   );
 };
 
@@ -185,7 +185,7 @@ const WhyTravelAISection = () => {
   ];
 
   return (
-    <section className="bg-white py-16 dark:bg-slate-900">
+    <section className="app-section px-4 py-16 sm:px-6 lg:px-8">
       <div className="mb-10 max-w-2xl">
         <p className="mb-2 text-xs font-black uppercase tracking-[0.24em] text-[#0061ff]">Tại sao chọn TravelAI?</p>
         <h2 className="text-3xl font-black tracking-tight text-slate-950 dark:text-white md:text-4xl">
@@ -259,7 +259,7 @@ const TrendingDestinationsSection = () => {
         setLoading(true);
         const response = await axiosClient.get('/destinations');
         const data = response.data?.data || response.data || [];
-        
+
         if (Array.isArray(data) && data.length > 0) {
           // Lấy top 4 destinations
           const topDestinations = data.slice(0, 4).map((dest: any) => ({
@@ -293,7 +293,7 @@ const TrendingDestinationsSection = () => {
   };
 
   return (
-    <section className="rounded-[28px] bg-gradient-to-br from-slate-50 to-blue-50/30 px-4 py-16 dark:from-slate-800 dark:to-slate-800/80 sm:px-6 lg:px-8">
+    <section className="app-section px-4 py-16 sm:px-6 lg:px-8">
       <div className="mb-10 flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
           <p className="mb-2 text-xs font-black uppercase tracking-[0.24em] text-[#0061ff]">Điểm đến nổi bật</p>
@@ -319,7 +319,7 @@ const TrendingDestinationsSection = () => {
             <article
               key={dest.id}
               onClick={() => navigate(`/destinations/${dest.id}`)}
-              className="group cursor-pointer overflow-hidden rounded-2xl bg-white shadow-md transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl dark:bg-slate-700"
+              className="app-image-card group cursor-pointer overflow-hidden rounded-2xl bg-white shadow-md transition-all duration-300"
             >
               <div className="relative h-56 overflow-hidden">
                 <img
@@ -328,10 +328,6 @@ const TrendingDestinationsSection = () => {
                   className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent" />
-                <div className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-white/95 px-3 py-1.5 text-xs font-black text-slate-900 shadow-lg backdrop-blur-sm">
-                  <span className="text-yellow-500">★</span>
-                  {dest.rating}
-                </div>
                 <div className="absolute bottom-0 left-0 right-0 p-4">
                   <h3 className="text-2xl font-black text-white drop-shadow-lg">{dest.name}</h3>
                 </div>
@@ -340,11 +336,7 @@ const TrendingDestinationsSection = () => {
                 <p className="mb-3 text-sm font-medium text-slate-600 line-clamp-2 dark:text-slate-300">
                   {dest.description}
                 </p>
-                <div className="flex items-center justify-between">
-                  <div className="text-sm">
-                    <span className="font-medium text-slate-500 dark:text-slate-400">Từ </span>
-                    <span className="font-black text-[#0061ff]">{formatPrice(dest.estimatedPrice)}</span>
-                  </div>
+                <div className="flex items-center justify-end">
                   <div className="flex items-center gap-1 text-[#0061ff] transition-transform group-hover:translate-x-1">
                     <span className="text-xs font-black">Khám phá</span>
                     <ArrowRight size={14} />
@@ -374,7 +366,7 @@ const FeaturedServicesSection = () => {
           sortDescending: true,
         };
         console.log('🏠 Home Services Request:', requestBody);
-        
+
         const response = await axiosClient.post('/services/filter', requestBody);
 
         console.log('✅ Home Services Response:', response.data);
@@ -396,7 +388,7 @@ const FeaturedServicesSection = () => {
   }, []);
 
   return (
-    <section className="rounded-[28px] bg-slate-50 px-4 py-16 dark:bg-slate-800 sm:px-6 lg:px-8">
+    <section className="app-section px-4 py-16 sm:px-6 lg:px-8">
       <div className="mb-10 flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
           <p className="mb-2 text-xs font-black uppercase tracking-[0.24em] text-[#0061ff]">Dịch vụ nổi bật</p>
@@ -416,7 +408,7 @@ const FeaturedServicesSection = () => {
       ) : services.length > 0 ? (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {services.map((service) => (
-            <ServiceCard key={service.serviceId} service={service} isAdminOrPartner={false} onDelete={() => {}} />
+            <ServiceCard key={service.serviceId} service={service} isAdminOrPartner={false} onDelete={() => { }} />
           ))}
         </div>
       ) : (
@@ -460,7 +452,7 @@ const CommunitySection = () => {
   }, []);
 
   return (
-    <section className="bg-white py-16 dark:bg-slate-900">
+    <section className="app-section px-4 py-16 sm:px-6 lg:px-8">
       <div className="mb-10 max-w-2xl">
         <p className="mb-2 text-xs font-black uppercase tracking-[0.24em] text-[#0061ff]">Gợi ý từ cộng đồng</p>
         <h2 className="text-3xl font-black tracking-tight text-slate-950 dark:text-white md:text-4xl">Những lịch trình đáng thử</h2>
@@ -469,7 +461,7 @@ const CommunitySection = () => {
         {itineraries.map((item, index) => (
           <article
             key={item.id || item.title}
-            className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-2xl dark:border-slate-700 dark:bg-slate-800"
+            className="app-image-card group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition"
           >
             <div className="relative h-56 overflow-hidden">
               <img src={item.cover} alt={item.title} className="h-full w-full object-cover transition duration-700 group-hover:scale-110" />
@@ -560,7 +552,7 @@ const HomeFooter = () => {
 };
 
 const Home: React.FC = () => (
-  <div className="space-y-16 bg-white dark:bg-slate-900 transition-colors duration-300">
+  <div className="space-y-16 bg-slate-50 transition-colors duration-300 dark:bg-[#0B1220]">
     <HeroSection />
     <ServicesStripSection />
     <WhyTravelAISection />

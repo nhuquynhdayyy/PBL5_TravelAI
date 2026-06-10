@@ -10,6 +10,7 @@ const EditDestination: React.FC = () => {
     // States cho form
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
+    const [categories, setCategories] = useState('');
     const [image, setImage] = useState<File | null>(null);
     const [preview, setPreview] = useState('');
     const [loading, setLoading] = useState(false);
@@ -23,6 +24,7 @@ const EditDestination: React.FC = () => {
                 const data = res.data.data;
                 setName(data.name);
                 setDescription(data.description);
+                setCategories(data.categories || '');
                 // Xử lý hiển thị ảnh cũ
                 const oldImageUrl = data.imageUrl.startsWith('http') 
                     ? data.imageUrl 
@@ -60,6 +62,7 @@ const EditDestination: React.FC = () => {
         // Ghi chú: Key phải khớp chính xác với UpdateDestinationRequest trong C#
         formData.append('Name', name);
         formData.append('Description', description);
+        formData.append('Categories', categories);
         
         // Chỉ gửi file nếu người dùng có chọn ảnh mới
         if (image) {
@@ -130,6 +133,19 @@ const EditDestination: React.FC = () => {
                         onChange={e => setDescription(e.target.value)} 
                         placeholder="Nhập thông tin giới thiệu..."
                         required 
+                    />
+                </div>
+
+                {/* Loại hình / Tag */}
+                <div>
+                    <label className="block text-sm font-bold mb-2 text-slate-700 uppercase tracking-wider ml-1">
+                        Loại hình / Tag (Phân tách bằng dấu phẩy)
+                    </label>
+                    <input 
+                        className="w-full p-4 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium text-slate-700 bg-slate-50 focus:bg-white" 
+                        value={categories} 
+                        onChange={e => setCategories(e.target.value)} 
+                        placeholder="Ví dụ: Lịch sử,Ẩm thực"
                     />
                 </div>
 

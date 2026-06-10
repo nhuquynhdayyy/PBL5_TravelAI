@@ -41,69 +41,24 @@ const DestinationDetail: React.FC = () => {
 
     const [dest, setDest] = useState<any>(null);
     const [spots, setSpots] = useState<any[]>([]);
-    const [allDestinations, setAllDestinations] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
-    const [filterDestId, setFilterDestId] = useState<string>('all');
-    const [isFilterOpen, setIsFilterOpen] = useState(false);
-    const [aiLoading, setAiLoading] = useState(false);
-    const [days, setDays] = useState<number>(1);
-    const [startDate, setStartDate] = useState<string>(getTodayVietnam());
+    const [days, setDays] = useState<number>(3);
     const [budgetPeople, setBudgetPeople] = useState<number>(2);
     const [budgetStyle, setBudgetStyle] = useState<string>('Trung binh');
     const [budgetLoading, setBudgetLoading] = useState(false);
     const [budgetEstimate, setBudgetEstimate] = useState<BudgetEstimate | null>(null);
 
-    const handleGenerateAI = async () => {
-        try {
-            setAiLoading(true);
 
-            const response = await axiosClient.post('/itinerary/generate', {
-                destinationId: parseInt(id || '0', 10),
-                numberOfDays: days,
-                startDate
-            });
-
-            const finalData = response.data.data || response.data;
-
-            if (finalData) {
-                navigate('/itinerary/latest', { state: { data: finalData } });
-                return;
-            }
-
-            return alert('API tra ve du lieu rong.');
-        } catch (error) {
-            console.error(error);
-            const message = typeof error === 'object' && error !== null && 'response' in error
-                ? (() => {
-                    const response = (error as {
-                        response?: {
-                            data?: {
-                                message?: string;
-                            } | string;
-                        };
-                    }).response;
-
-                    if (typeof response?.data === 'string') {
-                        return response.data;
-                    }
-
-                    return response?.data?.message || 'Khong tao duoc lich trinh. Mo Console F12 de xem chi tiet.';
-                })()
-                : 'Khong tao duoc lich trinh. Mo Console F12 de xem chi tiet.';
-
-            return alert(message);
-        } finally {
-            setAiLoading(false);
-        }
-    };
 
     const handleEstimateBudget = async () => {
+        if (!dest) return;
         try {
             setBudgetLoading(true);
 
             const response = await axiosClient.post('/ai/estimate-budget', {
                 destination: dest.name,
+                destination_id: Number(id),
                 days,
                 people: budgetPeople,
                 travel_style: budgetStyle
@@ -111,26 +66,7 @@ const DestinationDetail: React.FC = () => {
 
             setBudgetEstimate(response.data.data || response.data);
         } catch (error) {
-            console.error(error);
-            const message = typeof error === 'object' && error !== null && 'response' in error
-                ? (() => {
-                    const response = (error as {
-                        response?: {
-                            data?: {
-                                message?: string;
-                            } | string;
-                        };
-                    }).response;
-
-                    if (typeof response?.data === 'string') {
-                        return response.data;
-                    }
-
-                    return response?.data?.message || 'Khong uoc tinh duoc ngan sach luc nay.';
-                })()
-                : 'Khong uoc tinh duoc ngan sach luc nay.';
-
-            alert(message);
+            console.error('Lỗi khi ước tính ngân sách:', error);
         } finally {
             setBudgetLoading(false);
         }
@@ -155,13 +91,12 @@ const DestinationDetail: React.FC = () => {
         try {
             setLoading(true);
 
-            const allDestsRes = await axiosClient.get('/destinations');
-            const destinations = allDestsRes.data.data || [];
+            const [destRes, spotsRes] = await Promise.all([
+                axiosClient.get(`/destinations/${id}`),
+                axiosClient.get(`/spots/by-destination/${id}`)
+            ]);
 
-            setAllDestinations(destinations);
-            setDest(destinations.find((item: any) => item.id === parseInt(id || '0', 10)));
-
-            const spotsRes = await axiosClient.get(`/spots/by-destination/${id}`);
+            setDest(destRes.data.data);
             setSpots(spotsRes.data.data || []);
         } catch (error) {
             console.error('Error fetching data:', error);
@@ -175,13 +110,10 @@ const DestinationDetail: React.FC = () => {
     }, [id]);
 
     useEffect(() => {
-        const destinationIdToLoad = filterDestId !== 'all' && filterDestId !== id ? filterDestId : id;
-
-        axiosClient
-            .get(`/spots/by-destination/${destinationIdToLoad}`)
-            .then((res) => setSpots(res.data.data || []))
-            .catch(console.error);
-    }, [filterDestId, id]);
+        if (dest) {
+            handleEstimateBudget();
+        }
+    }, [dest, days, budgetPeople, budgetStyle]);
 
     const filteredSpots = useMemo(() => {
         if (!searchQuery.trim()) {
@@ -211,10 +143,6 @@ const DestinationDetail: React.FC = () => {
             alert('Lỗi khi xóa địa danh.');
         }
     };
-
-    const selectedDestName = filterDestId === 'all'
-        ? 'Tất cả tỉnh/thành'
-        : allDestinations.find((item) => String(item.id || item.destinationId) === filterDestId)?.name || 'Chọn tỉnh/thành';
 
     if (loading) {
         return (
@@ -289,88 +217,18 @@ const DestinationDetail: React.FC = () => {
                                     </button>
                                 )}
                             </div>
-
-                            <div className="relative">
-                                <button
-                                    onClick={() => setIsFilterOpen((prev) => !prev)}
-                                    className="flex min-w-[180px] items-center justify-between gap-2 whitespace-nowrap rounded-2xl border-2 border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:border-blue-400 hover:bg-blue-50 focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-50"
-                                >
-                                    <span className="flex items-center gap-2">
-                                        <Filter size={16} className="text-blue-500" />
-                                        <span className="max-w-[130px] truncate">{selectedDestName}</span>
-                                    </span>
-                                    <ChevronDown size={16} className={`text-slate-400 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} />
-                                </button>
-
-                                {isFilterOpen && (
-                                    <div className="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-                                        <div className="max-h-72 overflow-y-auto custom-scrollbar p-2">
-                                            <button
-                                                onClick={() => {
-                                                    setFilterDestId('all');
-                                                    setIsFilterOpen(false);
-                                                }}
-                                                className={`w-full rounded-xl px-4 py-3 text-left text-sm font-semibold transition-colors ${filterDestId === 'all' ? 'bg-blue-500 text-white' : 'text-slate-700 hover:bg-slate-50'}`}
-                                            >
-                                                Tất cả tỉnh/thành
-                                            </button>
-
-                                            <button
-                                                onClick={() => {
-                                                    setFilterDestId(String(id));
-                                                    setIsFilterOpen(false);
-                                                }}
-                                                className={`w-full rounded-xl px-4 py-3 text-left text-sm font-semibold transition-colors ${(filterDestId === String(id) || filterDestId === id) ? 'bg-blue-500 text-white' : 'text-slate-700 hover:bg-slate-50'}`}
-                                            >
-                                                {dest.name} (hiện tại)
-                                            </button>
-
-                                            {allDestinations.length > 0 && <div className="my-1 border-t border-slate-100" />}
-
-                                            {allDestinations
-                                                .filter((item) => String(item.id || item.destinationId) !== String(id))
-                                                .map((item) => {
-                                                    const destinationId = String(item.id || item.destinationId);
-
-                                                    return (
-                                                        <button
-                                                            key={destinationId}
-                                                            onClick={() => {
-                                                                setFilterDestId(destinationId);
-                                                                setIsFilterOpen(false);
-                                                            }}
-                                                            className={`w-full rounded-xl px-4 py-2.5 text-left text-sm font-medium transition-colors ${filterDestId === destinationId ? 'bg-blue-500 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
-                                                        >
-                                                            {item.name}
-                                                        </button>
-                                                    );
-                                                })}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
                         </div>
 
-                        {(searchQuery || filterDestId !== String(id)) && (
+                        {searchQuery && (
                             <div className="mb-4 flex items-center gap-2 text-sm text-slate-500">
                                 <span>
                                     Tìm thấy <span className="font-bold text-slate-800">{filteredSpots.length}</span> địa danh
                                 </span>
-                                {searchQuery && (
-                                    <span className="rounded-lg bg-blue-50 px-2 py-0.5 font-medium text-blue-600">
-                                        "{searchQuery}"
-                                    </span>
-                                )}
-                                {filterDestId !== 'all' && filterDestId !== String(id) && (
-                                    <span className="rounded-lg bg-slate-100 px-2 py-0.5 font-medium text-slate-600">
-                                        {selectedDestName}
-                                    </span>
-                                )}
+                                <span className="rounded-lg bg-blue-50 px-2 py-0.5 font-medium text-blue-600">
+                                    "{searchQuery}"
+                                </span>
                                 <button
-                                    onClick={() => {
-                                        setSearchQuery('');
-                                        setFilterDestId(String(id));
-                                    }}
+                                    onClick={() => setSearchQuery('')}
                                     className="ml-auto font-semibold text-blue-500 underline underline-offset-2 hover:text-blue-700"
                                 >
                                     Xóa bộ lọc
@@ -408,87 +266,20 @@ const DestinationDetail: React.FC = () => {
                             </div>
                         )}
 
-                        <div className="mt-10">
-                            <button
-                                onClick={() => navigate(`/destinations/${id}/spots`)}
-                                className="group flex w-full items-center justify-center gap-3 rounded-3xl bg-gradient-to-r from-indigo-500 via-blue-500 to-cyan-500 px-8 py-5 text-base font-black text-white shadow-xl shadow-blue-200 transition-all active:scale-[0.98] hover:from-indigo-600 hover:via-blue-600 hover:to-cyan-600 hover:shadow-2xl hover:shadow-blue-300"
-                            >
-                                <Compass size={22} className="transition-transform duration-300 group-hover:rotate-45" />
-                                Tìm hiểu thêm các địa danh nổi tiếng khác
-                                <span className="ml-1 opacity-70 transition-all group-hover:translate-x-1 group-hover:opacity-100">→</span>
-                            </button>
-                        </div>
                     </section>
                 </div>
 
                 <div className="space-y-6">
-                    <div className="group relative overflow-hidden rounded-[40px] bg-slate-900 p-8 text-white shadow-2xl">
-                        <Sparkles className="absolute -right-4 -top-4 size-24 text-white/10 transition-transform group-hover:rotate-12" />
-                        <h3 className="relative z-10 mb-4 text-2xl font-black">Lên kế hoạch thông minh?</h3>
-
-                        <div className="relative z-10 mb-6">
-                            <label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-blue-400">
-                                Bạn muốn đi trong bao lâu?
-                            </label>
-                            <div className="flex items-center rounded-2xl border border-white/10 bg-white/10 p-1">
-                                <button
-                                    onClick={() => setDays(Math.max(1, days - 1))}
-                                    className="flex h-10 w-10 items-center justify-center rounded-xl font-bold transition-all hover:bg-white/20"
-                                >
-                                    -
-                                </button>
-                                <span className="flex-1 text-center text-xl font-black">{days} ngày</span>
-                                <button
-                                    onClick={() => setDays(days + 1)}
-                                    className="flex h-10 w-10 items-center justify-center rounded-xl font-bold transition-all hover:bg-white/20"
-                                >
-                                    +
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="relative z-10 mb-8">
-                            <label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-blue-400">
-                                Ngày bắt đầu
-                            </label>
-                            <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/10 px-4 py-3">
-                                <CalendarDays size={18} className="shrink-0 text-blue-300" />
-                                <input
-                                    type="date"
-                                    value={startDate}
-                                    min={getTodayVietnam()}
-                                    onChange={(event) => setStartDate(event.target.value)}
-                                    className="w-full bg-transparent font-semibold text-white outline-none [color-scheme:dark]"
-                                />
-                            </div>
-                        </div>
-
-                        <button
-                            onClick={handleGenerateAI}
-                            disabled={aiLoading || !startDate}
-                            className="relative z-10 flex w-full items-center justify-center gap-3 rounded-2xl bg-blue-500 px-6 py-4 font-black text-white shadow-xl shadow-blue-900/20 transition-all hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-70"
-                        >
-                            {aiLoading ? (
-                                <>
-                                    <Loader2 className="animate-spin" size={20} />
-                                    ĐANG PHÂN TÍCH...
-                                </>
-                            ) : (
-                                <>BẮT ĐẦU NGAY</>
-                            )}
-                        </button>
-                    </div>
-
-                    <div className="rounded-[32px] border border-blue-100 bg-white p-6 shadow-sm">
+                    <div className="rounded-[32px] border border-blue-100 bg-white p-6 shadow-sm relative overflow-hidden">
                         <div className="mb-5 flex items-start justify-between gap-3">
                             <div>
-                                <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-blue-500">
-                                    AI Budget Estimator
+                                <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-blue-500 flex items-center gap-1">
+                                    <Sparkles size={12} className="animate-pulse" /> AI Budget & Planner
                                 </p>
-                                <h3 className="text-xl font-black text-slate-900">Ước tính ngân sách</h3>
+                                <h3 className="text-xl font-black text-slate-900">Dự toán & Lập kế hoạch AI</h3>
                             </div>
                             <div className="flex size-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
-                                <Wallet size={22} />
+                                {budgetLoading ? <Loader2 size={22} className="animate-spin" /> : <Wallet size={22} />}
                             </div>
                         </div>
 
@@ -550,38 +341,20 @@ const DestinationDetail: React.FC = () => {
                                     <option value="Cao cap">Cao cấp</option>
                                 </select>
                             </div>
-
-                            <button
-                                onClick={handleEstimateBudget}
-                                disabled={budgetLoading}
-                                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 py-3.5 text-sm font-black text-white transition-all hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                                {budgetLoading ? (
-                                    <>
-                                        <Loader2 size={18} className="animate-spin" />
-                                        Đang ước tính...
-                                    </>
-                                ) : (
-                                    <>
-                                        <ReceiptText size={18} />
-                                        Ước tính chi phí
-                                    </>
-                                )}
-                            </button>
                         </div>
 
                         {budgetEstimate && (
                             <div className="mt-6 overflow-hidden rounded-2xl border border-slate-100">
                                 <div className="bg-blue-50 px-4 py-3">
                                     <p className="text-[10px] font-black uppercase tracking-widest text-blue-500">
-                                        Tổng ngân sách
+                                        Tổng ngân sách dự kiến
                                     </p>
                                     <p className="text-2xl font-black text-slate-900">
                                         {formatCurrency(budgetEstimate.total)}
                                     </p>
                                 </div>
 
-                                <div className="divide-y divide-slate-100">
+                                <div className="divide-y divide-slate-100 max-h-[300px] overflow-y-auto">
                                     {budgetEstimate.breakdown.map((item) => (
                                         <div key={item.category} className="grid grid-cols-[1fr_auto] gap-3 px-4 py-3">
                                             <div>
@@ -594,41 +367,29 @@ const DestinationDetail: React.FC = () => {
                                         </div>
                                     ))}
                                 </div>
+
+                                <div className="p-4 bg-slate-50 border-t border-slate-100">
+                                    <button
+                                        onClick={() => {
+                                            const styleMap: Record<string, string> = {
+                                                'Tiet kiem': 'low',
+                                                'Trung binh': 'medium',
+                                                'Cao cap': 'high'
+                                            };
+                                            const budgetStyleKey = styleMap[budgetStyle] || 'medium';
+                                            navigate(`/planner/create?destinationId=${id}&days=${days}&people=${budgetPeople}&budgetStyle=${budgetStyleKey}&budgetTotal=${budgetEstimate.total}`);
+                                        }}
+                                        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-4 text-sm font-black text-white transition-all shadow-lg hover:bg-blue-700 active:scale-95"
+                                    >
+                                        <Sparkles size={16} />
+                                        Lập lịch trình chi tiết từ ngân sách này
+                                    </button>
+                                </div>
                             </div>
                         )}
                     </div>
-
-                    <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
-                        <h4 className="mb-4 flex items-center gap-2 font-black text-slate-800">
-                            <MapPin size={16} className="text-red-400" /> Khám phá tỉnh/thành khác
-                        </h4>
-                        <div className="flex max-h-64 flex-col gap-2 overflow-y-auto custom-scrollbar pr-1">
-                            {allDestinations
-                                .filter((item) => String(item.id || item.destinationId) !== String(id))
-                                .slice(0, 8)
-                                .map((item) => (
-                                    <button
-                                        key={item.id || item.destinationId}
-                                        onClick={() => navigate(`/destinations/${item.id || item.destinationId}`)}
-                                        className="rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-600 transition-colors hover:bg-blue-50 hover:text-blue-600"
-                                    >
-                                        → {item.name}
-                                    </button>
-                                ))}
-                        </div>
-                        <button
-                            onClick={() => navigate(`/destinations/${id}/spots`)}
-                            className="mt-4 w-full rounded-xl border-2 border-slate-200 py-2.5 text-sm font-bold text-slate-600 transition-all hover:border-blue-400 hover:text-blue-600"
-                        >
-                            Xem tất cả địa danh
-                        </button>
-                    </div>
                 </div>
             </div>
-
-            {isFilterOpen && (
-                <div className="fixed inset-0 z-40" onClick={() => setIsFilterOpen(false)} />
-            )}
         </div>
     );
 };

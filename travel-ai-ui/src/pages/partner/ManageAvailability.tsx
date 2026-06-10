@@ -431,21 +431,33 @@ const ManageAvailability = () => {
                                     </label>
                                 </div>
 
-                                <label className="block">
-                                    <span className="block text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Giá bán gốc (VNĐ)</span>
-                                    <div className="relative">
-                                        <DollarSign className="absolute left-4 top-3.5 text-slate-400" size={18} />
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            value={bulkForm.price}
-                                            onChange={event => setBulkForm({ ...bulkForm, price: event.target.value })}
-                                            placeholder="Ví dụ: 250000"
-                                            className="w-full p-3 pl-11 bg-slate-50 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-800 dark:text-white outline-none focus:border-emerald-500"
-                                            required
-                                        />
-                                    </div>
-                                </label>
+<label className="block">
+    <span className="block text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Giá bán gốc (VNĐ)</span>
+    <div className="relative">
+        <DollarSign className="absolute left-4 top-3.5 text-slate-400" size={18} />
+        <input
+            type="number"
+            min="0"
+            value={bulkForm.price}
+            onChange={event => setBulkForm({ ...bulkForm, price: event.target.value })}
+            className="w-full p-3 pl-11 bg-slate-50 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-800 dark:text-white outline-none focus:border-emerald-500"
+            required
+        />
+    </div>
+</label>
+                              <label className="block">
+    <span className="block text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Tổng Stock (Số lượng)</span>
+    <div className="relative">
+        <Package className="absolute left-4 top-3.5 text-slate-400" size={18} />
+        <input
+            type="number"
+            value={bulkForm.stock}
+            onChange={event => setBulkForm({ ...bulkForm, stock: event.target.value })}
+            className="w-full p-3 pl-11 bg-slate-50 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-800 dark:text-white outline-none"
+            required
+        />
+    </div>
+</label>
 
                                 <label className="block">
                                     <span className="block text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Số lượng chỗ tối đa (Stock)</span>

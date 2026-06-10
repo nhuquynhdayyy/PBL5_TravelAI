@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Linq;
 using Microsoft.EntityFrameworkCore;
 using TravelAI.Application.DTOs.AI;
 using TravelAI.Application.Helpers;
@@ -60,7 +61,7 @@ public class ItineraryService : IItineraryService
                 status = "started",
                 destinationId = request.DestinationId,
                 days = request.NumberOfDays,
-                message = "AI dang phan tich so thich, thoi tiet va dich vu phu hop."
+                message = "AI đang phân tích sở thích, thời tiết và dịch vụ phù hợp."
             });
         }
 
@@ -147,12 +148,22 @@ public class ItineraryService : IItineraryService
             historyLogs,
             weatherData,
             availableServiceEntities,
-            request.ServiceFilters);
+            request.ServiceFilters,
+            request.Adults,
+            request.Children,
+            userFeedback: request.UserFeedback,
+            priorItinerary: request.PriorItinerary);
 
+        // Inject SpecialRequest as a TOP-PRIORITY mandatory block at the beginning of the prompt
+        // This ensures AI sees and honors specific named places before reading anything else
         if (!string.IsNullOrWhiteSpace(request.SpecialRequest))
         {
+            var strictBlock = BuildStrictInclusionBlock(request.SpecialRequest);
+            prompt = strictBlock + "\n" + prompt;
+            
+            // Also inject into personalization section for redundancy
             prompt = prompt.Replace("### YEU CAU CA NHAN HOA:", 
-                $"### YEU CAU CA NHAN HOA:\n- Yeu cau chi tiet: {request.SpecialRequest}");
+                $"### YEU CAU CA NHAN HOA:\n- Yeu cau nguoi dung: {request.SpecialRequest}");
         }
 
         var rawAiResponse = await _gemini.CallApiAsync(
@@ -220,6 +231,48 @@ public class ItineraryService : IItineraryService
         parsed.EndDate = tripStartDate.AddDays(parsed.Days.Count);
         parsed.CreatedAt = DateTime.UtcNow;
 
+        // Apply fallbacks for custom activities in generated itinerary
+        foreach (var day in parsed.Days)
+        {
+            foreach (var activity in day.Activities)
+            {
+                if (activity.ServiceId == null)
+                {
+                    if (string.IsNullOrWhiteSpace(activity.Description) || activity.Description == "No description available.")
+                    {
+                        var (fallbackCost, fallbackDesc) = GetFallbackCostAndDescription(activity.Title);
+                        activity.Description = fallbackDesc;
+                        if (activity.EstimatedCost == 0)
+                        {
+                            activity.EstimatedCost = fallbackCost;
+                        }
+                    }
+                    else if (activity.EstimatedCost == 0)
+                    {
+                        var (fallbackCost, _) = GetFallbackCostAndDescription(activity.Title);
+                        activity.EstimatedCost = fallbackCost;
+                    }
+                }
+                else
+                {
+                    var svc = await _db.Services.FindAsync(activity.ServiceId.Value);
+                    if (svc != null)
+                    {
+                        if (activity.EstimatedCost == 0)
+                        {
+                            activity.EstimatedCost = svc.BasePrice;
+                        }
+                        if (string.IsNullOrWhiteSpace(activity.Description) || activity.Description == "No description available.")
+                        {
+                            activity.Description = svc.Description ?? "No description available.";
+                        }
+                    }
+                }
+            }
+        }
+
+        parsed.TotalEstimatedCost = parsed.Days.Sum(d => d.Activities.Sum(a => a.EstimatedCost));
+
         // Lưu metadata vào log để analytics query thẳng DB — chỉ khi user đã đăng nhập
         if (aiLog != null)
         {
@@ -235,7 +288,7 @@ public class ItineraryService : IItineraryService
                 status = "completed",
                 destination = dest.Name,
                 days = parsed.Days.Count,
-                message = "AI da tao xong lich trinh."
+                message = "AI đã tạo xong lịch trình."
             });
         }
 
@@ -260,7 +313,7 @@ public class ItineraryService : IItineraryService
                 Title = dto.TripTitle,
                 StartDate = tripStartDate,
                 EndDate = tripStartDate.AddDays(dto.Days.Count),
-                EstimatedCost = dto.TotalEstimatedCost,
+                EstimatedCost = dto.Days.Sum(d => d.Activities.Sum(a => a.EstimatedCost)),
                 Status = ItineraryStatus.Confirmed
             };
 
@@ -321,12 +374,19 @@ public class ItineraryService : IItineraryService
 
                     var endTime = startTime.AddMinutes(durationMinutes);
 
+                    string? customTitle = null;
+                    if (service == null)
+                    {
+                        var sanitizedDesc = activity.Description?.Replace("\r", " ").Replace("\n", " ").Replace("|", " ");
+                        customTitle = $"{activity.Title}|{activity.EstimatedCost.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{sanitizedDesc}";
+                    }
+
                     _db.ItineraryItems.Add(new ItineraryItem
                     {
                         ItineraryId = itinerary.ItineraryId,
                         SpotId = spot?.SpotId,
                         ServiceId = service?.ServiceId,
-                        CustomTitle = (service == null && spot == null) ? activity.Title : null,
+                        CustomTitle = customTitle,
                         StartTime = startTime,
                         EndTime = endTime,
                         ActivityOrder = order++,
@@ -375,6 +435,35 @@ public class ItineraryService : IItineraryService
                              ?? item.TouristSpot?.Destination?.Name)
                 .FirstOrDefault(name => !string.IsNullOrEmpty(name));
 
+            // Calculate total cost dynamically by mapping each item and summing their costs
+            var totalCost = i.Items.Sum(item => {
+                var service = item.Service;
+                var spot = ResolvePrimarySpot(item);
+                
+                decimal estimatedCost = service?.BasePrice ?? 0;
+                if (service == null && !string.IsNullOrEmpty(item.CustomTitle))
+                {
+                    var parts = item.CustomTitle.Split('|');
+                    if (parts.Length > 1 && decimal.TryParse(parts[1], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsedCost))
+                    {
+                        estimatedCost = parsedCost;
+                    }
+                }
+                
+                if (estimatedCost == 0)
+                {
+                    var title = service?.Name ?? spot?.Name ?? item.CustomTitle ?? "Hoạt động tự do";
+                    if (service == null && !string.IsNullOrEmpty(item.CustomTitle))
+                    {
+                        title = item.CustomTitle.Split('|')[0];
+                    }
+                    var (fallbackCost, _) = GetFallbackCostAndDescription(title);
+                    estimatedCost = fallbackCost;
+                }
+                
+                return estimatedCost;
+            });
+
             return new ItineraryResponseDto
             {
                 ItineraryId = i.ItineraryId,
@@ -382,8 +471,7 @@ public class ItineraryService : IItineraryService
                 Destination = firstDestination ?? i.Title,
                 StartDate = i.StartDate,
                 EndDate = i.EndDate,
-                // Recalculate total cost from actual items
-                TotalEstimatedCost = i.Items.Sum(item => item.Service?.BasePrice ?? 0),
+                TotalEstimatedCost = totalCost,
                 CreatedAt = i.CreatedAt
             };
         });
@@ -400,6 +488,9 @@ public class ItineraryService : IItineraryService
                 .ThenInclude(item => item.Service)
                     .ThenInclude(service => service!.TouristSpot)
                         .ThenInclude(spot => spot!.Destination)
+            .Include(i => i.Items)
+                .ThenInclude(item => item.Service)
+                    .ThenInclude(service => service!.Images)
             .Include(i => i.Items)
                 .ThenInclude(item => item.Service)
                     .ThenInclude(service => service!.ServiceSpots)
@@ -429,7 +520,7 @@ public class ItineraryService : IItineraryService
             Destination = ResolveDestinationName(orderedItems, itinerary.Title),
             StartDate = itinerary.StartDate,
             EndDate = itinerary.EndDate,
-            TotalEstimatedCost = totalEstimatedCost,
+            TotalEstimatedCost = itinerary.EstimatedCost,
             Days = days,
             CreatedAt = itinerary.CreatedAt
         };
@@ -443,6 +534,9 @@ public class ItineraryService : IItineraryService
             .Include(i => i.Items)
                 .ThenInclude(item => item.Service)
                     .ThenInclude(service => service!.TouristSpot)
+            .Include(i => i.Items)
+                .ThenInclude(item => item.Service)
+                    .ThenInclude(service => service!.Images)
             .Include(i => i.Items)
                 .ThenInclude(item => item.Service)
                     .ThenInclude(service => service!.ServiceSpots)
@@ -493,7 +587,108 @@ public class ItineraryService : IItineraryService
         return await GetByIdAsync(id, userId);
     }
 
+    /// <summary>
+    /// Builds a TOP-PRIORITY mandatory block injected at the very beginning of the prompt.
+    /// Extracts specific place names from the user's special request and enforces them as
+    /// non-negotiable inclusions. This block must appear BEFORE all other instructions so
+    /// the AI sees hard constraints first.
+    /// </summary>
+    private static string BuildStrictInclusionBlock(string specialRequest)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("╔══════════════════════════════════════════════════════════════╗");
+        sb.AppendLine("║  RANG BUOC BAT BUOC - DOC TRUOC KHI LAP LICH TRINH         ║");
+        sb.AppendLine("╚══════════════════════════════════════════════════════════════╝");
+        sb.AppendLine();
+        sb.AppendLine("!!! CAU LENH SAU LA BAT BUOC, TUYET DOI KHONG BO QUA !!!");
+        sb.AppendLine();
+        sb.AppendLine($"YEU CAU NGUOI DUNG (nguyen van): \"{specialRequest}\"");
+        sb.AppendLine();
+
+        // Extract specific named places (quoted or capitalized multi-word names)
+        var namedPlaces = ExtractNamedPlaces(specialRequest);
+        if (namedPlaces.Count > 0)
+        {
+            sb.AppendLine("DIA DIEM BAT BUOC PHAI CO TRONG LICH TRINH:");
+            foreach (var place in namedPlaces)
+            {
+                sb.AppendLine($"  >>> \"{place}\" - BAT BUOC XUAT HIEN. KHONG DUOC thay the hoac loai bo. <<<");
+                
+                // Special handling for known places
+                var normalizedPlace = place.ToLowerInvariant().Replace(" ", "").Replace("-", "");
+                if (normalizedPlace.Contains("trinhcaphe") || normalizedPlace.Contains("trinhcafe")
+                    || normalizedPlace.Contains("trinhcà") || normalizedPlace.Contains("trịnhcà"))
+                {
+                    sb.AppendLine($"    - Goi y: Trinh Ca Phe tai 51A Truong Tien, Hue (hoac chi nhanh gan nhat).");
+                    sb.AppendLine($"    - Toa do goc: latitude=16.4727, longitude=107.5797");
+                    sb.AppendLine($"    - Thoi gian goi y: 14:30-16:00 (buoi chieu, sau tham quan sang).");
+                    sb.AppendLine($"    - service_id: null (quan ca phe tu do).");
+                }
+                else if (normalizedPlace.Contains("banahill") || normalizedPlace.Contains("banahills")
+                    || normalizedPlace.Contains("bànà") || normalizedPlace.Contains("bana"))
+                {
+                    sb.AppendLine($"    - BAT BUOC: Danh TOAN NGAY cho Ba Na Hills (toi thieu 6 tieng, khuyen nghi 7-8 tieng).");
+                    sb.AppendLine($"    - KHONG xep them hoat dong chinh nao khac trong ngay nay.");
+                    sb.AppendLine($"    - Toa do: latitude=15.9964, longitude=107.9969");
+                }
+            }
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("QUY TAC XU LY YEU CAU NGUOI DUNG:");
+        sb.AppendLine("1. Cac dia diem/hoat dong nguoi dung neu ten CU THE → BAT BUOC dua vao lich trinh.");
+        sb.AppendLine("2. KHONG duoc thay the bang dia diem 'tuong tu' hoac 'phu hop hon'.");
+        sb.AppendLine("3. Neu yeu cau mau thuan voi quy tac khac → UU TIEN yeu cau nguoi dung.");
+        sb.AppendLine("4. Toa do GPS cua dia diem cu the phai chinh xac, khong de null/0.");
+        sb.AppendLine();
+        sb.AppendLine("══════════════════════════════════════════════════════════════");
+        sb.AppendLine();
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Extracts specific named place mentions from user request text.
+    /// Looks for quoted strings and known Vietnamese place name patterns.
+    /// </summary>
+    private static List<string> ExtractNamedPlaces(string text)
+    {
+        var places = new List<string>();
+
+        // 1. Extract quoted strings: "Trình Cà Phê", 'Bánh Mì Phượng'
+        var quotedMatches = System.Text.RegularExpressions.Regex.Matches(
+            text, @"[""'""']([^""'""']{3,60})[""'""']");
+        foreach (System.Text.RegularExpressions.Match m in quotedMatches)
+        {
+            var candidate = m.Groups[1].Value.Trim();
+            if (!string.IsNullOrWhiteSpace(candidate))
+                places.Add(candidate);
+        }
+
+        // 2. Detect well-known Vietnamese place keywords (case-insensitive)
+        var knownKeywords = new[]
+        {
+            "Trình Cà Phê", "Trinh Ca Phe", "Trinh Cafe",
+            "Bà Nà Hills", "Ba Na Hills", "BaNa Hills",
+            "Hội An", "Hoi An",
+            "Cầu Rồng", "Cau Rong",
+            "Asia Park", "Sun World",
+        };
+
+        foreach (var keyword in knownKeywords)
+        {
+            if (text.Contains(keyword, StringComparison.OrdinalIgnoreCase)
+                && !places.Any(p => p.Contains(keyword, StringComparison.OrdinalIgnoreCase)))
+            {
+                places.Add(keyword);
+            }
+        }
+
+        return places.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
     private async Task<List<PromptServiceOption>> GetAvailableServicesForPromptAsync(
+
         Destination destination,
         DateTime tripStartDate,
         int totalDays,
@@ -828,13 +1023,47 @@ public class ItineraryService : IItineraryService
             imageUrl = spot.ImageUrl;
         }
 
+        string title = service?.Name ?? spot?.Name ?? item.CustomTitle ?? "Hoạt động tự do";
+        decimal estimatedCost = service?.BasePrice ?? 0;
+        string description = service?.Description ?? spot?.Description ?? "No description available.";
+
+        if (service == null && !string.IsNullOrEmpty(item.CustomTitle))
+        {
+            var parts = item.CustomTitle.Split('|');
+            title = parts[0];
+            if (parts.Length > 1 && decimal.TryParse(parts[1], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsedCost))
+            {
+                estimatedCost = parsedCost;
+            }
+            if (parts.Length > 2 && !string.IsNullOrEmpty(parts[2]))
+            {
+                description = parts[2];
+            }
+        }
+
+        // Apply fallback if description is empty or default, or if cost is 0
+        if (description == "No description available." || string.IsNullOrWhiteSpace(description))
+        {
+            var (fallbackCost, fallbackDesc) = GetFallbackCostAndDescription(title);
+            description = fallbackDesc;
+            if (estimatedCost == 0)
+            {
+                estimatedCost = fallbackCost;
+            }
+        }
+        else if (estimatedCost == 0)
+        {
+            var (fallbackCost, _) = GetFallbackCostAndDescription(title);
+            estimatedCost = fallbackCost;
+        }
+
         return new ActivityDto
         {
-            Title = service?.Name ?? spot?.Name ?? item.CustomTitle ?? "Hoạt động tự do",
+            Title = title,
             Location = spot?.Name ?? service?.Name ?? "Custom activity",
-            Description = service?.Description ?? spot?.Description ?? "No description available.",
+            Description = description,
             Duration = FormatDuration(durationMinutes, service?.ServiceType),
-            EstimatedCost = service?.BasePrice ?? 0,
+            EstimatedCost = estimatedCost,
             ServiceId = service?.ServiceId,
             Latitude = latitude,
             Longitude = longitude,
@@ -842,6 +1071,54 @@ public class ItineraryService : IItineraryService
             StartTime = item.StartTime.ToString("HH:mm"),
             EndTime = item.EndTime.ToString("HH:mm")
         };
+    }
+
+    private static (decimal Cost, string Description) GetFallbackCostAndDescription(string title)
+    {
+        var normalized = title.ToLowerInvariant();
+        decimal cost = 50000;
+        string description = "Hoạt động tham quan, khám phá và trải nghiệm tự do tại điểm đến.";
+
+        if (normalized.Contains("an sang") || normalized.Contains("breakfast") || normalized.Contains("ăn sáng"))
+        {
+            cost = 50000;
+            description = "Thưởng thức bữa sáng thơm ngon với các món ăn đặc sản địa phương.";
+        }
+        else if (normalized.Contains("an trua") || normalized.Contains("lunch") || normalized.Contains("ăn trưa") ||
+                 normalized.Contains("an toi") || normalized.Contains("dinner") || normalized.Contains("ăn tối"))
+        {
+            cost = 150000;
+            description = "Thưởng thức ẩm thực đặc sản địa phương phong phú và hấp dẫn.";
+        }
+        else if (normalized.Contains("cafe") || normalized.Contains("cà phê") || normalized.Contains("nước uống") || normalized.Contains("sinh tố"))
+        {
+            cost = 40000;
+            description = "Thư giãn, thưởng thức đồ uống và ngắm cảnh phố phường.";
+        }
+        else if (normalized.Contains("ngu hanh son") || normalized.Contains("ngũ hành sơn"))
+        {
+            cost = 80000;
+            description = "Tham quan danh thắng Ngũ Hành Sơn với hệ thống hang động kì vĩ và các ngôi chùa cổ kính.";
+        }
+        else if (normalized.Contains("tam bien") || normalized.Contains("tắm biển") || normalized.Contains("bien") || normalized.Contains("biển") ||
+                 normalized.Contains("di bo") || normalized.Contains("đi bộ") || normalized.Contains("cong vien") || normalized.Contains("công viên") ||
+                 normalized.Contains("ngam song") || normalized.Contains("ngắm sông") || normalized.Contains("check-in") || normalized.Contains("check in"))
+        {
+            cost = 0;
+            description = "Hoạt động ngắm cảnh, thư giãn và chụp ảnh lưu niệm tự do.";
+        }
+        else if (normalized.Contains("chua") || normalized.Contains("chùa") || normalized.Contains("nha tho") || normalized.Contains("nhà thờ"))
+        {
+            cost = 20000;
+            description = "Viếng thăm công trình tôn giáo cổ kính, cầu bình an và tìm kiếm sự thanh tịnh.";
+        }
+        else if (normalized.Contains("bao tang") || normalized.Contains("bảo tàng"))
+        {
+            cost = 60000;
+            description = "Tìm hiểu lịch sử, văn hóa và nghệ thuật trưng bày tại bảo tàng.";
+        }
+
+        return (cost, description);
     }
 
     private static string ResolveDestinationName(IEnumerable<ItineraryItem> items, string fallback)
