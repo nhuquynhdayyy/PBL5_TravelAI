@@ -427,27 +427,68 @@ const Timeline: React.FC = () => {
     navigate(`/services/${activity.serviceId}${date}`);
   };
 
-  const handleOptimize = async () => {
+  const handleOptimize = async (feedback?: string) => {
     const token = localStorage.getItem('token');
     if (!token) {
       navigate('/login', { state: { from: location.pathname }, replace: false });
       return;
     }
 
-    if (!itineraryId) {
-      alert('Hãy lưu lịch trình trước khi tối ưu lại bằng AI.');
-      return;
-    }
-
     try {
       setOptimizing(true);
-      const response = await axiosClient.post(`/itinerary/${itineraryId}/optimize`);
-      const normalized = normalizeItinerary(response.data?.data || response.data);
-      setItinerary(normalized);
-      setActiveDay(normalized.days[0]?.day || 1);
+
+      if (feedback && feedback.trim()) {
+        let destId = itinerary?.destinationId || itinerary?.raw?.destinationId;
+        if (!destId) {
+          const match = destinations.find(
+            (d) =>
+              d.name?.toLowerCase().includes(resolvedDestination.toLowerCase()) ||
+              resolvedDestination.toLowerCase().includes(d.name?.toLowerCase())
+          );
+          if (match) {
+            destId = match.id || match.destinationId;
+          }
+        }
+
+        if (!destId) {
+          alert('Không tìm thấy địa điểm phù hợp trong hệ thống để tạo lại lịch trình.');
+          return;
+        }
+
+        const formattedStartDate = formatDateToYmd(resolvedStartDate) || toInputDateValue(new Date());
+
+        const response = await axiosClient.post('/itinerary/generate', {
+          destinationId: destId,
+          numberOfDays: resolvedDuration,
+          startDate: formattedStartDate,
+          userFeedback: feedback,
+          priorItinerary: itinerary?.raw || undefined,
+          adults: itinerary?.raw?.adults || pref?.adults || 1,
+          children: itinerary?.raw?.children || pref?.children || 0
+        });
+
+        const newItinerary = response.data?.data || response.data;
+        if (newItinerary) {
+          const normalized = normalizeItinerary(newItinerary);
+          setItinerary(normalized);
+          setActiveDay(normalized.days[0]?.day || 1);
+          localStorage.setItem('latest_itinerary', JSON.stringify(newItinerary));
+        } else {
+          alert('Không nhận được dữ liệu lịch trình mới từ AI.');
+        }
+      } else {
+        if (!itineraryId) {
+          alert('Hãy lưu lịch trình trước khi tối ưu lại bằng AI.');
+          return;
+        }
+        const response = await axiosClient.post(`/itinerary/${itineraryId}/optimize`);
+        const normalized = normalizeItinerary(response.data?.data || response.data);
+        setItinerary(normalized);
+        setActiveDay(normalized.days[0]?.day || 1);
+      }
     } catch (optimizeError) {
       console.error(optimizeError);
-      alert(getErrorMessage(optimizeError, 'Không thể tối ưu lịch trình lúc này.'));
+      alert(getErrorMessage(optimizeError, 'Không thể cập nhật lịch trình lúc này.'));
     } finally {
       setOptimizing(false);
     }

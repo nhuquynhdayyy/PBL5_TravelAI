@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -58,7 +59,9 @@ public class PromptBuilder
         List<Service>? availableServiceEntities = null,
         ServiceFilterRequest? serviceFilters = null,
         int adults = 1,
-        int children = 0)
+        int children = 0,
+        string? userFeedback = null,
+        ItineraryResponseDto? priorItinerary = null)
     {
         var openSpots = spots
             .Where(spot => IsSpotOpenForTrip(spot, startDate, days))
@@ -113,6 +116,41 @@ public class PromptBuilder
 
         var prompt = new StringBuilder();
         prompt.AppendLine($"Ban la chuyen gia lap ke hoach du lich. Hay lap lich trinh {days} ngay tai {dest.Name} cho {adults} nguoi lon va {children} tre em.");
+        if (!string.IsNullOrWhiteSpace(userFeedback) && priorItinerary != null)
+        {
+            prompt.AppendLine("### RANG BUOC DIEU CHINH LICH TRINH (REVISION CONSTRAINTS):");
+            prompt.AppendLine("Nguoi dung khong muon tao moi tu dau. Ho muon thay doi/chinh sua mot so phan cua lich trinh cu.");
+            prompt.AppendLine($"- YEU CAU CHINH SUA CUA NGUOI DUNG: \"{userFeedback}\"");
+            prompt.AppendLine("- LICH TRINH HIEN TAI:");
+            
+            var simplified = new
+            {
+                tripTitle = priorItinerary.TripTitle,
+                destination = priorItinerary.Destination,
+                days = priorItinerary.Days.Select(d => new
+                {
+                    day = d.Day,
+                    activities = d.Activities.Select(a => new
+                    {
+                        title = a.Title,
+                        location = a.Location,
+                        description = a.Description,
+                        duration = a.Duration,
+                        estimatedCost = a.EstimatedCost,
+                        service_id = a.ServiceId
+                    }).ToList()
+                }).ToList()
+            };
+            var priorItineraryJson = JsonSerializer.Serialize(simplified);
+            prompt.AppendLine(priorItineraryJson);
+            prompt.AppendLine();
+            prompt.AppendLine("RANG BUOC BAT BUOC KHI DIEU CHINH:");
+            prompt.AppendLine("1. Hay phan tich \"YEU CAU CHINH SUA CUA NGUOI DUNG\" de thuc hien cap nhat tuong ung (vi du: them quan an, giam di bo, hoac doi khach san).");
+            prompt.AppendLine("2. GIU NGUYEN (BAO TOAN) tat ca cac hoat dong, khach san hoac ngay trinh ma khong lien quan den yeu cau thay doi. Cam tuyet doi viec tao ra mot lich trinh moi khac hoan toan khong co su ke thua.");
+            prompt.AppendLine("3. Neu khong thay doi mot hoat dong he thong, phai giu nguyen service_id goc cua no.");
+            prompt.AppendLine("4. Tat ca cac hoat dong moi duoc them vao phai thuoc dung dia phan cua tinh thanh du lich da chon va co thoi gian/chi phi hop ly.");
+            prompt.AppendLine();
+        }
         prompt.AppendLine($"RANG BUOC DIA LY TUYET DOI: Tat ca cac dia diem, hoat dong, diem tham quan, nha hang, ca phe, khach san duoc goi y trong lich trinh PHAI thuoc dung dia phan cua {dest.Name}. Cam tuyet doi viec lay cac dia diem o cac tinh thanh khac (vi du: neu diem den la Da Nang, cam tuyet doi khong duoc goi y cac dia diem o Ha Noi nhu 'Pho di bo Ho Hoan Kiem' hay 'Ho Tay' vi do la loi sai lam dia ly nghiem trong).");
         prompt.AppendLine($"Chuyen di bat dau tu ngay {startDate:dd/MM/yyyy}. Day la moc ngay bat dau co dinh cho ca hanh trinh.");
         prompt.AppendLine($"Hay sap xep tung ngay trong lich trinh gan voi cac ngay cu the dua tren moc thoi gian nay, trong do ngay 1 ung voi {startDate:dd/MM/yyyy} va moi ngay sau la ngay lien ke.");

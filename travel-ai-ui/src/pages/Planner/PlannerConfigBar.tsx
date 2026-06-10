@@ -9,7 +9,7 @@ type PlannerConfigBarProps = {
   duration: number;
   budgetLevel: number;
   interests: string[];
-  onRegenerate: () => void;
+  onRegenerate: (feedback: string) => void;
   regenerating: boolean;
   onConfigChange?: (config: {
     destination: string;
@@ -42,6 +42,7 @@ const PlannerConfigBar = ({
   const [localBudget, setLocalBudget] = useState(budgetLevel);
   const [localInterests, setLocalInterests] = useState<string[]>(interests);
   const [openPanel, setOpenPanel] = useState<OpenPanel>(null);
+  const [feedback, setFeedback] = useState('');
 
   useEffect(() => setLocalDestination(destination), [destination]);
   useEffect(() => {
@@ -159,7 +160,7 @@ const PlannerConfigBar = ({
         {/* Regenerate button */}
         <button
           type="button"
-          onClick={onRegenerate}
+          onClick={() => onRegenerate(feedback)}
           disabled={regenerating}
           className="flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-black text-white transition hover:bg-slate-700 disabled:opacity-60"
         >
@@ -314,6 +315,48 @@ const PlannerConfigBar = ({
           onClick={() => setOpenPanel(null)}
         />
       )}
+
+      {/* feedback textarea & Quick Chips */}
+      <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <label className="block text-sm font-black text-slate-800 mb-2">
+          Bạn muốn thay đổi điều gì trong lịch trình này?
+        </label>
+        <textarea
+          value={feedback}
+          onChange={(e) => setFeedback(e.target.value)}
+          disabled={regenerating}
+          placeholder="Ví dụ: Thêm nhiều chỗ ăn vặt hơn, giảm bớt đi bộ, hoặc đổi khách sạn khác..."
+          className="w-full min-h-[80px] rounded-xl border border-slate-200 bg-white p-3 text-sm font-medium text-slate-900 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 resize-none transition"
+        />
+        <div className="mt-2.5 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
+            {[
+              { label: 'Tiết kiệm hơn', value: 'Tiết kiệm hơn' },
+              { label: 'Nhiều hoạt động ngoài trời hơn', value: 'Nhiều hoạt động ngoài trời hơn' },
+              { label: 'Dành cho trẻ em', value: 'Thiết kế phù hợp cho trẻ em' }
+            ].map((chip) => (
+              <button
+                key={chip.label}
+                type="button"
+                disabled={regenerating}
+                onClick={() => {
+                  setFeedback((prev) => {
+                    const trimmed = prev.trim();
+                    if (!trimmed) return chip.value;
+                    if (trimmed.endsWith('.') || trimmed.endsWith('!') || trimmed.endsWith('?')) {
+                      return `${trimmed} ${chip.value}`;
+                    }
+                    return `${trimmed}, ${chip.value.toLowerCase()}`;
+                  });
+                }}
+                className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 px-3.5 py-1.5 text-xs font-bold text-slate-600 transition-all duration-200 active:scale-95 disabled:opacity-50"
+              >
+                + {chip.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

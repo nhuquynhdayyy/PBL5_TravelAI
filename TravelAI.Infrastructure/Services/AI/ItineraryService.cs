@@ -150,7 +150,9 @@ public class ItineraryService : IItineraryService
             availableServiceEntities,
             request.ServiceFilters,
             request.Adults,
-            request.Children);
+            request.Children,
+            userFeedback: request.UserFeedback,
+            priorItinerary: request.PriorItinerary);
 
         // Inject SpecialRequest as a TOP-PRIORITY mandatory block at the beginning of the prompt
         // This ensures AI sees and honors specific named places before reading anything else
