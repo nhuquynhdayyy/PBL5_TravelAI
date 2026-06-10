@@ -161,7 +161,6 @@ const SavedTripsPanel = ({
                       {formatRelativeTime(trip.createdAt)}
                     </span>
                     <span className="inline-flex items-center gap-1 rounded-xl bg-emerald-50 px-3 py-2 text-emerald-700">
-                      <DollarSign size={13} />
                       {formatCurrency(trip.totalEstimatedCost || trip.totalCost || 0)}
                     </span>
                   </div>

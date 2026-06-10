@@ -34,7 +34,7 @@ const HotelCard = ({ activity, isRecommended = false, onBook, onActivityClick }:
       {/* Hotel Image */}
       <div className="relative h-64 overflow-hidden">
         <img
-          src={getImageUrl(activity.imageUrl)}
+          src={getImageUrl(activity.imageUrl, activity.kind, activity.title)}
           alt={activity.title}
           className="h-full w-full object-cover transition duration-700 group-hover:scale-110"
         />

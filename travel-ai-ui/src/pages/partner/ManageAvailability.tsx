@@ -391,13 +391,12 @@ const serviceAvailability = response.data.find((item: any) => item.serviceId ===
                         <label className="block">
                             <span className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Gia goc (VND)</span>
                             <div className="relative">
-                                <DollarSign className="absolute left-4 top-3.5 text-slate-400" size={18} />
                                 <input
                                     type="number"
                                     min="0"
                                     value={bulkForm.price}
                                     onChange={event => setBulkForm({ ...bulkForm, price: event.target.value })}
-                                    className="w-full p-3 pl-11 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold outline-none focus:border-emerald-500"
+                                    className="w-full p-3 pl-4 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold outline-none focus:border-emerald-500"
                                     required
                                 />
                             </div>

@@ -113,6 +113,7 @@ public class PromptBuilder
 
         var prompt = new StringBuilder();
         prompt.AppendLine($"Ban la chuyen gia lap ke hoach du lich. Hay lap lich trinh {days} ngay tai {dest.Name} cho {adults} nguoi lon va {children} tre em.");
+        prompt.AppendLine($"RANG BUOC DIA LY TUYET DOI: Tat ca cac dia diem, hoat dong, diem tham quan, nha hang, ca phe, khach san duoc goi y trong lich trinh PHAI thuoc dung dia phan cua {dest.Name}. Cam tuyet doi viec lay cac dia diem o cac tinh thanh khac (vi du: neu diem den la Da Nang, cam tuyet doi khong duoc goi y cac dia diem o Ha Noi nhu 'Pho di bo Ho Hoan Kiem' hay 'Ho Tay' vi do la loi sai lam dia ly nghiem trong).");
         prompt.AppendLine($"Chuyen di bat dau tu ngay {startDate:dd/MM/yyyy}. Day la moc ngay bat dau co dinh cho ca hanh trinh.");
         prompt.AppendLine($"Hay sap xep tung ngay trong lich trinh gan voi cac ngay cu the dua tren moc thoi gian nay, trong do ngay 1 ung voi {startDate:dd/MM/yyyy} va moi ngay sau la ngay lien ke.");
         prompt.AppendLine();
@@ -222,7 +223,7 @@ public class PromptBuilder
         prompt.AppendLine("    }");
         prompt.AppendLine("  ]");
         prompt.AppendLine("}");
-        prompt.AppendLine("Luu y quan trong: field 'duration' BAT BUOC phai co va phai la thoi gian thuc te cua hoat dong do (vi du: tham quan bao tang 2 gio, an trua 1 gio, check-in khach san 30 phut). Tinh toan 'estimatedCost' la 0 cho cac diem tu do va dung gia he thong cho cac diem chinh thuc. Moi activity phai co field service_id. Lich trinh phai khop voi ngay bat dau da cung cap.");
+        prompt.AppendLine("Luu y quan trong: field 'duration' BAT BUOC phai co va phai la thoi gian thuc te cua hoat dong do (vi du: tham quan bao tang 2 gio, an trua 1 gio, check-in khach san 30 phut). Uoc luong chi phi (estimatedCost) thuc te va hop ly cho tat ca cac hoat dong tu do hoac an uong (vi du: an sang khoang 50000 VND, an trua/an toi khoang 150000-250000 VND, uong ca phe khoang 40000-60000 VND, tham quan bao tang hoac diem di tich khoang 50000-100000 VND tren moi nguoi) chu tuyet doi khong de mac dinh la 0. Chi de 0 cho cac hoat dong hoan toan mien phi nhu tam bien, di bo cong vien public. Voi cac dich vu he thong duoc cung cap san o tren, phai dung dung gia cua he thong. Moi activity phai co field service_id. Lich trinh phai khop voi ngay bat dau da cung cap.");
 
         return prompt.ToString();
     }

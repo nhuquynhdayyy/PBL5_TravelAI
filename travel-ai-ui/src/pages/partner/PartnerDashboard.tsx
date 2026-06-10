@@ -297,7 +297,6 @@ className="px-6 py-3 rounded-2xl bg-emerald-600 text-white font-black text-sm sh
                         <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm">
                             <div className="flex items-center justify-between mb-4">
                                 <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Doanh thu {periodLabel.toLowerCase()}</span>
-                                <DollarSign className="text-emerald-500" size={22} />
                             </div>
                             <div className="text-3xl font-black text-slate-900">
                                 {currencyFormatter.format(summary?.totalRevenue ?? 0)}d

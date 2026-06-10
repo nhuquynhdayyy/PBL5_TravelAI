@@ -310,7 +310,6 @@ const PartnerOrders = () => {
                 <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm">
                     <div className="flex items-center justify-between mb-4">
                         <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Tong gia tri</span>
-                        <DollarSign className="text-amber-500" size={22} />
                     </div>
                     <div className="text-3xl font-black text-slate-900">{formatVietnameseCurrency(totalRevenue)}₫</div>
                 </div>
