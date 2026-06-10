@@ -61,6 +61,7 @@ interface PlanData {
   specialRequest: string;
   adults: number;
   children: number;
+  estimatedBudget?: number;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -150,6 +151,9 @@ export function generateTravelPrompt(userData: PlanData, chatHistory: ChatMessag
   if (userData.budgetLevel) {
     const budgetLabel = getBudgetLabel(userData.budgetLevel);
     parts.push(`ngân sách ${budgetLabel.toLowerCase()}`);
+  }
+  if (userData.estimatedBudget) {
+    parts.push(`tổng chi phí dự kiến cho chuyến đi là ${userData.estimatedBudget.toLocaleString('vi-VN')}đ`);
   }
 
   // Landscape Preference
@@ -644,45 +648,119 @@ const CreateItinerary: React.FC = () => {
       }
 
       const destIdParam = searchParams.get('destinationId');
+      const daysParam = searchParams.get('days');
+      const peopleParam = searchParams.get('people');
+      const budgetStyleParam = searchParams.get('budgetStyle');
+      const budgetTotalParam = searchParams.get('budgetTotal');
+
       const matchingDest = destIdParam
         ? destinations.find((d) => d.id === parseInt(destIdParam, 10))
         : null;
 
       if (matchingDest) {
-        // Auto-select the destination
-        const gId = genId();
-        const uId = genId();
-        const aId = genId();
+        if (daysParam && peopleParam) {
+          const daysNum = parseInt(daysParam, 10);
+          const peopleNum = parseInt(peopleParam, 10);
 
-        setMessages([
-          {
-            id: gId,
-            role: 'ai',
-            text: greetingText,
-            timestamp: Date.now() - 2000,
-          },
-          {
-            id: uId,
-            role: 'user',
-            text: `📍 ${matchingDest.name}`,
-            timestamp: Date.now() - 1000,
-          },
-          {
-            id: aId,
-            role: 'ai',
-            text: `Tuyệt vời! ${matchingDest.name} là lựa chọn tuyệt vời 🎉\n\nBạn muốn đi trong bao nhiêu ngày?`,
-            quickReplies: DURATION_OPTIONS,
-            timestamp: Date.now(),
-          },
-        ]);
+          setMessages([
+            {
+              id: genId(),
+              role: 'ai',
+              text: greetingText,
+              timestamp: Date.now() - 6000,
+            },
+            {
+              id: genId(),
+              role: 'user',
+              text: `📍 ${matchingDest.name}`,
+              timestamp: Date.now() - 5000,
+            },
+            {
+              id: genId(),
+              role: 'ai',
+              text: `Tuyệt vời! ${matchingDest.name} là lựa chọn tuyệt vời 🎉\n\nBạn muốn đi trong bao nhiêu ngày?`,
+              timestamp: Date.now() - 4000,
+            },
+            {
+              id: genId(),
+              role: 'user',
+              text: `🗓️ ${daysNum} ngày`,
+              timestamp: Date.now() - 3000,
+            },
+            {
+              id: genId(),
+              role: 'ai',
+              text: `${daysNum} ngày đủ để khám phá nhiều điều thú vị!\n\nChuyến đi của bạn có bao nhiêu người? Hãy chọn số lượng người lớn và trẻ em.`,
+              timestamp: Date.now() - 2000,
+            },
+            {
+              id: genId(),
+              role: 'user',
+              text: `👥 ${peopleNum} người lớn`,
+              timestamp: Date.now() - 1000,
+            },
+            {
+              id: genId(),
+              role: 'ai',
+              text: `Đã nhận thông tin hành khách! 👥\n\nBạn dự định khởi hành vào ngày nào?`,
+              showDatePicker: true,
+              timestamp: Date.now(),
+            },
+          ]);
 
-        markSelected('destination', String(matchingDest.id));
-        setPlanData((prev) => ({
-          ...prev,
-          destinationId: matchingDest.id,
-          destinationName: matchingDest.name,
-        }));
-        setStep('duration');
+          markSelected('destination', String(matchingDest.id));
+          markSelected('duration', String(daysNum));
+          if (budgetStyleParam) {
+            markSelected('budget', budgetStyleParam);
+          }
+
+          setPlanData((prev) => ({
+            ...prev,
+            destinationId: matchingDest.id,
+            destinationName: matchingDest.name,
+            numberOfDays: daysNum,
+            adults: peopleNum,
+            children: 0,
+            budgetLevel: budgetStyleParam || prev.budgetLevel,
+            estimatedBudget: budgetTotalParam ? parseInt(budgetTotalParam, 10) : undefined,
+          }));
+
+          setStep('startDate');
+        } else {
+          const gId = genId();
+          const uId = genId();
+          const aId = genId();
+
+          setMessages([
+            {
+              id: gId,
+              role: 'ai',
+              text: greetingText,
+              timestamp: Date.now() - 2000,
+            },
+            {
+              id: uId,
+              role: 'user',
+              text: `📍 ${matchingDest.name}`,
+              timestamp: Date.now() - 1000,
+            },
+            {
+              id: aId,
+              role: 'ai',
+              text: `Tuyệt vời! ${matchingDest.name} là lựa chọn tuyệt vời 🎉\n\nBạn muốn đi trong bao nhiêu ngày?`,
+              quickReplies: DURATION_OPTIONS,
+              timestamp: Date.now(),
+            },
+          ]);
+
+          markSelected('destination', String(matchingDest.id));
+          setPlanData((prev) => ({
+            ...prev,
+            destinationId: matchingDest.id,
+            destinationName: matchingDest.name,
+          }));
+          setStep('duration');
+        }
       } else {
         pushAiMessage(greetingText, buildDestinationReplies(destinations));
         setStep('destination');
@@ -791,14 +869,26 @@ const CreateItinerary: React.FC = () => {
   function handleDateSubmit(date: string) {
     pushUserMessage(`📅 ${formatDate(date)}`);
     setPlanData((prev) => ({ ...prev, startDate: date }));
-    setStep('budget');
 
-    aiThinkThen(() => {
-      pushAiMessage(
-        `Ngày ${formatDate(date)} nghe có vẻ tuyệt! ☀️\n\nBạn có ngân sách dự kiến như thế nào cho chuyến đi này?`,
-        BUDGET_OPTIONS,
-      );
-    });
+    const hasPreFilledBudget = !!searchParams.get('budgetStyle');
+
+    if (hasPreFilledBudget) {
+      setStep('naturePreference');
+      aiThinkThen(() => {
+        pushAiMessage(
+          `Ngày ${formatDate(date)} nghe có vẻ tuyệt! ☀️\n\nĐể AI gợi ý đúng hơn, bạn thích loại phong cảnh nào?\n(Có thể chọn nhiều)`,
+          NATURE_OPTIONS,
+        );
+      });
+    } else {
+      setStep('budget');
+      aiThinkThen(() => {
+        pushAiMessage(
+          `Ngày ${formatDate(date)} nghe có vẻ tuyệt! ☀️\n\nBạn có ngân sách dự kiến như thế nào cho chuyến đi này?`,
+          BUDGET_OPTIONS,
+        );
+      });
+    }
   }
 
   function handleBudgetReply(reply: QuickReply) {

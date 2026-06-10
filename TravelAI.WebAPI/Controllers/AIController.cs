@@ -33,11 +33,6 @@ public class AIController : ControllerBase
     [HttpPost("estimate-budget")]
     public async Task<IActionResult> EstimateBudget([FromBody] BudgetEstimateRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.Destination))
-        {
-            return BadRequest(new { message = "Destination is required." });
-        }
-
         if (request.Days <= 0)
         {
             return BadRequest(new { message = "Days must be greater than 0." });
@@ -52,33 +47,141 @@ public class AIController : ControllerBase
             ? "trung binh"
             : request.TravelStyle.Trim();
 
-        var prompt = $@"Uoc tinh chi phi cho {request.People} nguoi di {request.Destination.Trim()} trong {request.Days} ngay theo phong cach {travelStyle}.
-Breakdown chi tiet: luu tru, an uong, di chuyen, tham quan, mua sam.
-Format JSON dung nhu sau:
-{{
-  ""total"": 0,
-  ""breakdown"": [
-    {{ ""category"": ""Luu tru"", ""amount"": 0, ""note"": ""..."" }},
-    {{ ""category"": ""An uong"", ""amount"": 0, ""note"": ""..."" }},
-    {{ ""category"": ""Di chuyen"", ""amount"": 0, ""note"": ""..."" }},
-    {{ ""category"": ""Tham quan"", ""amount"": 0, ""note"": ""..."" }},
-    {{ ""category"": ""Mua sam"", ""amount"": 0, ""note"": ""..."" }}
-  ]
-}}
-Chi tra ve JSON hop le. Don vi tien te la VND.";
+        // Resolve destination ID
+        int? destId = request.DestinationId;
+        string destinationName = request.Destination;
 
-        var rawResponse = await _aiService.CallApiAsync(
-            prompt,
-            systemPrompt: "Ban la tro ly uoc tinh ngan sach du lich Viet Nam. Chi tra ve JSON hop le.",
-            requireJsonResponse: true);
-
-        if (GeminiService.TryExtractErrorMessage(rawResponse, out var aiError))
+        if (!destId.HasValue && !string.IsNullOrWhiteSpace(request.Destination))
         {
-            return BadRequest(new { message = aiError });
+            var dest = await _context.Destinations
+                .FirstOrDefaultAsync(d => d.Name.Contains(request.Destination.Trim()));
+            if (dest != null)
+            {
+                destId = dest.DestinationId;
+                destinationName = dest.Name;
+            }
+        }
+        else if (destId.HasValue && string.IsNullOrWhiteSpace(destinationName))
+        {
+            var dest = await _context.Destinations.FindAsync(destId.Value);
+            if (dest != null)
+            {
+                destinationName = dest.Name;
+            }
         }
 
-        var estimate = ParseBudgetEstimate(rawResponse)
-            ?? BuildFallbackEstimate(request.Destination.Trim(), request.Days, request.People, travelStyle);
+        // Query active services in the destination
+        var services = new List<Service>();
+        if (destId.HasValue)
+        {
+            services = await _context.Services
+                .Include(s => s.TouristSpot)
+                .Include(s => s.ServiceSpots)
+                    .ThenInclude(ss => ss.TouristSpot)
+                .Where(s => s.IsActive && (
+                    (s.TouristSpot != null && s.TouristSpot.DestinationId == destId.Value) ||
+                    s.ServiceSpots.Any(ss => ss.TouristSpot.DestinationId == destId.Value)
+                ))
+                .ToListAsync();
+        }
+
+        // Default base prices (in VND):
+        decimal hotelPrice = 650_000m;
+        decimal restaurantPrice = 180_000m;
+        decimal transportPrice = 120_000m;
+        decimal sightseeingPrice = 200_000m;
+
+        if (services.Any())
+        {
+            var hotels = services.Where(s => s.ServiceType == ServiceType.Hotel).ToList();
+            if (hotels.Any())
+            {
+                hotelPrice = hotels.Average(s => s.BasePrice);
+            }
+
+            var restaurants = services.Where(s => s.ServiceType == ServiceType.Restaurant).ToList();
+            if (restaurants.Any())
+            {
+                restaurantPrice = restaurants.Average(s => s.BasePrice);
+            }
+
+            var transports = services.Where(s => s.ServiceType == ServiceType.Transport).ToList();
+            if (transports.Any())
+            {
+                transportPrice = transports.Average(s => s.BasePrice);
+            }
+
+            var sightseeing = services.Where(s => s.ServiceType == ServiceType.Tour || s.ServiceType == ServiceType.Activity).ToList();
+            if (sightseeing.Any())
+            {
+                sightseeingPrice = sightseeing.Average(s => s.BasePrice);
+            }
+        }
+
+        // Round base prices to nearest thousand
+        hotelPrice = Math.Round(hotelPrice / 1000m) * 1000m;
+        restaurantPrice = Math.Round(restaurantPrice / 1000m) * 1000m;
+        transportPrice = Math.Round(transportPrice / 1000m) * 1000m;
+        sightseeingPrice = Math.Round(sightseeingPrice / 1000m) * 1000m;
+
+        // Travel style multiplier
+        var multiplier = travelStyle.Trim().ToLowerInvariant() switch
+        {
+            "tiet kiem" or "tiết kiệm" or "low" or "budget" => 0.75m,
+            "cao cap" or "cao cấp" or "high" or "luxury" or "sang trong" or "sang trọng" => 1.65m,
+            _ => 1.0m
+        };
+
+        var hotelNights = Math.Max(request.Days - 1, 1);
+        var roomCount = (int)Math.Ceiling(request.People / 2.0);
+
+        var hotelCost = Math.Round(hotelPrice * hotelNights * roomCount * multiplier / 1000m) * 1000m;
+        var foodCost = Math.Round(restaurantPrice * 2.5m * request.Days * request.People * multiplier / 1000m) * 1000m;
+        var transCost = Math.Round(transportPrice * 2m * request.Days * (decimal)Math.Ceiling(request.People / 4.0) * multiplier / 1000m) * 1000m;
+        var sightCost = Math.Round(sightseeingPrice * request.Days * request.People * multiplier / 1000m) * 1000m;
+        var shopCost = Math.Round(150_000m * request.Days * request.People * multiplier / 1000m) * 1000m;
+
+        var breakdown = new List<BudgetBreakdownItem>
+        {
+            new()
+            {
+                Category = "Lưu trú",
+                Amount = hotelCost,
+                Note = $"Ước tính {hotelNights} đêm, {roomCount} phòng (trung bình {hotelPrice:N0}đ/phòng/đêm)."
+            },
+            new()
+            {
+                Category = "Ăn uống",
+                Amount = foodCost,
+                Note = $"Ăn uống cho {request.People} người trong {request.Days} ngày (trung bình {restaurantPrice:N0}đ/bữa)."
+            },
+            new()
+            {
+                Category = "Di chuyển",
+                Amount = transCost,
+                Note = $"Di chuyển nội thành (trung bình {transportPrice:N0}đ/chuyến)."
+            },
+            new()
+            {
+                Category = "Tham quan",
+                Amount = sightCost,
+                Note = $"Vé vào cổng, hoạt động trải nghiệm (trung bình {sightseeingPrice:N0}đ/lượt)."
+            },
+            new()
+            {
+                Category = "Mua sắm",
+                Amount = shopCost,
+                Note = "Mua sắm quà lưu niệm và phát sinh (150.000đ/ngày/người)."
+            }
+        };
+
+        var total = breakdown.Sum(item => item.Amount);
+
+        var estimate = new BudgetEstimateResponse
+        {
+            Total = total,
+            Breakdown = breakdown
+        };
 
         return Ok(new { success = true, data = estimate });
     }

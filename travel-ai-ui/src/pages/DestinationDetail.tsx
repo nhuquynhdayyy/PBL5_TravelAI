@@ -43,7 +43,7 @@ const DestinationDetail: React.FC = () => {
     const [spots, setSpots] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
-    const [days, setDays] = useState<number>(1);
+    const [days, setDays] = useState<number>(3);
     const [budgetPeople, setBudgetPeople] = useState<number>(2);
     const [budgetStyle, setBudgetStyle] = useState<string>('Trung binh');
     const [budgetLoading, setBudgetLoading] = useState(false);
@@ -52,11 +52,13 @@ const DestinationDetail: React.FC = () => {
 
 
     const handleEstimateBudget = async () => {
+        if (!dest) return;
         try {
             setBudgetLoading(true);
 
             const response = await axiosClient.post('/ai/estimate-budget', {
                 destination: dest.name,
+                destination_id: Number(id),
                 days,
                 people: budgetPeople,
                 travel_style: budgetStyle
@@ -64,26 +66,7 @@ const DestinationDetail: React.FC = () => {
 
             setBudgetEstimate(response.data.data || response.data);
         } catch (error) {
-            console.error(error);
-            const message = typeof error === 'object' && error !== null && 'response' in error
-                ? (() => {
-                    const response = (error as {
-                        response?: {
-                            data?: {
-                                message?: string;
-                            } | string;
-                        };
-                    }).response;
-
-                    if (typeof response?.data === 'string') {
-                        return response.data;
-                    }
-
-                    return response?.data?.message || 'Khong uoc tinh duoc ngan sach luc nay.';
-                })()
-                : 'Khong uoc tinh duoc ngan sach luc nay.';
-
-            alert(message);
+            console.error('Lỗi khi ước tính ngân sách:', error);
         } finally {
             setBudgetLoading(false);
         }
@@ -125,6 +108,12 @@ const DestinationDetail: React.FC = () => {
     useEffect(() => {
         fetchData();
     }, [id]);
+
+    useEffect(() => {
+        if (dest) {
+            handleEstimateBudget();
+        }
+    }, [dest, days, budgetPeople, budgetStyle]);
 
     const filteredSpots = useMemo(() => {
         if (!searchQuery.trim()) {
@@ -281,33 +270,16 @@ const DestinationDetail: React.FC = () => {
                 </div>
 
                 <div className="space-y-6">
-                    <div className="group relative overflow-hidden rounded-[40px] bg-slate-900 p-8 text-white shadow-2xl text-center">
-                        <Sparkles className="absolute -right-4 -top-4 size-24 text-white/10 transition-transform group-hover:rotate-12" />
-                        <h3 className="relative z-10 mb-4 text-2xl font-black leading-tight">
-                            Lập kế hoạch du lịch {dest.name} ngay cùng AI
-                        </h3>
-                        <p className="relative z-10 mb-6 text-sm text-slate-400 leading-relaxed">
-                            Trải nghiệm công cụ lập lịch trình thông minh hoàn toàn miễn phí. AI sẽ đề xuất lộ trình tối ưu và gợi ý các hoạt động phù hợp nhất với sở thích của bạn.
-                        </p>
-                        <button
-                            onClick={() => navigate(`/planner/create?destinationId=${id}`)}
-                            className="relative z-10 flex w-full items-center justify-center gap-3 rounded-2xl bg-blue-500 px-6 py-4.5 font-black text-white shadow-xl shadow-blue-900/20 transition-all hover:bg-blue-400 active:scale-[0.98]"
-                        >
-                            <Sparkles size={18} />
-                            BẮT ĐẦU NGAY
-                        </button>
-                    </div>
-
-                    <div className="rounded-[32px] border border-blue-100 bg-white p-6 shadow-sm">
+                    <div className="rounded-[32px] border border-blue-100 bg-white p-6 shadow-sm relative overflow-hidden">
                         <div className="mb-5 flex items-start justify-between gap-3">
                             <div>
-                                <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-blue-500">
-                                    AI Budget Estimator
+                                <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-blue-500 flex items-center gap-1">
+                                    <Sparkles size={12} className="animate-pulse" /> AI Budget & Planner
                                 </p>
-                                <h3 className="text-xl font-black text-slate-900">Ước tính ngân sách</h3>
+                                <h3 className="text-xl font-black text-slate-900">Dự toán & Lập kế hoạch AI</h3>
                             </div>
                             <div className="flex size-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
-                                <Wallet size={22} />
+                                {budgetLoading ? <Loader2 size={22} className="animate-spin" /> : <Wallet size={22} />}
                             </div>
                         </div>
 
@@ -369,38 +341,20 @@ const DestinationDetail: React.FC = () => {
                                     <option value="Cao cap">Cao cấp</option>
                                 </select>
                             </div>
-
-                            <button
-                                onClick={handleEstimateBudget}
-                                disabled={budgetLoading}
-                                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 py-3.5 text-sm font-black text-white transition-all hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                                {budgetLoading ? (
-                                    <>
-                                        <Loader2 size={18} className="animate-spin" />
-                                        Đang ước tính...
-                                    </>
-                                ) : (
-                                    <>
-                                        <ReceiptText size={18} />
-                                        Ước tính chi phí
-                                    </>
-                                )}
-                            </button>
                         </div>
 
                         {budgetEstimate && (
                             <div className="mt-6 overflow-hidden rounded-2xl border border-slate-100">
                                 <div className="bg-blue-50 px-4 py-3">
                                     <p className="text-[10px] font-black uppercase tracking-widest text-blue-500">
-                                        Tổng ngân sách
+                                        Tổng ngân sách dự kiến
                                     </p>
                                     <p className="text-2xl font-black text-slate-900">
                                         {formatCurrency(budgetEstimate.total)}
                                     </p>
                                 </div>
 
-                                <div className="divide-y divide-slate-100">
+                                <div className="divide-y divide-slate-100 max-h-[300px] overflow-y-auto">
                                     {budgetEstimate.breakdown.map((item) => (
                                         <div key={item.category} className="grid grid-cols-[1fr_auto] gap-3 px-4 py-3">
                                             <div>
@@ -412,6 +366,24 @@ const DestinationDetail: React.FC = () => {
                                             </p>
                                         </div>
                                     ))}
+                                </div>
+
+                                <div className="p-4 bg-slate-50 border-t border-slate-100">
+                                    <button
+                                        onClick={() => {
+                                            const styleMap: Record<string, string> = {
+                                                'Tiet kiem': 'low',
+                                                'Trung binh': 'medium',
+                                                'Cao cap': 'high'
+                                            };
+                                            const budgetStyleKey = styleMap[budgetStyle] || 'medium';
+                                            navigate(`/planner/create?destinationId=${id}&days=${days}&people=${budgetPeople}&budgetStyle=${budgetStyleKey}&budgetTotal=${budgetEstimate.total}`);
+                                        }}
+                                        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-4 text-sm font-black text-white transition-all shadow-lg hover:bg-blue-700 active:scale-95"
+                                    >
+                                        <Sparkles size={16} />
+                                        Lập lịch trình chi tiết từ ngân sách này
+                                    </button>
                                 </div>
                             </div>
                         )}

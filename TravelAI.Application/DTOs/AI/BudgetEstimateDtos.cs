@@ -15,6 +15,9 @@ public class BudgetEstimateRequest
 
     [JsonPropertyName("travel_style")]
     public string TravelStyle { get; set; } = string.Empty;
+
+    [JsonPropertyName("destination_id")]
+    public int? DestinationId { get; set; }
 }
 
 public class BudgetEstimateResponse
