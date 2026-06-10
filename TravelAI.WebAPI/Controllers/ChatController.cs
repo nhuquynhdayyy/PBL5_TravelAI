@@ -349,6 +349,12 @@ Yeu cau:
                 || service.ServiceSpots.Any(serviceSpot => serviceSpot.TouristSpot.DestinationId == destination.DestinationId));
         }
 
+        // Chỉ trả về dịch vụ còn chỗ trống trong tương lai (tránh gợi ý dịch vụ đã hết chỗ)
+        query = query.Where(service =>
+            service.Availabilities.Any(availability =>
+                availability.Date >= DateTime.Today
+                && (availability.TotalStock - availability.BookedCount - availability.HeldCount) > 0));
+
         return await query.ToListAsync();
     }
 
