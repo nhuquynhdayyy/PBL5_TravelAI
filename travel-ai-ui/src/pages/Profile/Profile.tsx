@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  User, Mail, Phone, ShieldCheck, LogOut, Settings2, Save, X, Camera, QrCode, 
-  DollarSign, ChevronRight, Calendar, MapPin, Loader2, Sparkles, Wallet, Zap, Lock, CreditCard
+  User, ShieldCheck, LogOut, Settings2, Save, Camera, QrCode, 
+  ChevronRight, Calendar, MapPin, Loader2, Sparkles, Wallet, Zap, Lock, CreditCard
 } from 'lucide-react';
 import axiosClient from '../../api/axiosClient';
 import { formatVietnameseDate, formatVietnameseCurrency } from '../../utils/dateTimeUtils';
@@ -12,6 +12,7 @@ const Profile: React.FC = () => {
   const [userPref, setUserPref] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string>('');
  
   // State cho Form sửa
   const [editData, setEditData] = useState({ fullName: '', phone: '' });
@@ -19,7 +20,7 @@ const Profile: React.FC = () => {
   const [previewUrl, setPreviewUrl] = useState('');
 
   const navigate = useNavigate();
-  const API_BASE_URL = 'http://localhost:5134'; // ĐỔI PORT CHO ĐÚNG BACKEND CỦA BẠN (5134 hoặc 7243)
+  const API_BASE_URL = (axiosClient.defaults.baseURL || 'http://localhost:5134/api').replace('/api', '');
   const [myTrips, setMyTrips] = useState<any[]>([]);
 
   // Tab state
@@ -32,27 +33,72 @@ const Profile: React.FC = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
+      setErrorMsg('');
+
+      const profilePromise = axiosClient.get('/users/me').catch(e => {
+        console.error("Profile error", e);
+        return { error: e };
+      });
+      const prefPromise = axiosClient.get('/preferences').catch(e => {
+        console.error("Preferences error", e);
+        return { error: e };
+      });
+      const tripsPromise = axiosClient.get('/itinerary/my-trips').catch(e => {
+        console.error("Trips error", e);
+        return { error: e };
+      });
+
       const [profileRes, prefRes, tripsRes] = await Promise.all([
-        axiosClient.get('/users/me'),
-        axiosClient.get('/preferences').catch(() => ({ data: { data: null } })),
-        axiosClient.get('/itinerary/my-trips')
+        profilePromise,
+        prefPromise,
+        tripsPromise
       ]);
-     
-      const userData = profileRes.data;
-      setProfile(userData);
-      setEditData({ fullName: userData.fullName, phone: userData.phone || '' });
-     
-      // Nếu có avatar trong DB thì hiển thị full URL
-      if (userData.avatarUrl) {
-        setPreviewUrl(`${API_BASE_URL}${userData.avatarUrl}`);
+
+      if ('error' in profileRes) {
+        const e = (profileRes as any).error;
+        setErrorMsg(prev => prev + `[Profile API Error: ${e.message} (Status: ${e.response?.status}) - Data: ${JSON.stringify(e.response?.data)}] `);
       } else {
-        setPreviewUrl('');
+        let userData = profileRes.data;
+        // Hỗ trợ nếu backend trả về bọc trong data field
+        if (userData && userData.success && userData.data) {
+          userData = userData.data;
+        } else if (userData && userData.data && !userData.success) {
+          userData = userData.data;
+        }
+        
+        setProfile(userData);
+
+        // Trích xuất các trường hỗ trợ cả camelCase và PascalCase
+        const name = userData?.fullName || userData?.FullName || '';
+        const phoneVal = userData?.phone || userData?.Phone || '';
+        setEditData({ fullName: name, phone: phoneVal });
+       
+        // Nếu có avatar trong DB thì hiển thị full URL (hỗ trợ cả camelCase và PascalCase)
+        const avatar = userData?.avatarUrl || userData?.AvatarUrl;
+        if (avatar) {
+          setPreviewUrl(`${API_BASE_URL}${avatar}`);
+        } else {
+          setPreviewUrl('');
+        }
       }
-     
-      setUserPref(prefRes.data.data);
-      setMyTrips(tripsRes.data.data || []);
+
+      if ('error' in prefRes) {
+        // Preferences error is fine
+      } else {
+        const prefData = prefRes.data?.data || prefRes.data;
+        setUserPref(prefData);
+      }
+
+      if ('error' in tripsRes) {
+        const e = (tripsRes as any).error;
+        setErrorMsg(prev => prev + `[Trips API Error: ${e.message} (Status: ${e.response?.status}) - Data: ${JSON.stringify(e.response?.data)}] `);
+      } else {
+        const tripsData = tripsRes.data?.data || tripsRes.data || [];
+        setMyTrips(Array.isArray(tripsData) ? tripsData : []);
+      }
     } catch (err) {
-      console.error("Lỗi lấy dữ liệu:", err);
+      console.error("Lỗi lấy dữ liệu tổng hợp:", err);
+      setErrorMsg(prev => prev + `[Fatal: ${err instanceof Error ? err.message : String(err)}]`);
     } finally {
       setLoading(false);
     }
@@ -88,12 +134,15 @@ const Profile: React.FC = () => {
         if (userStr) {
           const userData = JSON.parse(userStr);
          
-          // 2. Cập nhật các thông tin mới vào object
-          userData.fullName = editData.fullName;
+          // 2. Cập nhật các thông tin mới vào object (hỗ trợ cả hai loại casing)
+          if (userData.fullName !== undefined) userData.fullName = editData.fullName;
+          if (userData.FullName !== undefined) userData.FullName = editData.fullName;
          
           // Cập nhật lại đường dẫn ảnh mới nếu có trong phản hồi từ server
-          if (response.data.avatarUrl) {
-             userData.avatarUrl = response.data.avatarUrl;
+          const newAvatar = response.data.avatarUrl || response.data.AvatarUrl;
+          if (newAvatar) {
+             if (userData.avatarUrl !== undefined) userData.avatarUrl = newAvatar;
+             if (userData.AvatarUrl !== undefined) userData.AvatarUrl = newAvatar;
           }
  
           // 3. Lưu ngược lại vào localStorage để Header nhận diện được sự thay đổi
@@ -118,8 +167,12 @@ const Profile: React.FC = () => {
 
   const handleCancel = () => {
     if (profile) {
-      setEditData({ fullName: profile.fullName, phone: profile.phone || '' });
-      setPreviewUrl(profile.avatarUrl ? `${API_BASE_URL}${profile.avatarUrl}` : '');
+      const name = profile.fullName || profile.FullName || '';
+      const phoneVal = profile.phone || profile.Phone || '';
+      setEditData({ fullName: name, phone: phoneVal });
+
+      const avatar = profile.avatarUrl || profile.AvatarUrl;
+      setPreviewUrl(avatar ? `${API_BASE_URL}${avatar}` : '');
       setSelectedFile(null);
     }
   };
@@ -142,7 +195,9 @@ const Profile: React.FC = () => {
   const handleOpenTrip = async (itineraryId: number) => {
     try {
       const detail = await axiosClient.get(`/itinerary/${itineraryId}`);
-      navigate('/itinerary/latest', { state: { data: detail.data.data } });
+      // Lấy chi tiết lịch trình hỗ trợ cả camelCase và PascalCase
+      const detailData = detail.data?.data || detail.data;
+      navigate('/itinerary/latest', { state: { data: detailData } });
     } catch (err) {
       console.error('Loi lay chi tiet lich trinh:', err);
       alert('Không thể tải lại lịch trình lúc này.');
@@ -155,12 +210,19 @@ const Profile: React.FC = () => {
     </div>
   );
 
+  // Khai báo các biến an toàn hỗ trợ cả hai loại camelCase/PascalCase
+  const displayName = profile?.fullName || profile?.FullName || "Người dùng";
+  const displayEmail = profile?.email || profile?.Email || "";
+  const displayRole = profile?.roleName || profile?.RoleName || "Customer";
+  const displayPhone = profile?.phone || profile?.Phone || "Chưa cung cấp";
+  const createdAtVal = profile?.createdAt || profile?.CreatedAt;
+
   return (
     <div className="bg-slate-50/40 min-h-screen py-10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Cover Banner */}
-        <div className="relative h-44 sm:h-52 w-full rounded-3xl overflow-hidden shadow-lg bg-gradient-to-r from-blue-600 via-indigo-650 to-violet-750 mb-8">
+        <div className="relative h-44 sm:h-52 w-full rounded-3xl overflow-hidden shadow-lg bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-700 mb-8">
           <div className="absolute inset-0 bg-black/10"></div>
           {/* Decorative shapes */}
           <div className="absolute -top-12 -right-12 size-48 rounded-full bg-white/10 blur-2xl"></div>
@@ -181,7 +243,7 @@ const Profile: React.FC = () => {
               <div className="flex flex-col items-center text-center pb-6 border-b border-slate-100">
                 {/* Avatar with edit overlay */}
                 <div className="relative group size-28 mb-4">
-                  <div className="size-full rounded-full bg-slate-55 overflow-hidden ring-4 ring-indigo-50 flex items-center justify-center text-slate-350 shadow-md">
+                  <div className="size-full rounded-full bg-slate-100 overflow-hidden ring-4 ring-indigo-50 flex items-center justify-center text-slate-300 shadow-md">
                     {previewUrl ? (
                       <img src={previewUrl} className="size-full object-cover transition-transform group-hover:scale-105 duration-300" alt="Avatar" />
                     ) : (
@@ -197,17 +259,17 @@ const Profile: React.FC = () => {
                   )}
                 </div>
 
-                <h2 className="text-lg font-bold text-slate-900 leading-snug">{profile?.fullName || "Người dùng"}</h2>
-                <p className="text-xs text-slate-500 font-medium mt-0.5">{profile?.email}</p>
+                <h2 className="text-lg font-bold text-slate-900 leading-snug">{displayName}</h2>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">{displayEmail}</p>
 
                 {/* Role & Date joined badges */}
                 <div className="flex flex-wrap items-center justify-center gap-2 mt-3.5">
                   <span className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] font-bold rounded-full uppercase tracking-wider">
                     <ShieldCheck size={12} />
-                    {profile?.roleName || "Customer"}
+                    {displayRole}
                   </span>
                   <span className="inline-flex items-center gap-1 px-3 py-1 bg-slate-50 border border-slate-100 text-slate-500 text-[10px] font-bold rounded-full">
-                    Gia nhập: {profile?.createdAt ? formatVietnameseDate(profile.createdAt) : '...'}
+                    Gia nhập: {createdAtVal ? formatVietnameseDate(createdAtVal) : '...'}
                   </span>
                 </div>
               </div>
@@ -216,7 +278,7 @@ const Profile: React.FC = () => {
               <div className="py-6 space-y-1">
                 <button
                   onClick={() => handleTabChange('itineraries')}
-                  className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-xs font-bold transition-all duration-205 ${
+                  className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-xs font-bold transition-all duration-200 ${
                     activeTab === 'itineraries'
                       ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100'
                       : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
@@ -233,7 +295,7 @@ const Profile: React.FC = () => {
 
                 <button
                   onClick={() => handleTabChange('bookings')}
-                  className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-xs font-bold transition-all duration-205 ${
+                  className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-xs font-bold transition-all duration-200 ${
                     activeTab === 'bookings'
                       ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100'
                       : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
@@ -245,7 +307,7 @@ const Profile: React.FC = () => {
 
                 <button
                   onClick={() => handleTabChange('preferences')}
-                  className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-xs font-bold transition-all duration-205 ${
+                  className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-xs font-bold transition-all duration-200 ${
                     activeTab === 'preferences'
                       ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100'
                       : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
@@ -257,7 +319,7 @@ const Profile: React.FC = () => {
 
                 <button
                   onClick={() => handleTabChange('settings')}
-                  className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-xs font-bold transition-all duration-205 ${
+                  className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-xs font-bold transition-all duration-200 ${
                     activeTab === 'settings'
                       ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100'
                       : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
@@ -302,9 +364,9 @@ const Profile: React.FC = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {myTrips.map((trip, index) => (
                         <div
-                          key={trip.itineraryId ?? index}
-                          onClick={() => handleOpenTrip(trip.itineraryId)}
-                          className="bg-white p-5 rounded-2xl border border-slate-150 shadow-sm hover:shadow-md hover:border-indigo-100 transition-all cursor-pointer group flex flex-col justify-between min-h-[140px]"
+                          key={trip.itineraryId ?? trip.ItineraryId ?? index}
+                          onClick={() => handleOpenTrip(trip.itineraryId || trip.ItineraryId)}
+                          className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-100 transition-all cursor-pointer group flex flex-col justify-between min-h-[140px]"
                         >
                           <div>
                             <div className="flex items-start justify-between">
@@ -314,7 +376,7 @@ const Profile: React.FC = () => {
                               <ChevronRight className="text-slate-400 group-hover:text-indigo-600 transition-all transform group-hover:translate-x-1 size-5" />
                             </div>
                             <h3 className="font-bold text-slate-800 group-hover:text-indigo-600 transition-colors mt-3 text-sm line-clamp-2 leading-snug">
-                              {trip.tripTitle}
+                              {trip.tripTitle || trip.TripTitle}
                             </h3>
                           </div>
 
@@ -324,7 +386,7 @@ const Profile: React.FC = () => {
                               Vừa tạo
                             </span>
                             <span className="text-xs font-bold text-indigo-700 bg-indigo-50/70 px-2.5 py-1 rounded-lg">
-                              {formatVietnameseCurrency(trip.totalEstimatedCost)}₫
+                              {formatVietnameseCurrency(trip.totalEstimatedCost || trip.TotalEstimatedCost || 0)}₫
                             </span>
                           </div>
                         </div>
@@ -338,7 +400,7 @@ const Profile: React.FC = () => {
                       <p className="text-slate-500 font-medium max-w-sm text-sm">Bạn chưa lưu lịch trình du lịch nào. Hãy bắt đầu lên lịch ngay!</p>
                       <button
                         onClick={() => navigate('/destinations')}
-                        className="mt-5 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-100 hover:shadow-lg transition-all"
+                        className="mt-5 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-750 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-100 hover:shadow-lg transition-all"
                       >
                         Khám phá ngay →
                       </button>
@@ -363,7 +425,7 @@ const Profile: React.FC = () => {
                           <CreditCard size={22} />
                         </div>
                         <h3 className="text-sm font-bold text-slate-800 mt-4">Lịch Sử Đặt Dịch Vụ</h3>
-                        <p className="text-xs text-slate-550 mt-2 leading-relaxed">
+                        <p className="text-xs text-slate-500 mt-2 leading-relaxed">
                           Xem lại thông tin và tình trạng đặt chỗ đối với các khách sạn, tour du lịch hoặc phương tiện di chuyển bạn đã đặt.
                         </p>
                       </div>
@@ -383,7 +445,7 @@ const Profile: React.FC = () => {
                           <QrCode size={22} />
                         </div>
                         <h3 className="text-sm font-bold text-slate-800 mt-4">Vé Điện Tử & Check-in</h3>
-                        <p className="text-xs text-slate-550 mt-2 leading-relaxed">
+                        <p className="text-xs text-slate-500 mt-2 leading-relaxed">
                           Lấy mã QR check-in điện tử nhanh chóng để xuất trình khi sử dụng dịch vụ tại điểm đến.
                         </p>
                       </div>
@@ -415,7 +477,7 @@ const Profile: React.FC = () => {
                         </div>
                         
                         <div className="flex justify-between items-center mb-6 z-10 relative">
-                          <h3 className="text-[10px] font-black text-indigo-750 uppercase tracking-widest">Cấu Hình Hành Trình</h3>
+                          <h3 className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">Cấu Hình Hành Trình</h3>
                           <span className="p-1.5 bg-white rounded-lg shadow-sm border border-indigo-50 text-indigo-500">
                             <Sparkles size={14} />
                           </span>
@@ -428,7 +490,9 @@ const Profile: React.FC = () => {
                               <Sparkles size={14} />
                               <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Phong cách</span>
                             </div>
-                            <p className="text-sm font-bold text-slate-800 line-clamp-1">{userPref.travelStyle}</p>
+                            <p className="text-sm font-bold text-slate-800 line-clamp-1">
+                              {userPref.travelStyle || userPref.TravelStyle}
+                            </p>
                           </div>
 
                           {/* Pace */}
@@ -438,7 +502,8 @@ const Profile: React.FC = () => {
                               <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Nhịp độ</span>
                             </div>
                             <p className="text-sm font-bold text-slate-800">
-                              {userPref.travelPace === 0 ? "Thong thả" : userPref.travelPace === 1 ? "Cân bằng" : "Dày đặc"}
+                              {(userPref.travelPace === 0 || userPref.TravelPace === 0) ? "Thong thả" : 
+                               (userPref.travelPace === 1 || userPref.TravelPace === 1) ? "Cân bằng" : "Dày đặc"}
                             </p>
                           </div>
 
@@ -449,7 +514,8 @@ const Profile: React.FC = () => {
                               <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Ngân sách</span>
                             </div>
                             <p className="text-sm font-bold text-slate-800">
-                              {userPref.budgetLevel === 0 ? "Tiết kiệm" : userPref.budgetLevel === 1 ? "Trung bình" : "Cao"}
+                              {(userPref.budgetLevel === 0 || userPref.BudgetLevel === 0) ? "Tiết kiệm" : 
+                               (userPref.budgetLevel === 1 || userPref.BudgetLevel === 1) ? "Cân bằng" : "Sang chảnh"}
                             </p>
                           </div>
                         </div>
@@ -457,7 +523,7 @@ const Profile: React.FC = () => {
                         <div className="mt-6 flex justify-end z-10 relative">
                           <button
                             onClick={() => navigate('/preferences')}
-                            className="text-xs font-bold text-indigo-600 hover:text-indigo-850 hover:underline flex items-center gap-1"
+                            className="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1"
                           >
                             <span>Thay đổi tùy chọn sở thích</span>
                             <ChevronRight size={13} />
@@ -473,7 +539,7 @@ const Profile: React.FC = () => {
                       <p className="text-slate-500 font-medium max-w-sm text-sm">Bạn chưa cài đặt sở thích du lịch. Thiết lập ngay để nhận gợi ý tốt nhất!</p>
                       <button
                         onClick={() => navigate('/preferences')}
-                        className="mt-5 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-750 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-100 hover:shadow-lg transition-all"
+                        className="mt-5 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-100 hover:shadow-lg transition-all"
                       >
                         Thiết lập ngay
                       </button>
@@ -521,7 +587,7 @@ const Profile: React.FC = () => {
                         <span className="text-[10px] font-semibold text-slate-400 lowercase tracking-normal">(không thể thay đổi)</span>
                       </label>
                       <div className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-slate-400 font-medium text-sm flex items-center justify-between">
-                        <span>{profile?.email}</span>
+                        <span>{displayEmail}</span>
                         <Lock size={13} className="text-slate-300" />
                       </div>
                     </div>
@@ -533,8 +599,8 @@ const Profile: React.FC = () => {
                         <Lock size={11} className="text-slate-400" />
                       </label>
                       <div className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-slate-400 font-medium text-sm flex items-center justify-between">
-                        <span className="capitalize">{profile?.roleName || "Customer"}</span>
-                        <ShieldCheck size={13} className="text-slate-350" />
+                        <span className="capitalize">{displayRole}</span>
+                        <ShieldCheck size={13} className="text-slate-300" />
                       </div>
                     </div>
                   </div>
@@ -543,14 +609,14 @@ const Profile: React.FC = () => {
                   <div className="mt-8 pt-5 border-t border-slate-100 flex items-center justify-end gap-3">
                     <button
                       onClick={handleCancel}
-                      className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-650 rounded-xl text-xs font-bold transition-all"
+                      className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-all"
                     >
                       Hủy bỏ
                     </button>
                     <button
                       onClick={handleUpdate}
                       disabled={saving}
-                      className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-150 transition-all flex items-center gap-1.5"
+                      className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-100 transition-all flex items-center gap-1.5"
                     >
                       {saving ? (
                         <>
