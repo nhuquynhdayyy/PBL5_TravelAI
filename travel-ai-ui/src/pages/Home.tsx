@@ -85,13 +85,13 @@ const HeroSection = () => (
         <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
           <Link
             to="/planner/create"
-            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-6 py-3.5 text-sm font-black text-slate-900 shadow-xl transition hover:scale-105 hover:shadow-2xl"
+            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-6 py-3.5 text-sm font-black text-white ring-1 ring-white/20 transition hover:scale-105 hover:bg-white/15"
           >
             Tạo lịch trình AI <ArrowRight size={18} />
           </Link>
           <Link
             to="/destinations"
-            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900/80 px-6 py-3.5 text-sm font-black text-white shadow-lg backdrop-blur-sm transition hover:bg-slate-900"
+            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-6 py-3.5 text-sm font-black text-white ring-1 ring-white/20 transition hover:bg-white/15"
           >
             Khám phá điểm đến
           </Link>
@@ -149,7 +149,7 @@ const ServicesStripSection = () => {
                 onClick={() => navigate(service.path)}
                 className="app-card group flex flex-col items-center gap-3 p-6 transition-all duration-300 hover:scale-[1.03] hover:shadow-xl"
               >
-                <div className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-900 ${service.iconColor} shadow-sm ring-1 ring-white/10 transition-transform duration-300 group-hover:scale-110`}>
+                <div className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-white ${service.iconColor} shadow-sm transition-transform duration-300 group-hover:scale-110`}>
                   <Icon size={28} strokeWidth={2} />
                 </div>
                 <div className="text-center">
