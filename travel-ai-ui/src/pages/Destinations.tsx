@@ -12,6 +12,11 @@ import {
   Trash2,
   Umbrella,
   X,
+  Waves,
+  History,
+  Landmark,
+  UtensilsCrossed,
+  Compass,
 } from 'lucide-react';
 import axiosClient from '../api/axiosClient';
 
@@ -44,6 +49,21 @@ const travelTypeKeywords: Record<Exclude<FilterTravelType, 'all'>, string[]> = {
   beach: ['biển', 'beach', 'đảo', 'island', 'vịnh', 'bay', 'nha trang', 'phú quốc', 'đà nẵng', 'hạ long', 'vũng tàu'],
   mountain: ['núi', 'mountain', 'đồi', 'cao nguyên', 'sapa', 'sa pa', 'đà lạt', 'hà giang', 'mộc châu', 'cao bằng'],
   culture: ['văn hóa', 'culture', 'di sản', 'phố cổ', 'lịch sử', 'heritage', 'hà nội', 'huế', 'hội an', 'ninh bình'],
+};
+
+const tagMeta: Record<string, { icon: React.ComponentType<any>; bgClass: string; textClass: string }> = {
+  'Biển': { icon: Waves, bgClass: 'bg-blue-50', textClass: 'text-blue-600' },
+  'Núi rừng': { icon: Mountain, bgClass: 'bg-emerald-50', textClass: 'text-emerald-700' },
+  'Lịch sử': { icon: History, bgClass: 'bg-amber-50', textClass: 'text-amber-700' },
+  'Văn hóa': { icon: Landmark, bgClass: 'bg-indigo-50', textClass: 'text-indigo-700' },
+  'Ẩm thực': { icon: UtensilsCrossed, bgClass: 'bg-orange-50', textClass: 'text-orange-700' },
+  'Trải nghiệm': { icon: Compass, bgClass: 'bg-purple-50', textClass: 'text-purple-700' },
+  'Nghỉ dưỡng': { icon: Umbrella, bgClass: 'bg-cyan-50', textClass: 'text-cyan-700' },
+};
+
+const getTagMeta = (tag: string) => {
+  const normalized = tag.trim();
+  return tagMeta[normalized] || { icon: Compass, bgClass: 'bg-slate-50', textClass: 'text-slate-700' };
 };
 
 const getDestinationId = (destination: any) => destination.id || destination.destinationId;
@@ -202,14 +222,24 @@ const DestinationGridCard = ({
           {destination.description || 'Thông tin điểm đến đang được cập nhật.'}
         </p>
         <div className="mt-5 flex flex-wrap gap-2">
-          <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-[#0061ff]">
-            <Umbrella size={13} />
-            Biển
-          </span>
-          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
-            <Mountain size={13} />
-            Trải nghiệm
-          </span>
+          {(destination.categories || '')
+            .split(',')
+            .map((t: string) => t.trim())
+            .filter((t: string) => t.length > 0)
+            .slice(0, 2)
+            .map((tag: string) => {
+              const meta = getTagMeta(tag);
+              const IconComponent = meta.icon;
+              return (
+                <span
+                  key={tag}
+                  className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-black ${meta.bgClass} ${meta.textClass}`}
+                >
+                  <IconComponent size={13} />
+                  {tag}
+                </span>
+              );
+            })}
         </div>
       </div>
     </Link>

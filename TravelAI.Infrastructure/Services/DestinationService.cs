@@ -28,7 +28,8 @@ public class DestinationService : IDestinationService
                 x.Description,
                 x.ImageUrl,
                 _context.Services.Count(s => s.IsActive && s.ServiceType == ServiceType.Hotel && s.TouristSpot != null && s.TouristSpot.DestinationId == x.DestinationId),
-                _context.Services.Count(s => s.IsActive && s.ServiceType == ServiceType.Tour && s.TouristSpot != null && s.TouristSpot.DestinationId == x.DestinationId)
+                _context.Services.Count(s => s.IsActive && s.ServiceType == ServiceType.Tour && s.TouristSpot != null && s.TouristSpot.DestinationId == x.DestinationId),
+                x.Categories
             ))
             .ToListAsync();
         return data;
@@ -44,7 +45,8 @@ public class DestinationService : IDestinationService
                 x.Description,
                 x.ImageUrl,
                 _context.Services.Count(s => s.IsActive && s.ServiceType == ServiceType.Hotel && s.TouristSpot != null && s.TouristSpot.DestinationId == x.DestinationId),
-                _context.Services.Count(s => s.IsActive && s.ServiceType == ServiceType.Tour && s.TouristSpot != null && s.TouristSpot.DestinationId == x.DestinationId)
+                _context.Services.Count(s => s.IsActive && s.ServiceType == ServiceType.Tour && s.TouristSpot != null && s.TouristSpot.DestinationId == x.DestinationId),
+                x.Categories
             ))
             .FirstOrDefaultAsync();
         
@@ -70,13 +72,22 @@ public class DestinationService : IDestinationService
         {
             Name = request.Name,
             Description = request.Description,
-            ImageUrl = $"/uploads/{fileName}" // Lưu đường dẫn tương đối
+            ImageUrl = $"/uploads/{fileName}", // Lưu đường dẫn tương đối
+            Categories = request.Categories
         };
 
         await _repository.AddAsync(destination);
         await _context.SaveChangesAsync();  
 
-        return new DestinationDto(destination.DestinationId, destination.Name, destination.Description, destination.ImageUrl);
+        return new DestinationDto(
+            destination.DestinationId, 
+            destination.Name, 
+            destination.Description, 
+            destination.ImageUrl,
+            0,
+            0,
+            destination.Categories
+        );
     }
 
     private void DeletePhysicalFile(string? relativePath, string webRootPath)
@@ -98,6 +109,8 @@ public class DestinationService : IDestinationService
             
         if (!string.IsNullOrWhiteSpace(request.Description))
             destination.Description = request.Description;
+
+        destination.Categories = request.Categories;
 
         if (request.Image != null)
         {

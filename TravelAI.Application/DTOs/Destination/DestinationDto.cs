@@ -8,5 +8,6 @@ public record DestinationDto(
     string? Description,
     string? ImageUrl,
     [property: JsonPropertyName("hotels_count")] int HotelsCount = 0,
-    [property: JsonPropertyName("tours_count")] int ToursCount = 0
+    [property: JsonPropertyName("tours_count")] int ToursCount = 0,
+    string? Categories = null
 );

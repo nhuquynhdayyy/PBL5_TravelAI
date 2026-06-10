@@ -230,24 +230,28 @@ public static class DbInitializer
                 Name        = "Đà Nẵng",
                 Description = "Thành phố đáng sống nhất Việt Nam với bãi biển Mỹ Khê và Cầu Rồng nổi tiếng.",
                 ImageUrl    = "https://images.unsplash.com/photo-1559592442-9e54238a2e07?w=800",
+                Categories  = "Biển,Ẩm thực"
             },
             new Destination
             {
                 Name        = "Hà Nội",
                 Description = "Thủ đô ngàn năm văn hiến với kiến trúc cổ kính và ẩm thực phong phú.",
                 ImageUrl    = "https://images.unsplash.com/photo-1509030464150-1b921633003c?w=800",
+                Categories  = "Lịch sử,Ẩm thực"
             },
             new Destination
             {
                 Name        = "TP. Hồ Chí Minh",
                 Description = "Thành phố năng động nhất Việt Nam, trung tâm kinh tế và văn hóa phía Nam.",
                 ImageUrl    = "https://images.unsplash.com/photo-1555944191-23d8819360e7?w=800",
+                Categories  = "Lịch sử,Trải nghiệm"
             },
             new Destination
             {
                 Name        = "Lâm Đồng (Đà Lạt)",
                 Description = "Thành phố ngàn hoa với khí hậu ôn đới mát mẻ quanh năm.",
                 ImageUrl    = "https://images.unsplash.com/photo-1621240215701-b0e6878f830d?w=800",
+                Categories  = "Núi rừng,Trải nghiệm"
             },
         };
         await context.Destinations.AddRangeAsync(destinations);
