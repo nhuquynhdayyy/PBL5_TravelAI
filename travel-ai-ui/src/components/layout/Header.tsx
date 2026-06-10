@@ -1,7 +1,7 @@
 // src/components/layout/Header.tsx
 
 import React, { useState, useEffect } from 'react';
-import { Menu, X, Plane, LogOut, LayoutDashboard, Store, User, ChevronDown, Hotel, Compass, ClipboardList, MessageSquare, BarChart3, Building2, ShoppingCart, Landmark, Package } from 'lucide-react';
+import { Menu, X, Plane, LogOut, LayoutDashboard, Store, User, ChevronDown, Hotel, Compass, ClipboardList, MessageSquare, BarChart3, Building2, ShoppingCart, Landmark, Sparkles } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useCart } from '../../contexts/CartContext';
 import { NotificationBell } from '../notifications';
@@ -65,8 +65,8 @@ const Header: React.FC = () => {
           <nav className="hidden md:flex space-x-8 items-center">
             {role !== 'partner' && role !== 'admin' && (
               <>
-                <Link to="/" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all dark:text-slate-300 dark:hover:text-blue-400">Home</Link>
-                <Link to="/destinations" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all dark:text-slate-300 dark:hover:text-blue-400">Destinations</Link>
+                <Link to="/" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all dark:text-slate-300 dark:hover:text-blue-400">Trang chủ</Link>
+                <Link to="/destinations" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all dark:text-slate-300 dark:hover:text-blue-400">Điểm đến</Link>
                 
                 {/* DROPDOWN SERVICES */}
                 <div 
@@ -74,8 +74,8 @@ const Header: React.FC = () => {
                     onMouseEnter={() => setIsServicesOpen(true)}
                     onMouseLeave={() => setIsServicesOpen(false)}
                 >
-                    <button className="flex items-center gap-1 text-slate-600 hover:text-blue-500 font-medium text-sm transition-all outline-none dark:text-slate-300 dark:hover:text-blue-400">
-                        Services <ChevronDown size={14} className={`transition-transform duration-300 ${isServicesOpen ? 'rotate-180' : ''}`} />
+                    <button className="flex items-center gap-1 text-slate-600 hover:text-blue-500 font-medium text-sm transition-all outline-none">
+                        Dịch vụ <ChevronDown size={14} className={`transition-transform duration-300 ${isServicesOpen ? 'rotate-180' : ''}`} />
                     </button>
 
                     {isServicesOpen && (
@@ -103,17 +103,22 @@ const Header: React.FC = () => {
                                     <Plane size={20} />
                                 </div>
                                 <div className="text-left">
-                                    <p className="text-sm font-black text-slate-800">Vé xe & Máy bay</p>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Di chuyển tiện lợi</p>
+                                    <p className="text-sm font-black text-slate-800">Di chuyển</p>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Tiện lợi, dễ dàng</p>
                                 </div>
                             </Link>
                         </div>
                     )}
                 </div>
 
-                <Link to="/planner" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all dark:text-slate-300 dark:hover:text-blue-400">Itinerary</Link>
-                <Link to="/cart" className="relative text-slate-600 hover:text-blue-500 font-medium text-sm transition-all dark:text-slate-300 dark:hover:text-blue-400">
-                  <ShoppingCart size={20} />
+                <Link to="/ai-suggestions" className="flex items-center gap-1.5 text-slate-600 hover:text-blue-500 font-medium text-sm transition-all group">
+                  <Sparkles size={16} className="text-blue-400 group-hover:text-blue-500 transition-colors" />
+                  <span>Gợi ý AI</span>
+                </Link>
+
+                <Link to="/planner" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all">Lịch trình</Link>
+                <Link to="/cart" className="relative text-slate-600 hover:text-blue-500 font-medium text-sm transition-all">
+                  Giỏ hàng
                   {items.length > 0 && (
                     <span className="absolute -right-3 -top-3 flex size-5 items-center justify-center rounded-full bg-blue-600 text-[10px] font-black text-white">
                       {items.length}
@@ -127,19 +132,19 @@ const Header: React.FC = () => {
             {role === 'partner' && (
               <>
                 <Link to="/partner/dashboard" className="flex items-center gap-2 px-6 py-2 bg-slate-900 text-white rounded-full font-black text-xs hover:bg-slate-700 transition-all shadow-lg shadow-slate-100 uppercase tracking-widest">
-                  <BarChart3 size={14} /> DASHBOARD
+                  <BarChart3 size={14} /> BẢNG ĐIỀU KHIỂN
                 </Link>
                 <Link to="/partner/profile" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
-                  <Building2 size={14} /> BUSINESS
+                  <Building2 size={14} /> DOANH NGHIỆP
                 </Link>
                 <Link to="/partner/services" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
-                  <Store size={14} /> MY SERVICES
+                  <Store size={14} /> DỊCH VỤ CỦA TÔI
                 </Link>
                 <Link to="/partner/orders" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
-                  <ClipboardList size={14} /> MY ORDERS
+                  <ClipboardList size={14} /> ĐƠN HÀNG CỦA TÔI
                 </Link>
                 <Link to="/partner/reviews" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
-                  <MessageSquare size={14} /> MY REVIEWS
+                  <MessageSquare size={14} /> ĐÁNH GIÁ CỦA TÔI
                 </Link>
               </>
             )}
@@ -182,8 +187,8 @@ const Header: React.FC = () => {
                 </div>
             ) : (
               <div className="flex items-center gap-2">
-                <button onClick={() => navigate('/login')} className="px-5 py-2 text-slate-700 font-bold text-sm hover:text-blue-500 dark:text-slate-200 dark:hover:text-blue-400">Login</button>
-<button onClick={() => navigate('/register')} className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-200 transition-all active:scale-95">Register</button>
+                <button onClick={() => navigate('/login')} className="px-5 py-2 text-slate-700 font-bold text-sm hover:text-blue-500">Đăng nhập</button>
+                <button onClick={() => navigate('/register')} className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-200 transition-all active:scale-95">Đăng ký</button>
               </div>
             )}
           </div>

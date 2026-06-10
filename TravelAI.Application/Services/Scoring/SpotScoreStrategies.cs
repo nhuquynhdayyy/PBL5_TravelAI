@@ -33,6 +33,7 @@ public sealed class StyleMatchScoreStrategy : ISpotScoreStrategy
         ["food"] = new[] { "cho", "quan", "nha hang", "am thuc", "mon", "dac san", "food", "market" },
         ["mao hiem"] = new[] { "leo nui", "lan", "du luon", "zipline", "kayak", "trekking", "the thao", "adventure" },
         ["adventure"] = new[] { "leo nui", "lan", "zipline", "kayak", "trekking", "sport", "adventure" },
+        ["phuot"] = new[] { "leo nui", "lan", "du luon", "zipline", "kayak", "trekking", "the thao", "adventure", "phuot", "phuot thu", "bui" },
         ["nghi duong"] = new[] { "resort", "spa", "bai bien", "nghi", "thu gian", "massage", "yoga", "wellness" },
         ["relax"] = new[] { "resort", "spa", "beach", "nghi", "thu gian", "massage", "wellness" },
         ["kham pha"] = new[] { "pho co", "lang", "khu", "cong vien", "quang truong", "duong pho", "cho dem", "vui choi" }

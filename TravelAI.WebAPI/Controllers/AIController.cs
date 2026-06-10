@@ -83,6 +83,122 @@ Chi tra ve JSON hop le. Don vi tien te la VND.";
         return Ok(new { success = true, data = estimate });
     }
 
+    [HttpGet("suggestions")]
+    public async Task<IActionResult> GetSuggestions([FromQuery] int? destinationId)
+    {
+        try
+        {
+            // Lấy UserId từ token (nếu có)
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            UserPreference? preference = null;
+
+            if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
+            {
+                preference = await _context.UserPreferences
+                    .FirstOrDefaultAsync(u => u.UserId == userId);
+            }
+
+            // Nếu không có preference, dùng giá trị mặc định
+            preference ??= new UserPreference
+            {
+                TravelStyle = "Kham pha",
+                BudgetLevel = BudgetLevel.Medium,
+                TravelPace = TravelPace.Balanced
+            };
+
+            // Lấy danh sách spots
+            var spotsQuery = _context.TouristSpots
+                .Include(s => s.Services)
+                    .ThenInclude(service => service.Reviews)
+                .Include(s => s.ServiceSpots)
+                    .ThenInclude(serviceSpot => serviceSpot.Service)
+                        .ThenInclude(service => service.Reviews)
+                .Include(s => s.Destination)
+                .AsQueryable();
+
+            // Lọc theo destinationId nếu có
+            if (destinationId.HasValue)
+            {
+                spotsQuery = spotsQuery.Where(s => s.DestinationId == destinationId.Value);
+            }
+
+            var spots = await spotsQuery.ToListAsync();
+
+            if (spots.Count == 0)
+            {
+                return Ok(new
+                {
+                    success = true,
+                    data = new List<AiSuggestionDto>(),
+                    message = "Không tìm thấy địa điểm nào"
+                });
+            }
+
+            // Tính toán điểm số cho từng spot
+            var scores = await _spotScoringService.ScoreAndRankSpotsAsync(
+                spots,
+                preference,
+                null, // centerLatitude
+                null  // centerLongitude
+            );
+
+            // Tạo danh sách AiSuggestionDto
+            var suggestions = scores.Take(10).Select(score =>
+            {
+                var spot = spots.First(s => s.SpotId == score.SpotId);
+                
+                // Tính average rating từ reviews
+                var allReviews = spot.Services
+                    .SelectMany(service => service.Reviews)
+                    .Concat(spot.ServiceSpots.SelectMany(ss => ss.Service.Reviews))
+                    .GroupBy(r => r.ReviewId)
+                    .Select(g => g.First())
+                    .ToList();
+
+                var avgRating = allReviews.Any() 
+                    ? allReviews.Average(r => r.Rating) 
+                    : 0;
+
+                return new AiSuggestionDto
+                {
+                    Spot = new Application.DTOs.Spot.SpotDto(
+                        spot.SpotId,
+                        spot.DestinationId,
+                        spot.Name,
+                        spot.Description ?? "",
+                        spot.ImageUrl,
+                        spot.Latitude,
+                        spot.Longitude,
+                        spot.AvgTimeSpent,
+                        spot.OpeningHours
+                    ),
+                    TotalScore = score.TotalScore,
+                    StyleMatchScore = score.StyleMatchScore,
+                    BudgetMatchScore = score.BudgetMatchScore,
+                    PaceMatchScore = score.PaceMatchScore,
+                    DistanceScore = score.DistanceScore,
+                    RatingScore = score.RatingScore,
+                    AverageRating = avgRating
+                };
+            }).ToList();
+
+            return Ok(new
+            {
+                success = true,
+                data = suggestions,
+                message = $"Tìm thấy {suggestions.Count} gợi ý phù hợp"
+            });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new
+            {
+                success = false,
+                message = $"Lỗi khi lấy gợi ý: {ex.Message}"
+            });
+        }
+    }
+
     [HttpGet("preview-prompt")]
     public async Task<IActionResult> PreviewPrompt(int destId)
     {

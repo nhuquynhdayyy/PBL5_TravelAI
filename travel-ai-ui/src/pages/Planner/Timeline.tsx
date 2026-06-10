@@ -7,6 +7,8 @@ import {
   DollarSign,
   Loader2,
   MapPin,
+  Maximize2,
+  Minimize2,
   Route,
   Save,
   Sparkles,
@@ -17,14 +19,14 @@ import '../../styles/leaflet-dark.css';
 import axiosClient from '../../api/axiosClient';
 import { useCart } from '../../contexts/CartContext';
 import DayTabs from './DayTabs';
-import HotelCard from './HotelCard';
 import ItineraryMap from './ItineraryMap';
 import ItinerarySkeleton from './ItinerarySkeleton';
 import ItineraryTimeline from './ItineraryTimeline';
-import PlannerSidebar from './PlannerSidebar';
+import PlannerConfigBar from './PlannerConfigBar';
 import StickyFooter from './StickyFooter';
 import { exportItineraryPdf } from './itineraryPdf';
 import type { ItineraryActivity, ItineraryViewModel } from './itineraryTypes';
+import { usePreferences } from '../../hooks/usePreferences';
 import {
   flattenActivities,
   formatCurrency,
@@ -32,6 +34,8 @@ import {
   normalizeItinerary,
   parseLocalDate,
   toInputDateValue,
+  formatDateToYmd,
+  formatRelativeTime,
 } from './itineraryUtils';
 
 const getErrorMessage = (error: unknown, fallback: string) => {
@@ -61,16 +65,25 @@ const EmptyItinerary = ({ onExplore }: { onExplore: () => void }) => (
     <div>
       <h2 className="text-3xl font-black text-slate-900">Chưa có lịch trình nào</h2>
       <p className="mt-2 max-w-md text-sm font-medium leading-6 text-slate-500">
-        Hãy chọn một điểm đến hoặc mở lại lịch trình đã lưu để TravelAI hiển thị timeline và bản đồ lộ trình.
+        Hãy tạo lịch trình mới với AI hoặc khám phá các điểm đến để bắt đầu.
       </p>
     </div>
-    <button
-      type="button"
-      onClick={onExplore}
-      className="rounded-2xl bg-[#0061ff] px-7 py-4 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700"
-    >
-      Khám phá điểm đến
-    </button>
+    <div className="flex gap-3">
+      <button
+        type="button"
+        onClick={() => window.location.href = '/planner/create'}
+        className="rounded-2xl bg-[#0061ff] px-7 py-4 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700"
+      >
+        Tạo lịch trình với AI
+      </button>
+      <button
+        type="button"
+        onClick={onExplore}
+        className="rounded-2xl bg-slate-100 px-7 py-4 text-sm font-black text-slate-700 transition hover:bg-slate-200"
+      >
+        Khám phá điểm đến
+      </button>
+    </div>
   </div>
 );
 
@@ -113,7 +126,7 @@ const SavedTripsPanel = ({
         </h2>
         <button
           type="button"
-          onClick={onExplore}
+          onClick={() => window.location.href = '/planner/create'}
           className="rounded-2xl bg-[#0061ff] px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700"
         >
           Tạo lịch trình mới
@@ -145,7 +158,7 @@ const SavedTripsPanel = ({
                     )}
                     <span className="inline-flex items-center gap-1 rounded-xl bg-slate-50 px-3 py-2">
                       <CalendarDays size={13} />
-                      {trip.createdAt ? new Date(trip.createdAt).toLocaleDateString('vi-VN') : 'Vừa tạo'}
+                      {formatRelativeTime(trip.createdAt)}
                     </span>
                     <span className="inline-flex items-center gap-1 rounded-xl bg-emerald-50 px-3 py-2 text-emerald-700">
                       <DollarSign size={13} />
@@ -171,9 +184,25 @@ const Timeline: React.FC = () => {
   const routeItineraryId = params.id;
   const stateData = (location.state as { data?: unknown } | null)?.data;
 
-  const [itinerary, setItinerary] = useState<ItineraryViewModel | null>(
-    stateData ? normalizeItinerary(stateData) : null,
-  );
+  const { pref } = usePreferences();
+  const [destinations, setDestinations] = useState<any[]>([]);
+
+  const getInitialItinerary = () => {
+    // Only load initial itinerary if we're viewing a specific one
+    if (!routeItineraryId) {
+      return null; // Show list view
+    }
+    
+    if (stateData) {
+      localStorage.setItem('latest_itinerary', JSON.stringify(stateData));
+      return normalizeItinerary(stateData);
+    }
+    
+    // Don't load from localStorage for list view
+    return null;
+  };
+
+  const [itinerary, setItinerary] = useState<ItineraryViewModel | null>(getInitialItinerary());
   const [loading, setLoading] = useState(Boolean(routeItineraryId && !stateData));
   const [optimizing, setOptimizing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -181,8 +210,9 @@ const Timeline: React.FC = () => {
   const [loadingTrips, setLoadingTrips] = useState(false);
   const [activeDay, setActiveDay] = useState(1);
   const [error, setError] = useState<string | null>(null);
-  const [showSidebar, setShowSidebar] = useState(true);
   const [focusedActivity, setFocusedActivity] = useState<ItineraryActivity | null>(null);
+  const [focusClickKey, setFocusClickKey] = useState(0);
+  const [mapExpanded, setMapExpanded] = useState(false);
 
   const itineraryId = itinerary?.itineraryId || (routeItineraryId ? Number(routeItineraryId) : null);
 
@@ -191,9 +221,11 @@ const Timeline: React.FC = () => {
       setLoading(true);
       setError(null);
       const response = await axiosClient.get(`/itinerary/${id}`);
-      const normalized = normalizeItinerary(response.data?.data || response.data);
+      const rawData = response.data?.data || response.data;
+      const normalized = normalizeItinerary(rawData);
       setItinerary(normalized);
       setActiveDay(normalized.days[0]?.day || 1);
+      localStorage.setItem('latest_itinerary', JSON.stringify(rawData));
     } catch (fetchError) {
       console.error(fetchError);
       setError(getErrorMessage(fetchError, 'Không thể tải lịch trình từ hệ thống.'));
@@ -223,8 +255,14 @@ const Timeline: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    console.log('🔍 Timeline useEffect triggered');
+    console.log('  - stateData:', stateData);
+    console.log('  - routeItineraryId:', routeItineraryId);
+    
     if (stateData) {
+      console.log('✅ Found stateData, normalizing...');
       const normalized = normalizeItinerary(stateData);
+      console.log('📋 Normalized itinerary:', normalized);
       setItinerary(normalized);
       setActiveDay(normalized.days[0]?.day || 1);
       setLoading(false);
@@ -232,15 +270,140 @@ const Timeline: React.FC = () => {
     }
 
     if (routeItineraryId) {
+      console.log('🔄 Fetching itinerary by ID:', routeItineraryId);
       fetchItineraryById(routeItineraryId);
       return;
     }
 
+    console.log('📂 Fetching saved trips...');
     fetchSavedTrips();
   }, [fetchItineraryById, fetchSavedTrips, routeItineraryId, stateData]);
 
-  const handleOpenSavedTrip = async (tripId: number | string) => {
-    await fetchItineraryById(tripId);
+  useEffect(() => {
+    const fetchDestinations = async () => {
+      try {
+        const res = await axiosClient.get('/destinations');
+        setDestinations(res.data?.data || res.data || []);
+      } catch (err) {
+        console.error('Lỗi khi tải danh sách điểm đến:', err);
+      }
+    };
+    fetchDestinations();
+  }, []);
+
+  const queryParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+
+  const resolvedDestination = useMemo(() => {
+    return queryParams.get('destination') || itinerary?.destination || '';
+  }, [queryParams, itinerary]);
+
+  const resolvedStartDate = useMemo(() => {
+    return queryParams.get('startDate') || itinerary?.startDate || '';
+  }, [queryParams, itinerary]);
+
+  const resolvedDuration = useMemo(() => {
+    const paramDur = queryParams.get('duration');
+    if (paramDur) {
+      const parsed = parseInt(paramDur, 10);
+      if (!isNaN(parsed)) return parsed;
+    }
+    return itinerary?.days?.length || 3;
+  }, [queryParams, itinerary]);
+
+  const resolvedBudget = useMemo(() => {
+    const paramBudget = queryParams.get('budget') || queryParams.get('budgetLevel');
+    if (paramBudget) {
+      const parsed = parseInt(paramBudget, 10);
+      if (!isNaN(parsed)) return parsed;
+    }
+    if (pref?.budgetLevel !== undefined) {
+      return pref.budgetLevel;
+    }
+    return 1;
+  }, [queryParams, pref]);
+
+  const resolvedInterests = useMemo(() => {
+    const paramInterests = queryParams.get('interests') || queryParams.get('travelStyle');
+    if (paramInterests) {
+      return paramInterests.split(',').map((s) => s.trim());
+    }
+    if (pref?.travelStyle) {
+      return pref.travelStyle.split(',').map((s) => s.trim());
+    }
+    return ['Thư giãn'];
+  }, [queryParams, pref]);
+
+  const syncConfigWithItinerary = async (config: {
+    destination: string;
+    startDate: string;
+    duration: number;
+    budgetLevel: number;
+    interests: string[];
+  }) => {
+    let destId = itinerary?.destinationId || itinerary?.raw?.destinationId;
+    if (!destId) {
+      const match = destinations.find(
+        (d) =>
+          d.name?.toLowerCase().includes(config.destination.toLowerCase()) ||
+          config.destination.toLowerCase().includes(d.name?.toLowerCase())
+      );
+      if (match) {
+        destId = match.id || match.destinationId;
+      }
+    }
+
+    if (!destId) {
+      alert('Không tìm thấy địa điểm phù hợp trong hệ thống để tạo lại lịch trình.');
+      return;
+    }
+
+    try {
+      setOptimizing(true);
+
+      const budgetStr = config.budgetLevel === 0 ? 'low' : config.budgetLevel === 2 ? 'high' : 'medium';
+      const travelStyleStr = config.interests.join(', ');
+      
+      try {
+        await axiosClient.put('/preferences', {
+          travelStyle: travelStyleStr,
+          budgetLevel: config.budgetLevel,
+          travelPace: pref?.travelPace ?? 1,
+          cuisinePref: pref?.cuisinePref ?? ''
+        });
+      } catch (prefErr) {
+        console.error('Failed to update preferences on backend:', prefErr);
+      }
+
+      const formattedStartDate = formatDateToYmd(config.startDate) || toInputDateValue(new Date());
+
+      const specialRequestPrompt = `Người dùng muốn đi ${config.destination} trong ${config.duration} ngày, bắt đầu từ ngày ${formattedStartDate}. Phong cách chuyến đi: ${travelStyleStr}. Ngân sách: ${budgetStr}.`;
+
+      const response = await axiosClient.post('/itinerary/generate', {
+        destinationId: destId,
+        numberOfDays: config.duration,
+        startDate: formattedStartDate,
+        specialRequest: specialRequestPrompt,
+      });
+
+      const newItinerary = response.data?.data || response.data;
+      if (newItinerary) {
+        const normalized = normalizeItinerary(newItinerary);
+        setItinerary(normalized);
+        setActiveDay(normalized.days[0]?.day || 1);
+        localStorage.setItem('latest_itinerary', JSON.stringify(newItinerary));
+      } else {
+        alert('Không nhận được dữ liệu lịch trình mới từ AI.');
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(getErrorMessage(err, 'Có lỗi xảy ra khi tạo lại lịch trình.'));
+    } finally {
+      setOptimizing(false);
+    }
+  };
+
+  const handleOpenSavedTrip = (tripId: number | string) => {
+    navigate(`/planner/${tripId}`);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -304,8 +467,8 @@ const Timeline: React.FC = () => {
       setSaving(true);
       const response = await axiosClient.post('/itinerary/save', itinerary.raw);
       if (response.data?.success || response.data?.data) {
-        alert("Lịch trình đã được lưu vào mục 'Chuyến đi của tôi'.");
-        navigate('/profile');
+        alert("Lịch trình đã được lưu thành công!");
+        navigate('/planner');
       }
     } catch (saveError) {
       console.error(saveError);
@@ -355,13 +518,15 @@ const Timeline: React.FC = () => {
   };
 
   const handleActivityClick = (activity: ItineraryActivity) => {
-    // Set focused activity to trigger map flyTo
+    // Set focused activity to trigger map flyTo + ripple animation
     setFocusedActivity(activity);
+    // Increment key every click so FlyTo always fires, even for the same activity
+    setFocusClickKey((k) => k + 1);
     
-    // Clear focus after animation completes
+    // Keep focus long enough for the ripple animation to be visible (4 cycles × 1.6s)
     setTimeout(() => {
       setFocusedActivity(null);
-    }, 2000);
+    }, 6500);
     
     console.log('Activity clicked:', activity.title, 'Coordinates:', activity.latitude, activity.longitude);
   };
@@ -401,99 +566,91 @@ const Timeline: React.FC = () => {
 
   return (
     <>
-      <div className="mx-auto max-w-[1800px] px-4 py-8 pb-32">
-        {/* Header */}
-        <div className="mb-8 overflow-hidden rounded-[32px] bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 p-6 text-white shadow-2xl md:p-8">
-          <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
+      <div className="mx-auto max-w-[1600px] px-4 py-6 pb-32">
+
+        {/* ── Banner Header ── */}
+        <div className="mb-5 overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 px-8 py-8 text-white shadow-xl">
+          <button
+            type="button"
+            onClick={() => { setItinerary(null); navigate('/planner'); }}
+            className="mb-4 inline-flex items-center gap-2 text-sm font-bold text-blue-200 transition hover:text-white"
+          >
+            <ArrowLeft size={16} />
+            Quay lại danh sách
+          </button>
+
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <button
-                type="button"
-                onClick={() => navigate(-1)}
-                className="mb-5 inline-flex items-center gap-2 text-sm font-bold text-blue-100 transition hover:text-white"
-              >
-                <ArrowLeft size={18} />
-                Quay lại
-              </button>
-              <p className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-blue-100">
-                <Sparkles size={15} />
-                Quản lý lịch trình AI
+              <p className="mb-1.5 inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[11px] font-black uppercase tracking-widest text-blue-200">
+                <Sparkles size={12} /> Quản lý lịch trình AI
               </p>
-              <h1 className="max-w-4xl text-4xl font-black tracking-tight md:text-6xl">
+              <h1 className="text-3xl font-black tracking-tight md:text-4xl">
                 {itinerary.tripTitle}
               </h1>
-              <div className="mt-5 flex flex-wrap gap-3 text-sm font-bold text-slate-200">
-                <span className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2">
-                  <MapPin size={16} className="text-blue-300" />
-                  {itinerary.destination}
+              <div className="mt-3 flex flex-wrap gap-2 text-sm font-bold text-slate-300">
+                <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5">
+                  <MapPin size={14} className="text-blue-300" />{itinerary.destination}
                 </span>
-                <span className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2">
-                  <CalendarDays size={16} className="text-blue-300" />
-                  {getTripDateRange(itinerary)}
+                <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5">
+                  <CalendarDays size={14} className="text-blue-300" />{getTripDateRange(itinerary)}
                 </span>
-                <span className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2">
-                  <Route size={16} className="text-blue-300" />
-                  {flattenActivities(itinerary.days).length} hoạt động
+                <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5">
+                  <Route size={14} className="text-blue-300" />{flattenActivities(itinerary.days).length} hoạt động
                 </span>
-                <span className="inline-flex items-center gap-2 rounded-xl bg-emerald-500/15 px-3 py-2 text-emerald-100">
+                <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/20 px-3 py-1.5 text-emerald-200">
                   {formatCurrency(itinerary.totalEstimatedCost)}
                 </span>
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row lg:justify-end">
+            <div className="flex shrink-0 gap-2">
               <button
                 type="button"
                 onClick={() => exportItineraryPdf(itinerary)}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-4 text-sm font-black text-slate-950 transition hover:bg-blue-50"
+                className="inline-flex h-10 items-center gap-2 rounded-xl bg-white/10 px-5 text-sm font-black text-white transition hover:bg-white/20"
               >
-                <Download size={18} />
-                Xuất PDF
+                <Download size={16} /> Xuất PDF
               </button>
               <button
                 type="button"
                 onClick={handleSave}
                 disabled={saving}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-5 py-4 text-sm font-black text-white ring-1 ring-white/15 transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-70"
+                className="inline-flex h-10 items-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-black text-white transition hover:bg-blue-500 disabled:opacity-70"
               >
-                {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+                {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
                 Lưu
               </button>
             </div>
           </div>
         </div>
 
+        {/* ── Config Bar (replaces sidebar) ── */}
+        <PlannerConfigBar
+          destination={resolvedDestination}
+          startDate={resolvedStartDate}
+          duration={resolvedDuration}
+          budgetLevel={resolvedBudget}
+          interests={resolvedInterests}
+          onRegenerate={handleOptimize}
+          regenerating={optimizing}
+          onConfigChange={syncConfigWithItinerary}
+        />
+
         {optimizing && (
-          <div className="mb-8 rounded-2xl border border-blue-100 bg-blue-50 p-5 dark:border-blue-900 dark:bg-blue-900/20">
-            <div className="mb-3 flex items-center gap-3 text-sm font-black text-blue-600 dark:text-blue-400">
-              <Loader2 className="animate-spin" size={18} />
-              AI đang sắp xếp lại thứ tự điểm đến theo lộ trình ngắn hơn
-            </div>
-            <ItinerarySkeleton />
+          <div className="mb-5 flex items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-5 py-4 text-sm font-black text-blue-600">
+            <Loader2 className="animate-spin" size={18} />
+            AI đang sắp xếp lại thứ tự điểm đến theo lộ trình tối ưu…
           </div>
         )}
 
-        {/* Main 3-Column Layout */}
-        <div className="grid gap-8 lg:grid-cols-[320px_minmax(0,1fr)_420px]">
-          {/* Left Sidebar */}
-          {showSidebar && (
-            <PlannerSidebar
-              destination={itinerary.destination}
-              startDate={itinerary.startDate}
-              duration={itinerary.days.length}
-              budgetLevel={1}
-              interests={['Biển', 'Thư giãn']}
-              onRegenerate={handleOptimize}
-              regenerating={optimizing}
-            />
-          )}
+        {/* ── Day Tabs ── */}
+        <DayTabs days={itinerary.days} activeDay={activeDay} onDayChange={setActiveDay} />
 
-          {/* Center Timeline */}
-          <div className={showSidebar ? '' : 'lg:col-span-2'}>
-            <DayTabs
-              days={itinerary.days}
-              activeDay={activeDay}
-              onDayChange={setActiveDay}
-            />
+        {/* ── Main 2-column layout ── */}
+        <div className={`grid gap-6 ${mapExpanded ? 'lg:grid-cols-[1fr_0]' : 'lg:grid-cols-[3fr_2fr]'}`}>
+
+          {/* LEFT — Timeline (60%) */}
+          <div className={mapExpanded ? 'hidden lg:block' : ''}>
             <ItineraryTimeline
               days={itinerary.days}
               activeDay={activeDay}
@@ -503,16 +660,32 @@ const Timeline: React.FC = () => {
             />
           </div>
 
-          {/* Right Map */}
-          <ItineraryMap 
-            days={itinerary.days} 
-            activeDay={activeDay} 
-            focusedActivity={focusedActivity}
-          />
+          {/* RIGHT — Sticky Map (40%) */}
+          <div className="relative">
+            {/* Expand/Collapse button */}
+            <button
+              type="button"
+              onClick={() => setMapExpanded(v => !v)}
+              className="absolute right-4 top-4 z-[1000] flex items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-xs font-black text-slate-700 shadow-md transition hover:bg-slate-100"
+              title={mapExpanded ? 'Thu nhỏ bản đồ' : 'Mở rộng bản đồ'}
+            >
+              {mapExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+              {mapExpanded ? 'Thu nhỏ' : 'Mở rộng'}
+            </button>
+
+            <div className={`sticky top-20 overflow-hidden rounded-3xl border border-slate-200 shadow-sm transition-all duration-300 ${mapExpanded ? 'h-[calc(100vh-120px)]' : 'h-[calc(100vh-180px)] min-h-[500px]'}`}>
+              <ItineraryMap
+                days={itinerary.days}
+                activeDay={activeDay}
+                focusedActivity={focusedActivity}
+                focusClickKey={focusClickKey}
+              />
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Sticky Footer */}
+      {/* ── Sticky Footer ── */}
       {bookableCount > 0 && (
         <StickyFooter
           totalCost={itinerary.totalEstimatedCost}

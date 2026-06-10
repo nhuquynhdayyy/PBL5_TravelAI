@@ -6,13 +6,17 @@ type HotelCardProps = {
   activity: ItineraryActivity;
   isRecommended?: boolean;
   onBook: (activity: ItineraryActivity) => void;
+  onActivityClick?: (activity: ItineraryActivity) => void;
 };
 
-const HotelCard = ({ activity, isRecommended = false, onBook }: HotelCardProps) => {
+const HotelCard = ({ activity, isRecommended = false, onBook, onActivityClick }: HotelCardProps) => {
   const isBookable = Boolean(activity.serviceId);
 
   return (
-    <article className="group relative overflow-hidden rounded-3xl border border-slate-100 bg-gradient-to-br from-blue-50 via-white to-cyan-50 shadow-lg transition hover:-translate-y-1 hover:shadow-2xl dark:from-slate-800 dark:via-slate-900 dark:to-slate-800">
+    <article 
+      className="group relative overflow-hidden rounded-3xl border border-slate-100 bg-gradient-to-br from-blue-50 via-white to-cyan-50 shadow-lg transition hover:-translate-y-1 hover:shadow-2xl dark:from-slate-800 dark:via-slate-900 dark:to-slate-800 cursor-pointer"
+      onClick={() => onActivityClick?.(activity)}
+    >
       {/* Recommended Badge */}
       {isRecommended && (
         <div className="absolute right-4 top-4 z-10 flex items-center gap-1 rounded-full bg-cyan-500 px-3 py-1 text-xs font-black text-white shadow-lg">
@@ -89,7 +93,10 @@ const HotelCard = ({ activity, isRecommended = false, onBook }: HotelCardProps) 
           {isBookable && (
             <button
               type="button"
-              onClick={() => onBook(activity)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onBook(activity);
+              }}
               className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-6 py-3 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700"
             >
               <DollarSign size={16} />

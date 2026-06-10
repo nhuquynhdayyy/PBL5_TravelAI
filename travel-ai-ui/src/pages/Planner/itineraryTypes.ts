@@ -25,11 +25,13 @@ export type ItineraryDay = {
 
 export type ItineraryViewModel = {
   itineraryId?: number | null;
+  destinationId?: number | null;
   tripTitle: string;
   destination: string;
   startDate?: string;
   endDate?: string;
   totalEstimatedCost: number;
   days: ItineraryDay[];
-  raw: unknown;
+  createdAt?: string;
+  raw: any;
 };

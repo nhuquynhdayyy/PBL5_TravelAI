@@ -137,7 +137,7 @@ const ItineraryTimeline = ({ days, activeDay, onActiveDayChange, onBook, onActiv
           </p>
         </div>
 
-        <div className="ml-5 space-y-5 border-l-4 border-dashed border-blue-100 pl-8 dark:border-slate-700">
+        <div className="ml-5 space-y-5 border-l-2 border-dashed border-blue-200/60 pl-8 dark:border-slate-700/60">
           {activeDayData.activities.map((activity) => {
             // Use HotelCard for hotel activities
             if (activity.kind === 'hotel') {
@@ -147,6 +147,7 @@ const ItineraryTimeline = ({ days, activeDay, onActiveDayChange, onBook, onActiv
                   activity={activity}
                   isRecommended={activity.serviceId !== null}
                   onBook={onBook}
+                  onActivityClick={onActivityClick}
                 />
               );
             }

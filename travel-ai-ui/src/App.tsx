@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
+import ScrollToTop from './components/ScrollToTop';
 import { useEffect } from 'react';
 import Chatbox from './components/chat/Chatbox';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -15,6 +16,7 @@ import EditDestination from './pages/Admin/EditDestination';
 import EditSpot from './pages/Admin/EditSpot';
 import ServiceForm from './pages/Admin/ServiceForm';
 import SpotForm from './pages/Admin/SpotForm';
+import AiSuggestionPage from './pages/AiSuggestionPage';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import BookingSuccess from './pages/customer/BookingSuccess';
@@ -32,6 +34,7 @@ import Home from './pages/Home';
 import Notifications from './pages/Notifications';
 import UserPreferences from './pages/Preferences/UserPreferences';
 import Timeline from './pages/Planner/Timeline';
+import CreateItinerary from './pages/Planner/CreateItinerary';
 import Profile from './pages/Profile/Profile';
 import PublicBookingQr from './pages/PublicBookingQr';
 import PublicETicket from './pages/PublicETicket';
@@ -63,6 +66,7 @@ function App() {
 
   return (
     <>
+      <ScrollToTop />
       <Routes>
         <Route path="/" element={<MainLayout hideFooter><Home /></MainLayout>} />
         <Route path="/destinations" element={<MainLayout><Destinations /></MainLayout>} />
@@ -70,6 +74,7 @@ function App() {
         <Route path="/destinations/:id/spots" element={<MainLayout><SpotList /></MainLayout>} />
         <Route path="/spots" element={<MainLayout><SpotList /></MainLayout>} />
         <Route path="/spots/:id" element={<MainLayout><SpotDetail /></MainLayout>} />
+        <Route path="/ai-suggestions" element={<MainLayout><AiSuggestionPage /></MainLayout>} />
         <Route path="/services" element={<MainLayout><Services /></MainLayout>} />
         <Route path="/hotels" element={<MainLayout><HotelsPage /></MainLayout>} />
         <Route path="/tours" element={<MainLayout><ToursPage /></MainLayout>} />
@@ -284,7 +289,9 @@ function App() {
         />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/planner" element={<MainLayout><Timeline /></MainLayout>} />
+        <Route path="/planner/create" element={<MainLayout><CreateItinerary /></MainLayout>} />
+        <Route path="/planner/:id" element={<MainLayout><Timeline key="planner-detail" /></MainLayout>} />
+        <Route path="/planner" element={<MainLayout><Timeline key="planner-list" /></MainLayout>} />
         <Route path="/itinerary/latest" element={<MainLayout><Timeline /></MainLayout>} />
         <Route path="/itinerary/:id" element={<MainLayout><Timeline /></MainLayout>} />
         <Route path="*" element={<Navigate to="/" replace />} />

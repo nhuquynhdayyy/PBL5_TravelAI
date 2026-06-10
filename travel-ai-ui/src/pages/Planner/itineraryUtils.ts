@@ -4,10 +4,10 @@ const API_HOST = 'http://localhost:5134';
 
 export const formatCurrency = (value: number) =>
   new Intl.NumberFormat('vi-VN', {
-    style: 'currency',
-    currency: 'VND',
+    style: 'decimal',
+    minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(value || 0);
+  }).format(value || 0) + 'đ';
 
 export const getImageUrl = (url?: string) => {
   if (!url) return 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1200';
@@ -17,12 +17,31 @@ export const getImageUrl = (url?: string) => {
 export const parseLocalDate = (value?: string) => {
   if (!value) return null;
 
-  const datePart = value.split('T')[0];
-  const [year, month, day] = datePart.split('-').map(Number);
+  const datePart = value.split('T')[0].trim();
 
-  if (!year || !month || !day) return null;
+  // Case 1: DD/MM/YYYY
+  const matchDmy = datePart.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (matchDmy) {
+    const [, d, m, y] = matchDmy;
+    return new Date(Number(y), Number(m) - 1, Number(d));
+  }
 
-  return new Date(year, month - 1, day);
+  // Case 2: YYYY-MM-DD
+  const matchYmd = datePart.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (matchYmd) {
+    const [, y, m, d] = matchYmd;
+    return new Date(Number(y), Number(m) - 1, Number(d));
+  }
+
+  // Fallback
+  try {
+    const date = new Date(datePart);
+    if (!isNaN(date.getTime())) return date;
+  } catch (e) {
+    console.error(e);
+  }
+
+  return null;
 };
 
 export const formatDateLabel = (date: Date) =>
@@ -154,16 +173,75 @@ export const normalizeItinerary = (payload: any): ItineraryViewModel => {
       activities,
     }));
 
+  // Always recalculate total cost from activities to ensure accuracy
+  const calculatedTotalCost = days.reduce((total, day) => 
+    total + day.activities.reduce((dayTotal, activity) => 
+      dayTotal + (activity.estimatedCost || 0), 0
+    ), 0
+  );
+
   return {
     itineraryId: valueOf<number | null>(data, ['itineraryId', 'itinerary_id', 'id'], null),
+    destinationId: valueOf<number | null>(data, ['destinationId', 'destination_id'], null),
     tripTitle: valueOf(data, ['tripTitle', 'trip_title', 'title', 'name'], 'Lịch trình TravelAI'),
-    destination: valueOf(data, ['destination', 'destinationName', 'destination_name'], 'Việt Nam'),
+    destination: valueOf(data, ['destinationName', 'destination', 'destination_name'], 'Việt Nam'),
     startDate,
     endDate: valueOf<string | undefined>(data, ['endDate', 'end_date'], undefined),
-    totalEstimatedCost: Number(valueOf(data, ['totalEstimatedCost', 'total_estimated_cost', 'totalCost'], 0)) || 0,
+    totalEstimatedCost: calculatedTotalCost, // Use calculated value instead of API value
     days,
+    createdAt: valueOf<string | undefined>(data, ['createdAt', 'created_at', 'created'], undefined),
     raw: data,
   };
 };
 
 export const flattenActivities = (days: ItineraryDay[]) => days.flatMap((day) => day.activities);
+
+export const calculateTotalCost = (days: ItineraryDay[]): number => {
+  return flattenActivities(days).reduce((total, activity) => total + (activity.estimatedCost || 0), 0);
+};
+
+export const formatDateToYmd = (dateStr?: string): string => {
+  if (!dateStr) return '';
+  const date = parseLocalDate(dateStr);
+  if (!date) return '';
+  return toInputDateValue(date);
+};
+
+export const formatRelativeTime = (dateInput: string | Date | undefined): string => {
+  if (!dateInput) return 'Vừa tạo';
+
+  const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  if (isNaN(date.getTime())) return 'Vừa tạo';
+
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+
+  if (diffMins < 5) {
+    return 'Vừa tạo';
+  }
+  if (diffMins < 60) {
+    return `${diffMins} phút trước`;
+  }
+  if (diffHours < 24) {
+    return `${diffHours} giờ trước`;
+  }
+
+  // Check if it was yesterday
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (
+    date.getDate() === yesterday.getDate() &&
+    date.getMonth() === yesterday.getMonth() &&
+    date.getFullYear() === yesterday.getFullYear()
+  ) {
+    return 'Hôm qua';
+  }
+
+  // Otherwise format as DD/MM/YYYY
+  const day = `${date.getDate()}`.padStart(2, '0');
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
+};

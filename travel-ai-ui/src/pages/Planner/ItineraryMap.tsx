@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from 'react-leaflet';
 import L from 'leaflet';
+import { MapPin } from 'lucide-react';
 import type { ItineraryActivity, ItineraryDay } from './itineraryTypes';
 import { geocodeLocation } from '../../utils/geocoding';
 
@@ -40,16 +41,30 @@ const jitterDuplicates = (points: LatLngTuple[]): LatLngTuple[] => {
 
 // ─── Marker icon ─────────────────────────────────────────────────────────────
 
-const makeIcon = (label: string | number, color: string, size: number, pulse = false) =>
-  L.divIcon({
+const makeIcon = (label: string | number, color: string, size: number, pulse = false, bounce = false) => {
+  // Ripple rings: 3 concentric waves staggered by 0.5s each
+  const rippleHtml = pulse ? `
+    <div style="position:absolute;inset:-14px;border-radius:50%;border:3px solid ${color};
+      opacity:0;animation:itm-ripple 1.6s ease-out infinite 0s;pointer-events:none;"></div>
+    <div style="position:absolute;inset:-14px;border-radius:50%;border:3px solid ${color};
+      opacity:0;animation:itm-ripple 1.6s ease-out infinite 0.53s;pointer-events:none;"></div>
+    <div style="position:absolute;inset:-14px;border-radius:50%;border:3px solid ${color};
+      opacity:0;animation:itm-ripple 1.6s ease-out infinite 1.06s;pointer-events:none;"></div>
+    <div style="position:absolute;inset:-6px;border-radius:50%;
+      background:${color}28;animation:itm-pulse 1.6s ease-out infinite;pointer-events:none;"></div>
+  ` : '';
+
+  return L.divIcon({
     className: '',
-    html: `<div style="position:relative;width:${size}px;height:${size}px;">
-      ${pulse ? `<div style="position:absolute;inset:-8px;border-radius:50%;
-        background:${color}33;animation:itm-pulse 1.6s ease-out infinite;"></div>` : ''}
+    html: `<div style="position:relative;width:${size}px;height:${size}px;${bounce ? 'animation:itm-bounce 0.6s ease-out 2;' : ''}">
+      ${rippleHtml}
       <div style="width:${size}px;height:${size}px;display:flex;align-items:center;
         justify-content:center;border-radius:${Math.round(size / 2.6)}px;
         background:${color};color:#fff;font-weight:900;font-size:${Math.round(size * 0.38)}px;
-        border:3px solid #fff;box-shadow:0 4px 12px ${color}55,0 2px 4px rgba(0,0,0,.2);">
+        border:${pulse ? '4px' : '3px'} solid #fff;
+        box-shadow:0 4px 16px ${color}66,0 2px 4px rgba(0,0,0,.2);
+        transform:${pulse ? 'scale(1.18)' : 'scale(1)'};
+        transition:transform 0.25s ease,box-shadow 0.25s ease;">
         ${label}
       </div>
     </div>`,
@@ -57,6 +72,7 @@ const makeIcon = (label: string | number, color: string, size: number, pulse = f
     iconAnchor: [size / 2, size / 2],
     popupAnchor: [0, -(size / 2 + 6)],
   });
+};
 
 // ─── Map controllers (must be children of MapContainer) ──────────────────────
 
@@ -100,16 +116,17 @@ const FitBounds = ({ points }: { points: LatLngTuple[] }) => {
   return null;
 };
 
-const FlyTo = ({ target }: { target: LatLngTuple | null }) => {
+// clickKey is a monotonically increasing counter so re-clicking the same activity always fires
+const FlyTo = ({ target, activityId, clickKey }: { target: LatLngTuple | null; activityId?: string | null; clickKey?: number }) => {
   const map = useMap();
-  const prev = useRef<string>('');
   useEffect(() => {
     if (!target) return;
-    const key = target.join(',');
-    if (key === prev.current) return;
-    prev.current = key;
+    const key = activityId ?? target.join(',');
+    console.log(`🗺️ FlyTo executing flyTo(“${key}”) coords=${target} clickKey=${clickKey}`);
     map.flyTo(target, 16, { duration: 1.3, easeLinearity: 0.3 });
-  }, [map, target]);
+  // clickKey changes every click, ensuring the effect re-runs even for the same activity
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, target, activityId, clickKey]);
   return null;
 };
 
@@ -119,9 +136,11 @@ interface Props {
   days: ItineraryDay[];
   activeDay: number;
   focusedActivity?: ItineraryActivity | null;
+  /** Increment each click to force FlyTo re-trigger even for the same activity */
+  focusClickKey?: number;
 }
 
-const ItineraryMap = ({ days, activeDay, focusedActivity }: Props) => {
+const ItineraryMap = ({ days, activeDay, focusedActivity, focusClickKey = 0 }: Props) => {
   const [enrichedDays, setEnrichedDays] = useState<ItineraryDay[]>(days);
   const [geocoding, setGeocoding] = useState(false);
 
@@ -134,12 +153,27 @@ const ItineraryMap = ({ days, activeDay, focusedActivity }: Props) => {
       // First pass: use whatever coords backend already gave us
       setEnrichedDays(days);
 
+      console.log('🗺️ Map received days:', days.map(d => ({
+        day: d.day,
+        activities: d.activities.map(a => ({
+          title: a.title,
+          hasCoords: hasCoord(a),
+          lat: a.latitude,
+          lng: a.longitude
+        }))
+      })));
+
       // Check if any activity is missing valid coords
       const needsGeo = days.some((d) =>
         d.activities.some((a) => !hasCoord(a) && a.location?.trim()),
       );
-      if (!needsGeo) return;
+      
+      if (!needsGeo) {
+        console.log('✅ All activities have coordinates');
+        return;
+      }
 
+      console.log('🔍 Some activities missing coords, starting geocoding...');
       setGeocoding(true);
 
       // Geocode in parallel batches of 3 to respect Nominatim rate limit
@@ -150,16 +184,20 @@ const ItineraryMap = ({ days, activeDay, focusedActivity }: Props) => {
             day.activities.map(async (act) => {
               if (hasCoord(act)) return act;
               if (!act.location?.trim()) return act;
+              
+              console.log(`🔍 Geocoding: ${act.title} at ${act.location}`);
               try {
                 // Try with full location string first, then just the name
                 const geo =
                   (await geocodeLocation(act.location, 'vn')) ??
                   (await geocodeLocation(act.title, 'vn'));
                 if (geo && isValidCoord(geo.latitude, geo.longitude)) {
+                  console.log(`✅ Found coords for ${act.title}: ${geo.latitude}, ${geo.longitude}`);
                   return { ...act, latitude: geo.latitude, longitude: geo.longitude };
                 }
-              } catch {
-                // skip silently
+                console.log(`❌ No coords found for ${act.title}`);
+              } catch (err) {
+                console.error(`❌ Geocoding error for ${act.title}:`, err);
               }
               return act;
             }),
@@ -202,18 +240,53 @@ const ItineraryMap = ({ days, activeDay, focusedActivity }: Props) => {
   // Stable initial center — will be overridden by FitBounds immediately
   const initCenter: LatLngTuple = allPoints[0] ?? [16.0471, 108.2068];
 
+  // ── Resolve focusedActivity coords from enrichedDays ───────────────────────
+  // The focusedActivity passed in may have null/0 coords if backend didn't provide them.
+  // We look up the same activity in enrichedDays (which may have geocoded coords) by id.
+  const resolvedFocusedActivity = useMemo(() => {
+    if (!focusedActivity) return null;
+    for (const day of enrichedDays) {
+      const found = day.activities.find((a) => a.id === focusedActivity.id);
+      if (found) return found;
+    }
+    // Fallback to original if not found in enriched
+    return focusedActivity;
+  }, [focusedActivity, enrichedDays]);
+
   const focusedPos: LatLngTuple | null = useMemo(() => {
-    if (!focusedActivity || !hasCoord(focusedActivity)) return null;
-    return [focusedActivity.latitude as number, focusedActivity.longitude as number];
-  }, [focusedActivity]);
+    if (!resolvedFocusedActivity) return null;
+    const lat = resolvedFocusedActivity.latitude;
+    const lng = resolvedFocusedActivity.longitude;
+    console.log(
+      `🎯 focusedActivity changed → "${resolvedFocusedActivity.title}" ` +
+      `id=${resolvedFocusedActivity.id} lat=${lat} lng=${lng} ` +
+      `valid=${hasCoord(resolvedFocusedActivity)}`
+    );
+    if (!hasCoord(resolvedFocusedActivity)) {
+      console.warn(`⚠️ Activity "${resolvedFocusedActivity.title}" has invalid/zero coords (${lat}, ${lng}) — FlyTo will be skipped`);
+      return null;
+    }
+    return [lat as number, lng as number];
+  }, [resolvedFocusedActivity]);
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <>
       <style>{`
         @keyframes itm-pulse {
-          0%   { transform: scale(1);   opacity: .5 }
-          100% { transform: scale(2.2); opacity: 0  }
+          0%   { transform: scale(1);   opacity: .45 }
+          100% { transform: scale(2.4); opacity: 0  }
+        }
+        @keyframes itm-ripple {
+          0%   { transform: scale(0.6); opacity: 0.9 }
+          70%  { transform: scale(2.2); opacity: 0.15 }
+          100% { transform: scale(2.6); opacity: 0 }
+        }
+        @keyframes itm-bounce {
+          0%, 100% { transform: translateY(0); }
+          25% { transform: translateY(-10px); }
+          50% { transform: translateY(0); }
+          75% { transform: translateY(-5px); }
         }
         /* Ensure tiles always render above the grey canvas */
         .itm-map .leaflet-tile-pane    { z-index: 2 !important; }
@@ -236,28 +309,9 @@ const ItineraryMap = ({ days, activeDay, focusedActivity }: Props) => {
         .dark .itm-map .leaflet-popup-tip { background: #1e293b; }
       `}</style>
 
-      <aside className="sticky top-24 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
-        {/* Header */}
-        <div className="border-b border-slate-100 p-5 dark:border-slate-700">
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-[#0061ff] dark:text-blue-400">
-            Bản đồ lộ trình
-          </p>
-          <h2 className="mt-1 text-2xl font-black text-slate-900 dark:text-white">
-            Các điểm trong lịch trình
-          </h2>
-          <p className="mt-1.5 text-sm font-medium text-slate-500 dark:text-slate-400">
-            Marker hiển thị tất cả điểm có tọa độ; đường màu nối các điểm trong từng ngày.
-          </p>
-          {geocoding && (
-            <div className="mt-3 flex items-center gap-2 text-xs font-bold text-blue-600 dark:text-blue-400">
-              <span className="h-3 w-3 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
-              Đang tìm tọa độ cho các địa điểm…
-            </div>
-          )}
-        </div>
-
+      <aside className="h-full overflow-hidden rounded-3xl bg-white dark:bg-slate-800">
         {/* Map */}
-        <div className="itm-map h-[600px]">
+        <div className="itm-map h-full">
           {allPoints.length > 0 ? (
             <MapContainer
               center={initCenter}
@@ -274,7 +328,7 @@ const ItineraryMap = ({ days, activeDay, focusedActivity }: Props) => {
 
               {/* Re-fits every time coordinates actually change */}
               <FitBounds points={allPoints} />
-              <FlyTo target={focusedPos} />
+              <FlyTo target={focusedPos} activityId={resolvedFocusedActivity?.id} clickKey={focusClickKey} />
 
               {daysWithPoints.map(({ day, dayIdx, points }) => {
                 const color = DAY_COLORS[dayIdx % DAY_COLORS.length];
@@ -295,7 +349,7 @@ const ItineraryMap = ({ days, activeDay, focusedActivity }: Props) => {
                     )}
 
                     {points.map(({ activity, position }, idx) => {
-                      const isFocused = focusedActivity?.id === activity.id;
+                      const isFocused = resolvedFocusedActivity?.id === activity.id;
                       const active = isActive || isFocused;
                       const size = active ? 40 : 32;
 
@@ -303,7 +357,7 @@ const ItineraryMap = ({ days, activeDay, focusedActivity }: Props) => {
                         <Marker
                           key={`${activity.id}-${idx}`}
                           position={position}
-                          icon={makeIcon(idx + 1, active ? color : '#64748b', size, isFocused)}
+                          icon={makeIcon(idx + 1, active ? color : '#64748b', size, isFocused, isFocused)}
                           zIndexOffset={active ? 1000 : 0}
                         >
                           <Popup minWidth={200} maxWidth={280}>
@@ -343,19 +397,40 @@ const ItineraryMap = ({ days, activeDay, focusedActivity }: Props) => {
               })}
             </MapContainer>
           ) : (
-            /* Empty / loading state */
-            <div className="flex h-full flex-col items-center justify-center gap-4 px-8 text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-blue-50 text-3xl dark:bg-blue-900/30">
-                🗺️
-              </div>
-              <div>
-                <h3 className="text-lg font-black text-slate-900 dark:text-white">
-                  {geocoding ? 'Đang tìm tọa độ…' : 'Chưa có tọa độ bản đồ'}
-                </h3>
-                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                  {geocoding ? 'Vui lòng chờ trong giây lát' : 'Bản đồ sẽ hiện khi có dữ liệu tọa độ'}
-                </p>
-              </div>
+            /* Beautiful mock map / skeleton loading placeholder */
+            <div className="relative h-full w-full bg-slate-50 dark:bg-slate-900/40 overflow-hidden flex flex-col items-center justify-center">
+              {/* Map Grid / Grid Lines as background */}
+              <div className="absolute inset-0 opacity-15 bg-[linear-gradient(to_right,#808080_1px,transparent_1px),linear-gradient(to_bottom,#808080_1px,transparent_1px)] bg-[size:32px_32px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)]"></div>
+              
+              {/* Abstract Map Roads / Paths */}
+              <svg className="absolute inset-0 w-full h-full text-slate-200 dark:text-slate-800 opacity-60 dark:opacity-40" xmlns="http://www.w3.org/2000/svg">
+                <path d="M-50,150 Q100,50 250,200 T600,100" fill="none" stroke="currentColor" strokeWidth="4" />
+                <path d="M50,-50 Q200,300 150,500 T300,700" fill="none" stroke="currentColor" strokeWidth="3" />
+                <path d="M-10,350 C300,350 400,200 700,450" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="5 5" />
+                <circle cx="250" cy="200" r="6" fill="#3b82f6" className="animate-pulse" />
+                <circle cx="150" cy="380" r="6" fill="#10b981" />
+              </svg>
+
+              {geocoding ? (
+                <div className="z-10 bg-white/90 dark:bg-slate-950/90 backdrop-blur-md p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-xl max-w-[280px] text-center animate-pulse">
+                  <div className="mx-auto w-12 h-12 bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 rounded-2xl flex items-center justify-center mb-3">
+                    <MapPin className="animate-bounce" size={24} />
+                  </div>
+                  <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-3/4 mx-auto mb-2"></div>
+                  <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-1/2 mx-auto mb-3"></div>
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400">Đang định vị tọa độ...</p>
+                </div>
+              ) : (
+                <div className="z-10 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-xl max-w-[320px] text-center mx-4">
+                  <div className="mx-auto w-14 h-14 bg-gradient-to-tr from-blue-500 to-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/20 mb-3.5">
+                    <MapPin size={28} />
+                  </div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white mb-1.5">Chưa có tọa độ bản đồ</h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed font-semibold">
+                    Bản đồ tương tác sẽ tự động hiển thị lộ trình ngay khi các địa điểm được định vị thành công.
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -60,23 +60,23 @@ const isHotelOrTour = (service: any) => {
 };
 
 const HeroSection = () => (
-  <section className="relative overflow-hidden rounded-[32px] bg-slate-950 text-white">
+  <section className="relative overflow-hidden rounded-[32px] bg-white text-white">
     <img
-      src="https://images.unsplash.com/photo-1528127269322-539801943592?q=80&w=1800"
+      src="https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?q=80&w=1800"
       alt="Du lịch Việt Nam"
-      className="absolute inset-0 h-full w-full object-cover opacity-40"
+      className="absolute inset-0 h-full w-full object-cover"
     />
-    <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-950/80 to-[#0061ff]/55" />
+    <div className="absolute inset-0 bg-gradient-to-b from-slate-900/40 via-slate-900/20 to-slate-900/70" />
     <div className="relative px-5 py-16 sm:px-8 lg:px-10">
       <div className="mx-auto max-w-4xl text-center">
-        <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-blue-100 ring-1 ring-white/15">
+        <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-white/95 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-[#0061ff] shadow-lg backdrop-blur-sm">
           <Sparkles size={15} />
           TravelAI Planner
         </div>
-        <h1 className="text-4xl font-black leading-tight tracking-tight md:text-6xl">
+        <h1 className="text-4xl font-black leading-tight tracking-tight drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)] md:text-6xl">
           Đơn giản hóa hành trình của bạn
         </h1>
-        <p className="mt-6 text-base font-medium leading-8 text-blue-50/85 md:text-lg">
+        <p className="mt-6 text-base font-semibold leading-8 drop-shadow-[0_2px_8px_rgba(0,0,0,0.4)] md:text-lg">
           Trải nghiệm thế giới với lập kế hoạch được hỗ trợ bởi AI
         </p>
         <div className="mt-10">
@@ -85,13 +85,13 @@ const HeroSection = () => (
         <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
           <Link
             to="/preferences"
-            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-6 py-3 text-sm font-black text-white ring-1 ring-white/20 transition hover:bg-white/15"
+            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-6 py-3.5 text-sm font-black text-slate-900 shadow-xl transition hover:scale-105 hover:shadow-2xl"
           >
             Tạo lịch trình AI <ArrowRight size={18} />
           </Link>
           <Link
             to="/destinations"
-            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-6 py-3 text-sm font-black text-white ring-1 ring-white/20 transition hover:bg-white/15"
+            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900/80 px-6 py-3.5 text-sm font-black text-white shadow-lg backdrop-blur-sm transition hover:bg-slate-900"
           >
             Khám phá điểm đến
           </Link>
@@ -127,29 +127,20 @@ const ServicesStripSection = () => {
     },
     {
       icon: MapPin,
-      label: 'Vận chuyển',
-      description: 'Di chuyển tiện lợi',
+      label: 'Di chuyển',
+      description: 'Tiện lợi, dễ dàng',
       path: '/transportation',
       color: 'purple',
       bgColor: 'bg-purple-50',
       hoverBg: 'hover:bg-purple-100',
       iconColor: 'text-purple-600',
     },
-    {
-      icon: Hotel,
-      label: 'Thuê xe',
-      description: 'Tự do khám phá',
-      path: '/services?type=transport',  // Redirect đến trang dịch vụ với filter Transport
-      color: 'orange',
-      bgColor: 'bg-orange-50',
-      hoverBg: 'hover:bg-orange-100',
-      iconColor: 'text-orange-600',
-    },
   ];
 
   return (
     <section className="py-8">
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4 md:gap-6">
+      <div className="mx-auto flex max-w-4xl justify-center">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6 w-full">
         {services.map((service) => {
           const Icon = service.icon;
           return (
@@ -169,7 +160,8 @@ const ServicesStripSection = () => {
           );
         })}
       </div>
-    </section>
+    </div>
+  </section>
   );
 };
 

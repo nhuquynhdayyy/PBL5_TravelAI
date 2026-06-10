@@ -17,7 +17,7 @@ const Notifications = () => {
         <div>
           <h1 className="flex items-center gap-3 text-2xl font-black text-slate-900">
             <Bell className="text-blue-600" size={26} />
-            Thong bao
+            Thông báo
             {unreadCount > 0 && (
               <span className="rounded-full bg-red-500 px-2.5 py-1 text-xs font-black text-white">
                 {unreadCount}
@@ -25,7 +25,7 @@ const Notifications = () => {
             )}
           </h1>
           <p className="mt-1 text-sm font-medium text-slate-500">
-            Tat ca thong bao cua tai khoan hien tai duoc luu trong database.
+            Tất cả thông báo của tài khoản hiện tại được lưu trong database.
           </p>
         </div>
         {notifications.length > 0 && (
@@ -41,13 +41,13 @@ const Notifications = () => {
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         {isLoading ? (
-          <div className="p-8 text-center text-sm font-bold text-slate-500">Dang tai thong bao...</div>
+          <div className="p-8 text-center text-sm font-bold text-slate-500">Đang tải thông báo...</div>
         ) : notifications.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-12 text-center">
             <div className="mb-4 rounded-full bg-slate-100 p-4">
               <Bell size={34} className="text-slate-400" />
             </div>
-            <p className="text-sm font-black text-slate-500">Chua co thong bao nao</p>
+            <p className="text-sm font-black text-slate-500">Chưa có thông báo nào</p>
           </div>
         ) : (
           <div className="divide-y divide-slate-100">

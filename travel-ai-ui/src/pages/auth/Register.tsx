@@ -32,7 +32,7 @@ const Register = () => {
       navigate(isPartner ? '/partner/profile' : '/');
       window.location.reload();
     } catch (err: any) {
-      alert(err.response?.data || "Registration failed. Please try again.");
+      alert(err.response?.data || "Đăng ký thất bại. Vui lòng thử lại.");
     } finally {
       setLoading(false);
     }
@@ -45,20 +45,20 @@ const Register = () => {
           <div className="inline-flex p-3 bg-blue-50 rounded-2xl text-blue-600 mb-4">
             <UserPlus size={32} />
           </div>
-          <h2 className="text-3xl font-black text-slate-900">Create Account</h2>
-          <p className="text-slate-500 mt-2 text-sm">Join TravelAI and start your smart journey.</p>
+          <h2 className="text-3xl font-black text-slate-900">Tạo tài khoản</h2>
+          <p className="text-slate-500 mt-2 text-sm">Tham gia TravelAI và bắt đầu hành trình thông minh của bạn.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Full Name Input */}
           <div>
-            <label className="text-xs font-bold text-slate-700 uppercase ml-1 tracking-wider">Full Name</label>
+            <label className="text-xs font-bold text-slate-700 uppercase ml-1 tracking-wider">Họ và tên</label>
             <div className="relative mt-1">
               <User className="absolute left-4 top-4 size-5 text-slate-400" />
               <input 
                 className="w-full pl-12 pr-4 py-4 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all placeholder:text-slate-300" 
                 type="text" 
-                placeholder="Enter your full name" 
+                placeholder="Nhập họ và tên của bạn" 
                 onChange={e => setFormData({...formData, fullName: e.target.value})} 
                 required 
               />
@@ -67,7 +67,7 @@ const Register = () => {
 
           {/* Email Input */}
           <div>
-            <label className="text-xs font-bold text-slate-700 uppercase ml-1 tracking-wider">Email Address</label>
+            <label className="text-xs font-bold text-slate-700 uppercase ml-1 tracking-wider">Địa chỉ Email</label>
             <div className="relative mt-1">
               <Mail className="absolute left-4 top-4 size-5 text-slate-400" />
               <input 
@@ -82,7 +82,7 @@ const Register = () => {
 
           {/* Password Input */}
           <div>
-            <label className="text-xs font-bold text-slate-700 uppercase ml-1 tracking-wider">Password</label>
+            <label className="text-xs font-bold text-slate-700 uppercase ml-1 tracking-wider">Mật khẩu</label>
             <div className="relative mt-1">
               <Lock className="absolute left-4 top-4 size-5 text-slate-400" />
               <input 
@@ -113,16 +113,16 @@ const Register = () => {
             {loading ? (
               <div className="size-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
             ) : (
-              "Create Account"
+              "Tạo tài khoản"
             )}
           </button>
         </form>
 
         <div className="mt-8 pt-6 border-t border-slate-50 text-center">
           <p className="text-sm text-slate-500">
-            Already have an account?{' '}
+            Đã có tài khoản?{' '}
             <Link to="/login" className="text-blue-600 font-bold hover:underline transition-all">
-              Log in here
+              Đăng nhập tại đây
             </Link>
           </p>
         </div>

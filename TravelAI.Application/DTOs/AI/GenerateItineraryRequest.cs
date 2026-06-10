@@ -5,4 +5,5 @@ namespace TravelAI.Application.DTOs.AI;
 public record GenerateItineraryRequest(int DestinationId, int NumberOfDays, DateTime StartDate)
 {
     public ServiceFilterRequest? ServiceFilters { get; init; }
+    public string? SpecialRequest { get; init; }
 }

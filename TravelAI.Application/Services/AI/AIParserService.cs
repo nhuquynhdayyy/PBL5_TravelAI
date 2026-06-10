@@ -186,7 +186,11 @@ public class AIParserService
                 ?? "Flexible",
             EstimatedCost = ReadDecimal(activityElement, "estimatedCost", "estimated_cost", "cost", "price")
                 ?? 0,
-            ServiceId = serviceId > 0 ? serviceId : null
+            ServiceId = serviceId > 0 ? serviceId : null,
+            Latitude = ReadDouble(activityElement, "latitude", "lat"),
+            Longitude = ReadDouble(activityElement, "longitude", "lng", "lon"),
+            StartTime = ReadString(activityElement, "startTime", "start_time", "timeStart", "time_start"),
+            EndTime = ReadString(activityElement, "endTime", "end_time", "timeEnd", "time_end")
         };
     }
 
@@ -343,6 +347,37 @@ public class AIParserService
             .Trim();
 
         return decimal.TryParse(normalized, NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out number)
+            ? number
+            : null;
+    }
+
+    private static double? ReadDouble(JsonElement element, params string[] propertyNames)
+    {
+        if (!TryGetPropertyValue(element, out var value, propertyNames))
+        {
+            return null;
+        }
+
+        if (value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var number))
+        {
+            return number;
+        }
+
+        if (value.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+
+        var raw = value.GetString();
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        var normalized = raw.Replace(",", string.Empty, StringComparison.Ordinal)
+            .Trim();
+
+        return double.TryParse(normalized, NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out number)
             ? number
             : null;
     }

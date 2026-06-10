@@ -125,7 +125,7 @@ const Cart = () => {
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-sm font-black uppercase tracking-[0.25em] text-blue-600">Cart</p>
-          <h1 className="mt-2 text-4xl font-black text-slate-900">Gio hang cua ban</h1>
+          <h1 className="mt-2 text-4xl font-black text-slate-900">Giỏ hàng của bạn</h1>
         </div>
         {items.length > 0 && (
           <button
@@ -134,7 +134,7 @@ const Cart = () => {
             disabled={isLoading}
             className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            XOA TAT CA
+            XÓA TẤT CẢ
           </button>
         )}
       </div>
@@ -167,7 +167,7 @@ const Cart = () => {
                 className="h-5 w-5 cursor-pointer rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
               />
               <label htmlFor="select-all" className="cursor-pointer text-sm font-bold text-slate-700">
-                Chon tat ca ({items.length} muc)
+                Chọn tất cả ({items.length} mục)
               </label>
             </div>
 
@@ -202,8 +202,8 @@ const Cart = () => {
                             ? `${item.checkInDate.toLocaleDateString('vi-VN')} - ${item.checkOutDate.toLocaleDateString('vi-VN')}`
                             : item.checkInDate.toLocaleDateString('vi-VN')}
                         </span>
-                        <span>{item.quantity} muc</span>
-                        <span>{currencyFormatter.format(item.price)} VND / muc</span>
+                        <span>{item.quantity} mục</span>
+                        <span>{currencyFormatter.format(item.price)} VND / mục</span>
                       </div>
                     </div>
                   </div>
@@ -222,7 +222,7 @@ const Cart = () => {
                       ) : (
                         <Trash2 size={16} />
                       )}
-                      XOA
+                      XÓA
                     </button>
                   </div>
                 </article>
@@ -231,19 +231,19 @@ const Cart = () => {
           </section>
 
           <aside className="h-fit rounded-3xl bg-slate-900 p-7 text-white shadow-2xl">
-            <h2 className="text-xl font-black">Tong tien</h2>
+            <h2 className="text-xl font-black">Tổng tiền</h2>
             <div className="my-6 space-y-3 border-y border-white/10 py-5">
               <div className="flex items-center justify-between text-sm text-slate-300">
-                <span>So muc da chon</span>
+                <span>Số mục đã chọn</span>
                 <span className="font-bold">{selectedCartItems.length}</span>
               </div>
               <div className="flex items-center justify-between text-sm text-slate-300">
-                <span>Tam tinh</span>
+                <span>Tạm tinh</span>
                 <span className="font-bold">{currencyFormatter.format(selectedTotalAmount)} VND</span>
               </div>
             </div>
             <div className="mb-6 flex items-center justify-between">
-              <span className="font-bold text-slate-300">Thanh toan</span>
+              <span className="font-bold text-slate-300">Thanh toán</span>
               <span className="text-2xl font-black">{currencyFormatter.format(selectedTotalAmount)} VND</span>
             </div>
             <button
@@ -253,7 +253,7 @@ const Cart = () => {
               className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 py-4 text-sm font-black text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
             >
               {checkingOut && <Loader2 className="animate-spin" size={18} />}
-              {selectedItems.length === 0 ? 'CHON MUC DE THANH TOAN' : 'TIEN HANH THANH TOAN'}
+              {selectedItems.length === 0 ? 'CHỌN MỤC ĐỂ THANH TOÁN' : 'TIẾN HÀNH THANH TOÁN'}
             </button>
           </aside>
         </div>

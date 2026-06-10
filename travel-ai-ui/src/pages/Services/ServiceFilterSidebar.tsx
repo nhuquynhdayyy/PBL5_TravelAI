@@ -48,7 +48,7 @@ const serviceTypes = [
   { value: '', label: 'Tất cả' },
   { value: 'Hotel', label: 'Khách sạn' },
   { value: 'Tour', label: 'Tour' },
-  { value: 'Transport', label: 'Thuê xe' },
+  { value: 'Transport', label: 'Di chuyển' },
 ];
 
 const hotelAmenities = [
@@ -285,7 +285,7 @@ const ServiceFilterSidebar: React.FC<ServiceFilterSidebarProps> = ({ value, onCh
           <section className="space-y-4 border-t border-dashed border-slate-200 pt-5">
             <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-500">
               <Bus size={15} className="text-teal-600" />
-              Thuê xe
+              Di chuyển
             </div>
             <select
               value={value.transportType}
