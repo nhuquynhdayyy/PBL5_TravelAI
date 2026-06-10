@@ -144,8 +144,36 @@ public class PromptBuilder
             var priorItineraryJson = JsonSerializer.Serialize(simplified);
             prompt.AppendLine(priorItineraryJson);
             prompt.AppendLine();
+            prompt.AppendLine($"Lich trinh hien tai dang co tong gia: {priorItinerary.TotalEstimatedCost:#,##0} VND.");
+            prompt.AppendLine();
             prompt.AppendLine("RANG BUOC BAT BUOC KHI DIEU CHINH:");
             prompt.AppendLine("1. Hay phan tich \"YEU CAU CHINH SUA CUA NGUOI DUNG\" de thuc hien cap nhat tuong ung (vi du: them quan an, giam di bo, hoac doi khach san).");
+            
+            var normalizedFeedback = RemoveDiacritics(userFeedback).ToLowerInvariant();
+            var isBudgetSavingRequest = normalizedFeedback.Contains("tiet kiem", StringComparison.Ordinal)
+                                        || normalizedFeedback.Contains("re ", StringComparison.Ordinal)
+                                        || normalizedFeedback.Contains("re hon", StringComparison.Ordinal)
+                                        || normalizedFeedback.Contains("giam gia", StringComparison.Ordinal)
+                                        || normalizedFeedback.Contains("giam chi phi", StringComparison.Ordinal)
+                                        || normalizedFeedback.Contains("cheap", StringComparison.Ordinal)
+                                        || normalizedFeedback.Contains("save", StringComparison.Ordinal)
+                                        || normalizedFeedback.Contains("bot ", StringComparison.Ordinal)
+                                        || normalizedFeedback.Contains("giam ", StringComparison.Ordinal);
+
+            if (isBudgetSavingRequest)
+            {
+                prompt.AppendLine($"*** CHI THI NGHIEM NGAT VE AN TOAN CHI PHI (BUDGET SAFETY CHECK): ***");
+                prompt.AppendLine($"- Nguoi dung yeu cau 'tiet kiem hon'. Ban BAT BUOC phai dieu chinh cac hoat dong hoac thay doi khach san de tong chi phi cua lich trinh moi PHAI thap hon hoac bang muc gia cu la {priorItinerary.TotalEstimatedCost:#,##0} VND.");
+                prompt.AppendLine($"- TUYET DOI KHONG DUOC TU Y TANG GIA hoac tra ve muc gia cao hon {priorItinerary.TotalEstimatedCost:#,##0} VND va gan mac 'Tiet kiem'.");
+                prompt.AppendLine($"- Neu trong co so du lieu khong co bat ky phuong an phu hop nao re hon (do chi phi thuc te cua cac dich vu bat buoc da o muc toi thieu va khong the bot di ma van dam bao yeu cau chuyen di), ban KHONG DUOC TRA VE JSON lich trinh.");
+                prompt.AppendLine($"- Trong truong hop do, ban phai tra ve JSON loi theo dung dinh dang sau de he thong thong bao cho nguoi dung:");
+                prompt.AppendLine("  {");
+                prompt.AppendLine("    \"error\": \"Không thể tạo lịch trình tiết kiệm hơn\",");
+                prompt.AppendLine($"    \"details\": \"Chi phí hiện tại ({priorItinerary.TotalEstimatedCost:#,##0} VND) đã ở mức tối thiểu cho các dịch vụ cơ bản. Không có phương án thay thế rẻ hơn phù hợp tại {dest.Name}.\"");
+                prompt.AppendLine("  }");
+                prompt.AppendLine("  (Luu y: Khi tra ve JSON loi nay, tuyet doi khong kem theo bat ky truong nao khac ngoai 'error' va 'details').");
+            }
+
             prompt.AppendLine("2. GIU NGUYEN (BAO TOAN) tat ca cac hoat dong, khach san hoac ngay trinh ma khong lien quan den yeu cau thay doi. Cam tuyet doi viec tao ra mot lich trinh moi khac hoan toan khong co su ke thua.");
             prompt.AppendLine("3. Neu khong thay doi mot hoat dong he thong, phai giu nguyen service_id goc cua no.");
             prompt.AppendLine("4. Tat ca cac hoat dong moi duoc them vao phai thuoc dung dia phan cua tinh thanh du lich da chon va co thoi gian/chi phi hop ly.");
