@@ -1,8 +1,8 @@
-// src/components/layout/Header.tsx
+﻿// src/components/layout/Header.tsx
 
 import React, { useState, useEffect } from 'react';
-import { Menu, X, Plane, LogOut, LayoutDashboard, Store, User, ChevronDown, Hotel, Compass, ClipboardList, MessageSquare, BarChart3, Building2, ShoppingCart, Landmark, Sparkles } from 'lucide-react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Menu, X, Plane, LogOut, LayoutDashboard, Store, User, ChevronDown, Hotel, Compass, ClipboardList, MessageSquare, BarChart3, Building2, Landmark, Sparkles } from 'lucide-react';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useCart } from '../../contexts/CartContext';
 import { NotificationBell } from '../notifications';
 import { getUser } from '../../utils/userUtils';
@@ -13,6 +13,7 @@ const Header: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [userState, setUserState] = useState(getUser());
   const navigate = useNavigate();
+  const location = useLocation();
   const { items } = useCart();
 
   const role = userState?.roleName?.toLowerCase(); 
@@ -23,6 +24,15 @@ const Header: React.FC = () => {
     window.location.reload();
   };
 
+  const getAdminLinkClass = (path: string) => {
+    const isActive = location.pathname.startsWith(path);
+    return `flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-extrabold transition-all ${
+      isActive
+        ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-100'
+        : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50 hover:text-blue-600'
+    }`;
+  };
+
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
@@ -30,7 +40,7 @@ const Header: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    // Lắng nghe event userUpdated để cập nhật state
+    // Láº¯ng nghe event userUpdated Ä‘á»ƒ cáº­p nháº­t state
     const handleUserUpdated = () => {
       setUserState(getUser());
     };
@@ -45,13 +55,13 @@ const Header: React.FC = () => {
         ? 'border-slate-200 bg-white shadow-md py-3 dark:border-slate-800 dark:bg-slate-950'
         : 'border-transparent bg-white/90 backdrop-blur-md py-4 dark:bg-slate-950/90'
     }`}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
+        <div className="flex items-center">
           
           {/* LOGO */}
           <Link
             to={role === 'partner' ? '/partner/services' : role === 'admin' ? '/admin/stats' : '/'}
-            className="flex items-center gap-2 cursor-pointer group"
+            className="group mr-10 flex shrink-0 cursor-pointer items-center gap-2 lg:mr-12"
           >
             <div className="bg-blue-500 p-1.5 rounded-lg group-hover:rotate-12 transition-transform">
                 <Plane className="text-white size-6" />
@@ -62,11 +72,11 @@ const Header: React.FC = () => {
           </Link>
 
           {/* DESKTOP MENU */}
-          <nav className="hidden md:flex space-x-8 items-center">
+          <nav className="hidden flex-1 items-center gap-6 md:flex lg:gap-7">
             {role !== 'partner' && role !== 'admin' && (
               <>
-                <Link to="/" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all dark:text-slate-300 dark:hover:text-blue-400">Trang chủ</Link>
-                <Link to="/destinations" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all dark:text-slate-300 dark:hover:text-blue-400">Điểm đến</Link>
+                <Link to="/" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all dark:text-slate-300 dark:hover:text-blue-400">Trang chá»§</Link>
+                <Link to="/destinations" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all dark:text-slate-300 dark:hover:text-blue-400">Äiá»ƒm Ä‘áº¿n</Link>
                 
                 {/* DROPDOWN SERVICES */}
                 <div 
@@ -75,7 +85,7 @@ const Header: React.FC = () => {
                     onMouseLeave={() => setIsServicesOpen(false)}
                 >
                     <button className="flex items-center gap-1 text-slate-600 hover:text-blue-500 font-medium text-sm transition-all outline-none">
-                        Dịch vụ <ChevronDown size={14} className={`transition-transform duration-300 ${isServicesOpen ? 'rotate-180' : ''}`} />
+                        Dá»‹ch vá»¥ <ChevronDown size={14} className={`transition-transform duration-300 ${isServicesOpen ? 'rotate-180' : ''}`} />
                     </button>
 
                     {isServicesOpen && (
@@ -85,8 +95,8 @@ const Header: React.FC = () => {
                                     <Hotel size={20} />
                                 </div>
                                 <div className="text-left">
-                                    <p className="text-sm font-black text-slate-800">Khách sạn</p>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Tìm chỗ ở ưng ý</p>
+                                    <p className="text-sm font-black text-slate-800">KhÃ¡ch sáº¡n</p>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">TÃ¬m chá»— á»Ÿ Æ°ng Ã½</p>
                                 </div>
                             </Link>
                             <Link to="/tours" className="flex items-center gap-3 p-3 hover:bg-emerald-50 rounded-2xl transition-all group/item mt-1 dark:hover:bg-slate-800">
@@ -94,8 +104,8 @@ const Header: React.FC = () => {
                                     <Compass size={20} />
                                 </div>
                                 <div className="text-left">
-                                    <p className="text-sm font-black text-slate-800">Tour du lịch</p>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Trải nghiệm thú vị</p>
+                                    <p className="text-sm font-black text-slate-800">Tour du lá»‹ch</p>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Tráº£i nghiá»‡m thÃº vá»‹</p>
                                 </div>
                             </Link>
                             <Link to="/transportation" className="flex items-center gap-3 p-3 hover:bg-purple-50 rounded-2xl transition-all group/item mt-1 dark:hover:bg-slate-800">
@@ -103,8 +113,8 @@ const Header: React.FC = () => {
                                     <Plane size={20} />
                                 </div>
                                 <div className="text-left">
-                                    <p className="text-sm font-black text-slate-800">Di chuyển</p>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Tiện lợi, dễ dàng</p>
+                                    <p className="text-sm font-black text-slate-800">Di chuyá»ƒn</p>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Tiá»‡n lá»£i, dá»… dÃ ng</p>
                                 </div>
                             </Link>
                         </div>
@@ -113,12 +123,12 @@ const Header: React.FC = () => {
 
                 <Link to="/ai-suggestions" className="flex items-center gap-1.5 text-slate-600 hover:text-blue-500 font-medium text-sm transition-all group">
                   <Sparkles size={16} className="text-blue-400 group-hover:text-blue-500 transition-colors" />
-                  <span>Gợi ý AI</span>
+                  <span>Gá»£i Ã½ AI</span>
                 </Link>
 
-                <Link to="/planner" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all">Lịch trình</Link>
+                <Link to="/planner" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all">Lá»‹ch trÃ¬nh</Link>
                 <Link to="/cart" className="relative text-slate-600 hover:text-blue-500 font-medium text-sm transition-all">
-                  Giỏ hàng
+                  Giá» hÃ ng
                   {items.length > 0 && (
                     <span className="absolute -right-3 -top-3 flex size-5 items-center justify-center rounded-full bg-blue-600 text-[10px] font-black text-white">
                       {items.length}
@@ -132,19 +142,19 @@ const Header: React.FC = () => {
             {role === 'partner' && (
               <>
                 <Link to="/partner/dashboard" className="flex items-center gap-2 px-6 py-2 bg-slate-900 text-white rounded-full font-black text-xs hover:bg-slate-700 transition-all shadow-lg shadow-slate-100 uppercase tracking-widest">
-                  <BarChart3 size={14} /> BẢNG ĐIỀU KHIỂN
+                  <BarChart3 size={14} /> Báº¢NG ÄIá»€U KHIá»‚N
                 </Link>
                 <Link to="/partner/profile" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
-                  <Building2 size={14} /> DOANH NGHIỆP
+                  <Building2 size={14} /> DOANH NGHIá»†P
                 </Link>
                 <Link to="/partner/services" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
-                  <Store size={14} /> DỊCH VỤ CỦA TÔI
+                  <Store size={14} /> Dá»ŠCH Vá»¤ Cá»¦A TÃ”I
                 </Link>
                 <Link to="/partner/orders" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
-                  <ClipboardList size={14} /> ĐƠN HÀNG CỦA TÔI
+                  <ClipboardList size={14} /> ÄÆ N HÃ€NG Cá»¦A TÃ”I
                 </Link>
                 <Link to="/partner/reviews" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
-                  <MessageSquare size={14} /> ĐÁNH GIÁ CỦA TÔI
+                  <MessageSquare size={14} /> ÄÃNH GIÃ Cá»¦A TÃ”I
                 </Link>
               </>
             )}
@@ -152,27 +162,27 @@ const Header: React.FC = () => {
             {/* ADMIN MENU */}
             {role === 'admin' && (
               <>
-                <Link to="/admin/stats" className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl font-black text-xs hover:bg-emerald-700 transition-all uppercase">
-                  <BarChart3 size={14} /> THỐNG KÊ
+                <Link to="/admin/stats" className={getAdminLinkClass('/admin/stats')}>
+                  <BarChart3 size={14} /> Thống kê
                 </Link>
-                <Link to="/admin/partners" className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl font-black text-xs hover:bg-red-700 transition-all uppercase">
-                  <LayoutDashboard size={14} /> QUẢN LÝ PARTNER
+                <Link to="/admin/partners" className={getAdminLinkClass('/admin/partners')}>
+                  <LayoutDashboard size={14} /> Quản lý Partner
                 </Link>
-                <Link to="/admin/services" className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl font-black text-xs hover:bg-slate-700 transition-all uppercase">
-                  <Store size={14} /> QUẢN LÝ DỊCH VỤ
+                <Link to="/admin/services" className={getAdminLinkClass('/admin/services')}>
+                  <Store size={14} /> Quản lý dịch vụ
                 </Link>
-                <Link to="/admin/vietqr-payments" className="flex items-center gap-2 px-4 py-2 bg-emerald-700 text-white rounded-xl font-black text-xs hover:bg-emerald-800 transition-all uppercase">
-                  <Landmark size={14} /> VIETQR
+                <Link to="/admin/vietqr-payments" className={getAdminLinkClass('/admin/vietqr-payments')}>
+                  <Landmark size={14} /> VietQR
                 </Link>
-                <Link to="/admin/users" className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all uppercase">
-                  <User size={14} /> QUẢN LÝ USER
+                <Link to="/admin/users" className={getAdminLinkClass('/admin/users')}>
+                  <User size={14} /> Quản lý User
                 </Link>
               </>
             )}
           </nav>
 
           {/* USER ACTIONS */}
-          <div className="hidden md:flex items-center gap-3">
+          <div className="hidden shrink-0 items-center gap-3 md:flex">
             {userState ? (
                 <div className="flex items-center gap-4">
                     <NotificationBell />
@@ -187,13 +197,13 @@ const Header: React.FC = () => {
                 </div>
             ) : (
               <div className="flex items-center gap-2">
-                <button onClick={() => navigate('/login')} className="px-5 py-2 text-slate-700 font-bold text-sm hover:text-blue-500">Đăng nhập</button>
-                <button onClick={() => navigate('/register')} className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-200 transition-all active:scale-95">Đăng ký</button>
+                <button onClick={() => navigate('/login')} className="px-5 py-2 text-slate-700 font-bold text-sm hover:text-blue-500">ÄÄƒng nháº­p</button>
+                <button onClick={() => navigate('/register')} className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-200 transition-all active:scale-95">ÄÄƒng kÃ½</button>
               </div>
             )}
           </div>
 
-          <div className="flex items-center gap-2 md:hidden">
+          <div className="ml-auto flex items-center gap-2 md:hidden">
             {userState && <NotificationBell />}
             <button onClick={() => setIsOpen(!isOpen)} className="text-slate-600 p-2 dark:text-slate-200">
               {isOpen ? <X size={24} /> : <Menu size={24} />}
@@ -257,3 +267,4 @@ const Header: React.FC = () => {
 };
 
 export default Header;
+

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import axiosClient from '../../api/axiosClient';
 import {
   AlertCircle,
@@ -8,11 +8,11 @@ import {
   Hotel,
   Loader2,
   Search,
-  ShieldCheck,
   Store,
   UserRound,
   XCircle
 } from 'lucide-react';
+import AdminPageHeader from '../../components/admin/AdminPageHeader';
 
 type ServiceItem = {
   serviceId: number;
@@ -116,7 +116,7 @@ const AdminManageServices = () => {
       setRejectReason('');
     } catch (error) {
       console.error(error);
-      alert('Khong the duyet dich vu luc nay.');
+      alert('Không thể duyệt dịch vụ lúc này.');
     } finally {
       setActionLoading(null);
     }
@@ -137,40 +137,34 @@ const AdminManageServices = () => {
       setRejectReason('');
     } catch (error) {
       console.error(error);
-      alert('Khong the tu choi dich vu luc nay.');
+      alert('Không thể từ chối dịch vụ lúc này.');
     } finally {
       setActionLoading(null);
     }
   };
 
   const tabs = [
-    { id: 'pending' as const, label: 'Dich vu cho duyet', count: pendingServices.length },
-    { id: 'all' as const, label: 'Tat ca dich vu', count: allServices.length }
+    { id: 'pending' as const, label: 'Dịch vụ cho duyet', count: pendingServices.length },
+    { id: 'all' as const, label: 'Tất cả dịch vụ', count: allServices.length }
   ];
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mb-8 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-        <div className="text-left">
-          <h1 className="flex items-center gap-3 text-4xl font-black tracking-tight text-slate-900">
-            <ShieldCheck className="text-red-600" size={36} />
-            Quan tri duyet <span className="text-red-600">dich vu Partner</span>
-          </h1>
-          <p className="mt-2 max-w-3xl font-medium text-slate-500">
-            Kiem tra dich vu moi, xem preview truoc khi public va xu ly phe duyet hoac tu choi.
-          </p>
-        </div>
+    <div className="admin-page">
+      <AdminPageHeader
+        eyebrow="Quản lý dịch vụ"
+        title="Danh sách dịch vụ du lịch"
+        description="Kiểm tra, cập nhật và quản lý các dịch vụ đang được cung cấp trên TravelAI."
+      />
 
-        <div className="flex gap-4">
-          <div className="rounded-3xl border border-red-100 bg-red-50 px-6 py-4 text-center">
-            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-red-400">Cho duyet</p>
-            <p className="text-3xl font-black text-red-600">{pendingServices.length}</p>
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row">
+          <div className="admin-card px-6 py-4 text-center">
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Chờ duyệt</p>
+            <p className="text-3xl font-black text-blue-600">{pendingServices.length}</p>
           </div>
-          <div className="rounded-3xl border border-slate-100 bg-white px-6 py-4 text-center shadow-sm">
-            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Tong dich vu</p>
+          <div className="admin-card px-6 py-4 text-center">
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Tổng dịch vụ</p>
             <p className="text-3xl font-black text-slate-900">{allServices.length}</p>
           </div>
-        </div>
       </div>
 
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -182,8 +176,8 @@ const AdminManageServices = () => {
               onClick={() => setActiveTab(tab.id)}
               className={`rounded-full px-5 py-3 text-sm font-black transition ${
                 activeTab === tab.id
-                  ? 'bg-slate-900 text-white shadow-lg'
-                  : 'bg-white text-slate-500 shadow-sm ring-1 ring-slate-200 hover:text-slate-900'
+                  ? 'admin-button-primary'
+                  : 'admin-button-secondary'
               }`}
             >
               {tab.label} ({tab.count})
@@ -197,32 +191,32 @@ const AdminManageServices = () => {
             type="text"
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="Tim theo ten dich vu, doanh nghiep, dia diem..."
-            className="w-full rounded-full border-2 border-slate-100 bg-white py-3 pl-11 pr-5 font-semibold text-slate-700 outline-none transition focus:border-red-400"
+            placeholder="Tìm theo tên dịch vụ, doanh nghiệp, địa điểm..."
+            className="admin-input py-3 pl-11 pr-5"
           />
         </div>
       </div>
 
       {loading ? (
         <div className="flex justify-center py-24">
-          <Loader2 className="animate-spin text-red-600" size={40} />
+          <Loader2 className="animate-spin text-blue-600" size={40} />
         </div>
       ) : (
         <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-          <div className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white shadow-xl">
+          <div className="admin-card overflow-hidden">
             <div className="border-b border-slate-100 px-6 py-5 text-left">
               <h2 className="text-lg font-black text-slate-900">
-                {activeTab === 'pending' ? 'Danh sach cho duyet' : 'Tat ca dich vu'}
+                {activeTab === 'pending' ? 'Danh sách chờ duyệt' : 'Tất cả dịch vụ'}
               </h2>
               <p className="mt-1 text-sm font-medium text-slate-500">
-                Chon mot dich vu de xem preview va thao tac.
+                Chọn một dịch vụ để xem preview và thao tác.
               </p>
             </div>
 
             <div className="max-h-[70vh] overflow-y-auto custom-scrollbar p-4">
               {filteredServices.length === 0 ? (
                 <div className="rounded-[1.5rem] border border-dashed border-slate-200 bg-slate-50 px-6 py-14 text-center">
-                  <p className="font-bold text-slate-400">Khong co dich vu nao phu hop bo loc hien tai.</p>
+                  <p className="font-bold text-slate-400">Không có dịch vụ nao phu hop bo loc hien tai.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -239,7 +233,7 @@ const AdminManageServices = () => {
                         onClick={() => setSelectedService(service)}
                         className={`flex w-full items-center gap-4 rounded-[1.5rem] border p-4 text-left transition ${
                           selected
-                            ? 'border-red-200 bg-red-50/70 shadow-sm'
+                            ? 'border-blue-200 bg-blue-50/70 shadow-sm'
                             : 'border-slate-100 bg-white hover:border-slate-200 hover:bg-slate-50'
                         }`}
                       >
@@ -250,12 +244,12 @@ const AdminManageServices = () => {
                         />
                         <div className="min-w-0 flex-1">
                           <div className="mb-2 flex items-center gap-2">
-                            <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-widest ${
+                            <span className={`admin-badge ${
                               service.isActive
-                                ? 'bg-emerald-100 text-emerald-700'
-                                : 'bg-amber-100 text-amber-700'
+                                ? 'admin-badge-success'
+                                : 'admin-badge-warning'
                             }`}>
-                              {service.isActive ? 'Da duyet' : 'Cho duyet'}
+                              {service.isActive ? 'Đã duyệt' : 'Chờ duyệt'}
                             </span>
                             <span className="text-[11px] font-bold text-slate-400">#{service.serviceId}</span>
                           </div>
@@ -276,7 +270,7 @@ const AdminManageServices = () => {
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-xl">
+          <div className="admin-card p-6">
             {selectedService ? (
               <div className="text-left">
                 <div className="mb-5 overflow-hidden rounded-[1.75rem] bg-slate-100">
@@ -292,15 +286,15 @@ const AdminManageServices = () => {
                 </div>
 
                 <div className="mb-4 flex flex-wrap items-center gap-3">
-                  <span className={`rounded-full px-3 py-1.5 text-[11px] font-black uppercase tracking-widest ${
+                  <span className={`admin-badge ${
                     selectedService.isActive
-                      ? 'bg-emerald-100 text-emerald-700'
-                      : 'bg-amber-100 text-amber-700'
+                      ? 'admin-badge-success'
+                      : 'admin-badge-warning'
                   }`}>
-                    {selectedService.isActive ? 'Dang public' : 'Dich vu cho duyet'}
+                    {selectedService.isActive ? 'Đang public' : 'Dịch vụ chờ duyệt'}
                   </span>
-                  <span className="rounded-full bg-slate-100 px-3 py-1.5 text-[11px] font-black uppercase tracking-widest text-slate-600">
-                    {selectedService.serviceType === 'Hotel' ? 'Khach san' : 'Tour du lich'}
+                  <span className="admin-badge admin-badge-neutral">
+                    {selectedService.serviceType === 'Hotel' ? 'Khách sạn' : 'Tour du lịch'}
                   </span>
                 </div>
 
@@ -310,24 +304,24 @@ const AdminManageServices = () => {
                 </p>
 
                 <div className="mt-6 grid gap-3 md:grid-cols-2">
-                  <div className="rounded-2xl bg-slate-50 p-4">
+                  <div className="admin-muted-card p-4">
                     <p className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-400">
                       <Store size={14} /> Doanh nghiep
                     </p>
                     <p className="font-bold text-slate-800">{selectedService.partnerName}</p>
                   </div>
-                  <div className="rounded-2xl bg-slate-50 p-4">
+                  <div className="admin-muted-card p-4">
                     <p className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-400">
-                      <UserRound size={14} /> Diem den
+                      <UserRound size={14} /> Điểm đến
                     </p>
-                    <p className="font-bold text-slate-800">{selectedService.spotName || 'Chua gan dia diem'}</p>
+                    <p className="font-bold text-slate-800">{selectedService.spotName || 'Chưa gắn địa điểm'}</p>
                   </div>
                 </div>
 
-                <div className="mt-6 rounded-[1.5rem] border border-slate-100 bg-slate-50 p-5">
+                <div className="admin-muted-card mt-6 p-5">
                   <p className="mb-3 text-xs font-black uppercase tracking-widest text-slate-400">Preview noi dung</p>
                   <p className="whitespace-pre-line text-sm leading-7 text-slate-600">
-                    {selectedService.description || 'Dich vu chua co mo ta chi tiet.'}
+                    {selectedService.description || 'Dịch vụ chua co mo ta chi tiet.'}
                   </p>
                 </div>
 
@@ -347,7 +341,7 @@ const AdminManageServices = () => {
                       value={rejectReason}
                       onChange={(event) => setRejectReason(event.target.value)}
                       placeholder="Nhap ly do tu choi neu can..."
-                      className="h-28 w-full rounded-2xl border border-amber-200 bg-white p-4 text-sm font-medium text-slate-700 outline-none transition focus:border-amber-400"
+                      className="admin-input h-28 text-sm"
                     />
 
                     <div className="flex flex-col gap-3 sm:flex-row">
@@ -355,7 +349,7 @@ const AdminManageServices = () => {
                         type="button"
                         onClick={() => void handleApprove(selectedService.serviceId)}
                         disabled={actionLoading === selectedService.serviceId}
-                        className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3.5 text-sm font-black text-white shadow-lg transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
+                        className="admin-button-success flex-1 px-5 py-3.5 disabled:cursor-not-allowed disabled:opacity-70"
                       >
                         {actionLoading === selectedService.serviceId ? (
                           <Loader2 size={16} className="animate-spin" />
@@ -368,7 +362,7 @@ const AdminManageServices = () => {
                         type="button"
                         onClick={() => void handleReject(selectedService.serviceId)}
                         disabled={actionLoading === selectedService.serviceId}
-                        className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-red-600 px-5 py-3.5 text-sm font-black text-white shadow-lg transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-70"
+                        className="admin-button-danger flex-1 px-5 py-3.5 disabled:cursor-not-allowed disabled:opacity-70"
                       >
                         {actionLoading === selectedService.serviceId ? (
                           <Loader2 size={16} className="animate-spin" />
@@ -385,7 +379,7 @@ const AdminManageServices = () => {
                   <div className="mt-6 flex items-center gap-3 rounded-[1.5rem] border border-emerald-200 bg-emerald-50 p-5 text-emerald-800">
                     <CheckCircle2 size={18} className="shrink-0" />
                     <p className="text-sm font-semibold">
-                      Dich vu nay da duoc duyet va dang hien thi tren khu vuc public.
+                      Dịch vụ nay da duoc duyet va dang hien thi tren khu vuc public.
                     </p>
                   </div>
                 )}
@@ -398,7 +392,7 @@ const AdminManageServices = () => {
             ) : (
               <div className="flex min-h-[30rem] items-center justify-center rounded-[1.5rem] border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
                 <div>
-                  <p className="text-lg font-black text-slate-500">Chua co dich vu de preview</p>
+                  <p className="text-lg font-black text-slate-500">Chưa có dịch vụ để preview</p>
                   <p className="mt-2 text-sm font-medium text-slate-400">
                     Danh sach ben trai se hien tai day khi co dich vu moi gui len.
                   </p>
@@ -413,3 +407,5 @@ const AdminManageServices = () => {
 };
 
 export default AdminManageServices;
+
+

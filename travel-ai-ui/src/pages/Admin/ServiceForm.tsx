@@ -245,7 +245,7 @@ const ServiceForm = () => {
   if (!canCreateServices) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16">
-        <div className="rounded-[2.5rem] border border-amber-200 bg-amber-50 p-10 text-left">
+        <div className="admin-card border-amber-200 bg-amber-50 p-10 text-left">
           <div className="mb-6 flex items-start justify-between gap-4">
             <div>
               <h2 className="mb-3 text-3xl font-black text-amber-900">Ho so partner chua duoc duyet</h2>
@@ -257,14 +257,14 @@ const ServiceForm = () => {
           <div className="flex gap-3">
             <button
               onClick={() => navigate('/partner/profile')}
-              className="rounded-2xl bg-amber-600 px-6 py-3 font-black text-white transition-all hover:bg-amber-700"
+              className="admin-button-warning"
             >
               Ve trang Business
             </button>
             <button
               onClick={handleRefreshProfile}
               disabled={refreshing}
-              className="flex items-center gap-2 rounded-2xl bg-slate-600 px-6 py-3 font-black text-white transition-all hover:bg-slate-700 disabled:opacity-50"
+              className="admin-button-secondary disabled:opacity-50"
             >
               <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
               {refreshing ? 'Dang kiem tra...' : 'Kiem tra lai'}
@@ -286,12 +286,13 @@ const ServiceForm = () => {
         </button>
       </div>
 
-      <div className="overflow-hidden rounded-[3rem] border border-slate-100 bg-white shadow-2xl">
-        <div className="bg-slate-900 p-10 text-left text-white">
-          <h2 className="mb-2 text-4xl font-black tracking-tighter">
+      <div className="admin-card overflow-hidden">
+        <div className="border-b border-slate-100 bg-white p-10 text-left">
+          <div className="admin-eyebrow mb-4">Service</div>
+          <h2 className="admin-section-title mb-2">
             {id ? 'Chinh sua dich vu' : 'Dang dich vu moi'}
           </h2>
-          <p className="font-medium italic text-slate-400">
+          <p className="font-medium text-slate-500">
             Dich vu bat buoc phai gan voi dia diem cu the de admin theo doi booking va doanh thu theo diem den.
           </p>
         </div>
@@ -302,7 +303,7 @@ const ServiceForm = () => {
               Ten khach san / Tour du lich
             </label>
             <input
-              className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 p-4 font-bold text-slate-700 outline-none focus:border-blue-500"
+              className="admin-input"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               required
@@ -316,7 +317,7 @@ const ServiceForm = () => {
               </label>
               <input
                 type="number"
-                className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 p-4 font-bold"
+                className="admin-input"
                 value={formData.basePrice}
                 onChange={(e) => setFormData({ ...formData, basePrice: e.target.value })}
                 required
@@ -327,7 +328,7 @@ const ServiceForm = () => {
                 Loai hinh
               </label>
               <select
-                className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 p-4 font-black text-blue-600"
+                className="admin-input font-black text-blue-600"
                 value={formData.serviceType}
                 onChange={(e) => setFormData({ ...formData, serviceType: e.target.value })}
               >
@@ -343,7 +344,7 @@ const ServiceForm = () => {
                 <MapPinned size={14} /> Diem den
               </label>
               <select
-                className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 p-4 font-bold text-slate-700 outline-none focus:border-blue-500"
+                className="admin-input"
                 value={selectedDestinationId}
                 onChange={(e) => {
                   setSelectedDestinationId(e.target.value);
@@ -364,7 +365,7 @@ const ServiceForm = () => {
                 Dia diem cu the
               </label>
               <select
-                className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 p-4 font-bold text-slate-700 outline-none focus:border-blue-500 disabled:text-slate-400"
+                className="admin-input disabled:text-slate-400"
                 value={formData.spotId}
                 onChange={(e) => {
                   const nextSpotId = e.target.value;
@@ -400,7 +401,7 @@ const ServiceForm = () => {
               Mo ta chi tiet
             </label>
             <textarea
-              className="h-40 w-full rounded-[2rem] border-2 border-slate-100 bg-slate-50 p-4 font-medium text-slate-600 outline-none"
+              className="admin-input h-40 font-medium text-slate-600"
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             />
@@ -410,13 +411,13 @@ const ServiceForm = () => {
             <label className="mb-3 flex items-center gap-2 text-xs font-black uppercase text-slate-400">
               Hinh anh
             </label>
-            <div className="rounded-[2.5rem] border-2 border-dashed border-slate-200 bg-slate-50/50 p-8">
+            <div className="admin-muted-card border-dashed p-8">
               <div className="mb-4 flex flex-wrap gap-4">
                 {previews.map((preview, index) => (
                   <img
                     key={index}
                     src={preview}
-                    className="h-24 w-32 rounded-2xl border-4 border-white object-cover shadow-md"
+                    className="h-24 w-32 rounded-2xl border-4 border-white object-cover shadow-sm"
                   />
                 ))}
                 <label className="flex h-24 w-32 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 hover:border-blue-500">
@@ -440,7 +441,7 @@ const ServiceForm = () => {
           <button
             type="submit"
             disabled={loading}
-            className="flex w-full items-center justify-center gap-3 rounded-[2rem] bg-blue-600 py-5 text-xl font-black text-white shadow-xl"
+            className="admin-button-primary w-full py-5 text-xl"
           >
             {loading ? <Loader2 className="animate-spin" /> : <Save />}
             {id ? 'CAP NHAT DICH VU' : 'LUU VA TIEP TUC'}

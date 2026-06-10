@@ -73,9 +73,9 @@ const SpotForm = () => {
                 <ArrowLeft size={20} /> Quay lại
             </button>
 
-            <div className="bg-white p-10 rounded-[40px] shadow-2xl border border-slate-100">
+            <div className="admin-card p-10">
                 <div className="flex items-center gap-3 mb-8">
-                    <div className="p-3 bg-blue-600 rounded-2xl text-white shadow-lg shadow-blue-200">
+                    <div className="rounded-2xl bg-blue-50 p-3 text-blue-600">
                         <MapPin size={24} />
                     </div>
                     <h1 className="text-3xl font-black text-slate-900 tracking-tighter">Thêm địa danh mới</h1>
@@ -86,7 +86,7 @@ const SpotForm = () => {
                     <div>
                         <label className="block text-sm font-black text-slate-700 mb-2 uppercase tracking-wider">Tên địa danh</label>
                         <input 
-                            className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-blue-500 focus:bg-white transition-all outline-none font-medium" 
+                            className="admin-input" 
                             placeholder="Ví dụ: Bà Nà Hills..."
                             value={name} 
                             onChange={e => setName(e.target.value)} 
@@ -100,7 +100,7 @@ const SpotForm = () => {
                             <label className="block text-sm font-black text-slate-700 mb-2 uppercase tracking-wider">Vĩ độ (Latitude)</label>
                             <input 
                                 type="number" step="any"
-                                className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-blue-500 outline-none" 
+                                className="admin-input" 
                                 placeholder="16.0219"
                                 value={latitude} onChange={e => setLatitude(e.target.value)} required 
                             />
@@ -110,7 +110,7 @@ const SpotForm = () => {
                             <label className="block text-sm font-black text-slate-700 mb-2 uppercase tracking-wider">Kinh độ (Longitude)</label>
                             <input 
                                 type="number" step="any"
-                                className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-blue-500 outline-none" 
+                                className="admin-input" 
                                 placeholder="108.0305"
                                 value={longitude} onChange={e => setLongitude(e.target.value)} required 
                             />
@@ -124,7 +124,7 @@ const SpotForm = () => {
                                 <Clock size={16}/> Giờ mở cửa
                             </label>
                             <input 
-                                className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-blue-500 outline-none" 
+                                className="admin-input" 
                                 placeholder="07:00 - 18:00"
                                 value={openingHours} onChange={e => setOpeningHours(e.target.value)} 
                             />
@@ -134,7 +134,7 @@ const SpotForm = () => {
                             <label className="block text-sm font-black text-slate-700 mb-2 uppercase tracking-wider">Thời gian tham quan dự kiến (giờ)</label>
                             <input 
                                 type="number"
-                                className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-blue-500 outline-none" 
+                                className="admin-input" 
                                 placeholder="Ví dụ: 4"
                                 value={avgTimeSpent} onChange={e => setAvgTimeSpent(e.target.value)} 
                             />
@@ -145,7 +145,7 @@ const SpotForm = () => {
                     <div>
                         <label className="block text-sm font-black text-slate-700 mb-2 uppercase tracking-wider">Mô tả chi tiết</label>
                         <textarea 
-                            className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl h-32 focus:border-blue-500 outline-none resize-none transition-all" 
+                            className="admin-input h-32 resize-none" 
                             placeholder="Nhập thông tin giới thiệu về địa danh..."
                             value={description} 
                             onChange={e => setDescription(e.target.value)} 
@@ -156,8 +156,8 @@ const SpotForm = () => {
                     {/* Upload ảnh */}
                     <div>
                         <label className="block text-sm font-black text-slate-700 mb-2 uppercase tracking-wider">Ảnh đại diện địa danh</label>
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 p-6 border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50">
-                            <label className="cursor-pointer bg-blue-600 text-white px-8 py-3 rounded-2xl font-black hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all flex items-center gap-2 shrink-0">
+                        <div className="admin-muted-card flex flex-col items-start gap-6 border-dashed p-6 sm:flex-row sm:items-center">
+                            <label className="admin-button-primary shrink-0 cursor-pointer">
                                 <Upload size={20} /> Choose File
                                 <input type="file" className="hidden" onChange={handleFileChange} accept="image/*" />
                             </label>
@@ -179,7 +179,7 @@ const SpotForm = () => {
                     <button 
                         type="submit" 
                         disabled={loading}
-                        className="w-full bg-slate-900 text-white py-5 rounded-[24px] font-black text-lg shadow-xl hover:bg-blue-600 transition-all flex items-center justify-center gap-3 active:scale-95 disabled:bg-slate-400"
+                        className="admin-button-primary w-full py-5 text-lg disabled:bg-slate-400"
                     >
                         {loading ? (
                             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>

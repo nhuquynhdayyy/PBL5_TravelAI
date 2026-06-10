@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import ScrollToTop from './components/ScrollToTop';
 import { useEffect } from 'react';
 import Chatbox from './components/chat/Chatbox';
@@ -34,6 +34,7 @@ import DestinationDetail from './pages/DestinationDetail';
 import Destinations from './pages/Destinations';
 import SpotList from './pages/Destinations/SpotList';
 import Home from './pages/Home';
+import KnowledgeSummary from './pages/KnowledgeSummary';
 import Notifications from './pages/Notifications';
 import UserPreferences from './pages/Preferences/UserPreferences';
 import Timeline from './pages/Planner/Timeline';
@@ -58,6 +59,8 @@ import Transportation from './pages/Transportation';
 
 function App() {
   const { syncCart } = useCart();
+  const location = useLocation();
+  const isAdminRoute = location.pathname.startsWith('/admin');
 
   // Sync cart từ database khi app khởi động (nếu đã đăng nhập)
   useEffect(() => {
@@ -78,6 +81,7 @@ function App() {
         <Route path="/spots" element={<MainLayout><SpotList /></MainLayout>} />
         <Route path="/spots/:id" element={<MainLayout><SpotDetail /></MainLayout>} />
         <Route path="/ai-suggestions" element={<MainLayout><AiSuggestionPage /></MainLayout>} />
+        <Route path="/knowledge-summary" element={<MainLayout><KnowledgeSummary /></MainLayout>} />
         <Route path="/services" element={<MainLayout><Services /></MainLayout>} />
         <Route path="/hotels" element={<MainLayout><HotelsPage /></MainLayout>} />
         <Route path="/tours" element={<MainLayout><ToursPage /></MainLayout>} />
@@ -303,7 +307,7 @@ function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <RealtimeNotifications />
-      <Chatbox />
+      {!isAdminRoute && <Chatbox />}
     </>
   );
 }
