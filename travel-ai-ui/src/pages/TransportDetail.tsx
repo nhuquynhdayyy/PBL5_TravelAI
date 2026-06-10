@@ -25,6 +25,7 @@ type ServiceDetailDto = {
   description: string;
   basePrice: number;
   ratingAvg: number;
+  reviewCount: number;
   spotName?: string;
   imageUrls: string[];
   attributes: Record<string, string> | Attribute[];
@@ -313,10 +314,14 @@ const TransportDetail = () => {
               <span className="flex items-center gap-1.5">
                 <MapPin size={20} className="text-red-500" /> {service.spotName || 'Da Nang'}
               </span>
-              <span className="flex items-center gap-1.5">
-                <Star size={20} className="fill-orange-400 text-orange-400" />
-                {service.ratingAvg.toFixed(1)} danh gia
-              </span>
+              {service.reviewCount > 0 ? (
+                <span className="flex items-center gap-1.5">
+                  <Star size={20} className="fill-orange-400 text-orange-400" />
+                  {service.ratingAvg.toFixed(1)} ({service.reviewCount} đánh giá)
+                </span>
+              ) : (
+                <span className="text-slate-400 font-medium">Chưa có đánh giá</span>
+              )}
             </div>
 
             <div className="mb-8 grid grid-cols-2 gap-4">

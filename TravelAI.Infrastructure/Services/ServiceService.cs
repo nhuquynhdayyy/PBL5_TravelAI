@@ -399,6 +399,9 @@ header[1] == 0xD8 &&
             ? service.Partner.PartnerProfile.BusinessName
             : service.Partner?.FullName ?? "N/A";
 
+        var reviewCount = service.Reviews?.Count ?? 0;
+        var ratingAvg = reviewCount > 0 ? Math.Round(service.Reviews!.Average(r => r.Rating), 1) : 0.0;
+
         return new ServiceDto
         {
             ServiceId = service.ServiceId,
@@ -408,8 +411,8 @@ header[1] == 0xD8 &&
             Description = service.Description ?? string.Empty,
             BasePrice = service.BasePrice,
             ServiceType = service.ServiceType.ToString(),
-            RatingAvg = service.RatingAvg,
-            ReviewCount = service.Reviews?.Count ?? 0,
+            RatingAvg = ratingAvg,
+            ReviewCount = reviewCount,
             IsActive = service.IsActive,
             SpotId = service.SpotId,
             SpotName = service.TouristSpot?.Name,
@@ -793,6 +796,9 @@ await _context.SaveChangesAsync();
             ? service.Partner.PartnerProfile.BusinessName
             : service.Partner?.FullName ?? "N/A";
 
+        var reviewCount = service.Reviews?.Count ?? 0;
+        var ratingAvg = reviewCount > 0 ? Math.Round(service.Reviews!.Average(r => r.Rating), 1) : 0.0;
+
         return new ServiceDto
         {
             ServiceId = service.ServiceId,
@@ -802,8 +808,8 @@ await _context.SaveChangesAsync();
             Description = service.Description ?? string.Empty,
             BasePrice = service.BasePrice,
             ServiceType = service.ServiceType.ToString(),
-            RatingAvg = service.RatingAvg,
-            ReviewCount = service.Reviews?.Count ?? 0,
+            RatingAvg = ratingAvg,
+            ReviewCount = reviewCount,
             IsActive = service.IsActive,
             SpotId = service.SpotId,
             SpotName = service.TouristSpot?.Name,

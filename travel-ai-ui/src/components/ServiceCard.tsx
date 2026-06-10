@@ -168,9 +168,15 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, isAdminOrPartner, on
                 <span className="ml-1 text-[10px] font-semibold text-slate-400">{priceLabel}</span>
               </p>
             </div>
-            <div className="flex items-center gap-1 text-xs font-black text-orange-500">
-              <Star size={12} fill="currentColor" /> {service.ratingAvg || 5.0}
-            </div>
+            {service.reviewCount > 0 ? (
+              <div className="flex items-center gap-1 text-xs font-black text-orange-500">
+                <Star size={12} fill="currentColor" /> {service.ratingAvg.toFixed(1)}
+              </div>
+            ) : (
+              <div className="text-[10px] font-bold text-slate-400">
+                Chưa có đánh giá
+              </div>
+            )}
           </div>
 
           <div className="mt-6 grid grid-cols-2 gap-3">

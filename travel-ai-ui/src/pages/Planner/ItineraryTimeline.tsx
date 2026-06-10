@@ -21,8 +21,6 @@ const ActivityCard = ({ activity, onBook, onActivityClick }: ActivityCardProps) 
   const meta = kindMeta[activity.kind] || kindMeta.sightseeing;
   const isBookable = Boolean(activity.serviceId);
 
-  // Fake rating for demo (in real app, get from API)
-  const rating = 4.5 + Math.random() * 0.4;
 
   return (
     <article 
@@ -43,11 +41,7 @@ const ActivityCard = ({ activity, onBook, onActivityClick }: ActivityCardProps) 
             />
             <div className="absolute inset-0 bg-gradient-to-t from-slate-950/50 to-transparent sm:hidden" />
             
-            {/* Rating Badge */}
-            <div className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-slate-900/80 px-2 py-1 text-xs font-black text-white backdrop-blur-sm">
-              <Star size={12} className="fill-yellow-400 text-yellow-400" />
-              {rating.toFixed(1)}
-            </div>
+
           </div>
 
           <div className="flex min-w-0 flex-col p-5">

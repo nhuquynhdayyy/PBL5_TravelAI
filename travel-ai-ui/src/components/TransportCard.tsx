@@ -69,10 +69,12 @@ const TransportCard: React.FC<TransportCardProps> = ({ service }) => {
             <Icon size={14} /> {transportType.label}
           </div>
         </div>
-        <div className="absolute right-4 top-4 flex items-center gap-1 rounded-full bg-white/90 px-3 py-1.5 backdrop-blur-sm">
-          <Star size={12} className="fill-orange-400 text-orange-400" />
-          <span className="text-xs font-black text-slate-800">{service.ratingAvg || 4.5}</span>
-        </div>
+        {service.reviewCount > 0 && (
+          <div className="absolute right-4 top-4 flex items-center gap-1 rounded-full bg-white/90 px-3 py-1.5 backdrop-blur-sm">
+            <Star size={12} className="fill-orange-400 text-orange-400" />
+            <span className="text-xs font-black text-slate-800">{service.ratingAvg.toFixed(1)}</span>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-grow flex-col p-6 text-left">

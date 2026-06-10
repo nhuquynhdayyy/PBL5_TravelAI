@@ -459,6 +459,28 @@ using (var scope = app.Services.CreateScope())
     {
         logger.LogError(ex, "❌ DbInitializer: Lỗi khi seed dữ liệu.");
     }
+
+    // Sync RatingAvg column with actual reviews avg
+    try
+    {
+        dbContext.Database.ExecuteSqlRaw(
+            """
+            UPDATE Services
+            SET RatingAvg = COALESCE(
+                (
+                    SELECT ROUND(AVG(CAST(Rating AS float)), 1)
+                    FROM Reviews
+                    WHERE Reviews.ServiceId = Services.ServiceId
+                ),
+                0.0
+            );
+            """);
+        logger.LogInformation("✅ Recalculated and synced RatingAvg columns for all services.");
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "❌ Failed to sync RatingAvg columns.");
+    }
 }
 
 // --- 5. Cấu hình Pipeline ---
