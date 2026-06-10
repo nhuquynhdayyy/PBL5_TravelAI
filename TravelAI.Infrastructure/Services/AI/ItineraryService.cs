@@ -228,6 +228,47 @@ public class ItineraryService : IItineraryService
         parsed.StartDate = tripStartDate;
         parsed.EndDate = tripStartDate.AddDays(parsed.Days.Count);
         parsed.CreatedAt = DateTime.UtcNow;
+
+        // Apply fallbacks for custom activities in generated itinerary
+        foreach (var day in parsed.Days)
+        {
+            foreach (var activity in day.Activities)
+            {
+                if (activity.ServiceId == null)
+                {
+                    if (string.IsNullOrWhiteSpace(activity.Description) || activity.Description == "No description available.")
+                    {
+                        var (fallbackCost, fallbackDesc) = GetFallbackCostAndDescription(activity.Title);
+                        activity.Description = fallbackDesc;
+                        if (activity.EstimatedCost == 0)
+                        {
+                            activity.EstimatedCost = fallbackCost;
+                        }
+                    }
+                    else if (activity.EstimatedCost == 0)
+                    {
+                        var (fallbackCost, _) = GetFallbackCostAndDescription(activity.Title);
+                        activity.EstimatedCost = fallbackCost;
+                    }
+                }
+                else
+                {
+                    var svc = await _db.Services.FindAsync(activity.ServiceId.Value);
+                    if (svc != null)
+                    {
+                        if (activity.EstimatedCost == 0)
+                        {
+                            activity.EstimatedCost = svc.BasePrice;
+                        }
+                        if (string.IsNullOrWhiteSpace(activity.Description) || activity.Description == "No description available.")
+                        {
+                            activity.Description = svc.Description ?? "No description available.";
+                        }
+                    }
+                }
+            }
+        }
+
         parsed.TotalEstimatedCost = parsed.Days.Sum(d => d.Activities.Sum(a => a.EstimatedCost));
 
         // Lưu metadata vào log để analytics query thẳng DB — chỉ khi user đã đăng nhập
@@ -392,6 +433,35 @@ public class ItineraryService : IItineraryService
                              ?? item.TouristSpot?.Destination?.Name)
                 .FirstOrDefault(name => !string.IsNullOrEmpty(name));
 
+            // Calculate total cost dynamically by mapping each item and summing their costs
+            var totalCost = i.Items.Sum(item => {
+                var service = item.Service;
+                var spot = ResolvePrimarySpot(item);
+                
+                decimal estimatedCost = service?.BasePrice ?? 0;
+                if (service == null && !string.IsNullOrEmpty(item.CustomTitle))
+                {
+                    var parts = item.CustomTitle.Split('|');
+                    if (parts.Length > 1 && decimal.TryParse(parts[1], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsedCost))
+                    {
+                        estimatedCost = parsedCost;
+                    }
+                }
+                
+                if (estimatedCost == 0)
+                {
+                    var title = service?.Name ?? spot?.Name ?? item.CustomTitle ?? "Hoạt động tự do";
+                    if (service == null && !string.IsNullOrEmpty(item.CustomTitle))
+                    {
+                        title = item.CustomTitle.Split('|')[0];
+                    }
+                    var (fallbackCost, _) = GetFallbackCostAndDescription(title);
+                    estimatedCost = fallbackCost;
+                }
+                
+                return estimatedCost;
+            });
+
             return new ItineraryResponseDto
             {
                 ItineraryId = i.ItineraryId,
@@ -399,8 +469,7 @@ public class ItineraryService : IItineraryService
                 Destination = firstDestination ?? i.Title,
                 StartDate = i.StartDate,
                 EndDate = i.EndDate,
-                // Recalculate total cost from actual items
-                TotalEstimatedCost = i.EstimatedCost,
+                TotalEstimatedCost = totalCost,
                 CreatedAt = i.CreatedAt
             };
         });
