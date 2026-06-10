@@ -1,4 +1,4 @@
-// src/components/layout/Header.tsx
+﻿// src/components/layout/Header.tsx
 
 import React, { useState, useEffect } from 'react';
 import { Menu, X, Plane, LogOut, LayoutDashboard, Store, User, ChevronDown, Hotel, Compass, ClipboardList, MessageSquare, BarChart3, Building2, ShoppingCart, Landmark, Sparkles } from 'lucide-react';
@@ -13,6 +13,7 @@ const Header: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [userState, setUserState] = useState(getUser());
   const navigate = useNavigate();
+  const location = useLocation();
   const { items } = useCart();
   const location = useLocation();
 
@@ -22,6 +23,15 @@ const Header: React.FC = () => {
     localStorage.clear();
     navigate('/login');
     window.location.reload();
+  };
+
+  const getAdminLinkClass = (path: string) => {
+    const isActive = location.pathname.startsWith(path);
+    return `flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-extrabold transition-all ${
+      isActive
+        ? 'bg-blue-50 text-blue-700'
+        : 'bg-white text-slate-600 hover:bg-slate-50 hover:text-blue-600'
+    }`;
   };
 
   useEffect(() => {
@@ -49,13 +59,13 @@ const Header: React.FC = () => {
         ? 'border-slate-200 bg-white shadow-md py-3 dark:border-slate-800 dark:bg-slate-950'
         : 'border-transparent bg-white/90 backdrop-blur-md py-4 dark:bg-slate-950/90'
     }`}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
+        <div className="flex items-center">
           
           {/* LOGO */}
           <Link
             to={role === 'partner' ? '/partner/services' : role === 'admin' ? '/admin/stats' : '/'}
-            className="flex items-center gap-2 cursor-pointer group"
+            className="group mr-10 flex shrink-0 cursor-pointer items-center gap-2 lg:mr-12"
           >
             <div className="bg-blue-500 p-1.5 rounded-lg group-hover:rotate-12 transition-transform">
                 <Plane className="text-white size-6" />
@@ -66,11 +76,11 @@ const Header: React.FC = () => {
           </Link>
 
           {/* DESKTOP MENU */}
-          <nav className="hidden md:flex space-x-6 items-center">
+          <nav className="hidden flex-1 items-center gap-6 md:flex lg:gap-7">
             {role !== 'partner' && role !== 'admin' && (
               <>
-                <Link to="/" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all dark:text-slate-300 dark:hover:text-blue-400">Trang chủ</Link>
-                <Link to="/destinations" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all dark:text-slate-300 dark:hover:text-blue-400">Điểm đến</Link>
+                <Link to="/" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all dark:text-slate-300 dark:hover:text-blue-400">Trang chá»§</Link>
+                <Link to="/destinations" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all dark:text-slate-300 dark:hover:text-blue-400">Äiá»ƒm Ä‘áº¿n</Link>
                 
                 {/* DROPDOWN SERVICES */}
                 <div 
@@ -117,7 +127,7 @@ const Header: React.FC = () => {
 
                 <Link to="/ai-suggestions" className="flex items-center gap-1.5 text-slate-600 hover:text-blue-500 font-medium text-sm transition-all group dark:text-slate-300">
                   <Sparkles size={16} className="text-blue-400 group-hover:text-blue-500 transition-colors" />
-                  <span>Gợi ý AI</span>
+                  <span>Gá»£i Ã½ AI</span>
                 </Link>
 
                 <Link to="/planner" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all dark:text-slate-300">Lịch trình</Link>
@@ -156,17 +166,27 @@ const Header: React.FC = () => {
             {/* ADMIN MENU */}
             {role === 'admin' && (
               <>
-                <Link to="/admin/stats" className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl font-black text-xs hover:bg-emerald-700 transition-all uppercase"><BarChart3 size={14} /> THỐNG KÊ</Link>
-                <Link to="/admin/partners" className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl font-black text-xs hover:bg-red-700 transition-all uppercase"><LayoutDashboard size={14} /> QUẢN LÝ PARTNER</Link>
-                <Link to="/admin/services" className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl font-black text-xs hover:bg-slate-700 transition-all uppercase"><Store size={14} /> QUẢN LÝ DỊCH VỤ</Link>
-                <Link to="/admin/vietqr-payments" className="flex items-center gap-2 px-4 py-2 bg-emerald-700 text-white rounded-xl font-black text-xs hover:bg-emerald-800 transition-all uppercase"><Landmark size={14} /> VIETQR</Link>
-                <Link to="/admin/users" className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all uppercase"><User size={14} /> QUẢN LÝ USER</Link>
+                <Link to="/admin/stats" className={getAdminLinkClass('/admin/stats')}>
+                  <BarChart3 size={14} /> Thống kê
+                </Link>
+                <Link to="/admin/partners" className={getAdminLinkClass('/admin/partners')}>
+                  <LayoutDashboard size={14} /> Quản lý Partner
+                </Link>
+                <Link to="/admin/services" className={getAdminLinkClass('/admin/services')}>
+                  <Store size={14} /> Quản lý dịch vụ
+                </Link>
+                <Link to="/admin/vietqr-payments" className={getAdminLinkClass('/admin/vietqr-payments')}>
+                  <Landmark size={14} /> VietQR
+                </Link>
+                <Link to="/admin/users" className={getAdminLinkClass('/admin/users')}>
+                  <User size={14} /> Quản lý User
+                </Link>
               </>
             )}
           </nav>
 
-          {/* USER ACTIONS (DESKTOP) */}
-          <div className="hidden md:flex items-center gap-3">
+          {/* USER ACTIONS */}
+          <div className="hidden shrink-0 items-center gap-3 md:flex">
             {userState ? (
                 <div className="flex items-center gap-4">
                     <NotificationBell />
@@ -185,8 +205,7 @@ const Header: React.FC = () => {
             )}
           </div>
 
-          {/* MOBILE TOGGLE */}
-          <div className="flex items-center gap-2 md:hidden">
+          <div className="ml-auto flex items-center gap-2 md:hidden">
             {userState && <NotificationBell />}
             <button onClick={() => setIsOpen(!isOpen)} className="text-slate-600 p-2 dark:text-slate-200">
               {isOpen ? <X size={24} /> : <Menu size={24} />}

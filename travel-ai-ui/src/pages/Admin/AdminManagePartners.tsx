@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import axiosClient from '../../api/axiosClient';
 import {
   AlertCircle,
@@ -10,9 +10,9 @@ import {
   Phone,
   RefreshCw,
   Search,
-  ShieldCheck,
   XCircle
 } from 'lucide-react';
+import AdminPageHeader from '../../components/admin/AdminPageHeader';
 
 type PartnerItem = {
   profileId: number;
@@ -66,7 +66,7 @@ const AdminManagePartners = () => {
       );
     } catch (error) {
       console.error(error);
-      alert('Khong the tai danh sach doi tac.');
+      alert('Không thể tải danh sách đối tác.');
     } finally {
       setLoading(false);
     }
@@ -115,12 +115,12 @@ if (!selectedPartner && filteredPartners.length > 0) {
     }
 
     if (selectedPartner.verificationStatus.toLowerCase() === 'approved') {
-      alert('Partner da duoc duyet. Vui long dung action rieng neu can thu hoi phe duyet.');
+      alert('Partner đã được duyệt. Vui lòng dùng action riêng nếu cần thu hồi phê duyệt.');
       return;
     }
 
     if (type !== 'approve' && !reviewNote.trim()) {
-      alert(type === 'reject' ? 'Vui long nhap ly do tu choi.' : 'Vui long nhap thong tin can bo sung.');
+      alert(type === 'reject' ? 'Vui lòng nhập lý do từ chối.' : 'Vui lòng nhập thông tin cần bổ sung.');
       return;
     }
 
@@ -144,7 +144,7 @@ if (!selectedPartner && filteredPartners.length > 0) {
         && 'message' in error.response.data
         && typeof error.response.data.message === 'string'
           ? error.response.data.message
-          : 'Khong the cap nhat ho so doi tac luc nay.';
+          : 'Không thể cập nhật hồ sơ đối tác lúc này.';
       alert(message);
     } finally {
       setActionLoading(null);
@@ -154,38 +154,28 @@ if (!selectedPartner && filteredPartners.length > 0) {
   const getStatusClassName = (status: string) => {
     switch (status.toLowerCase()) {
       case 'approved':
-        return 'bg-emerald-100 text-emerald-700';
+        return 'admin-badge-success';
       case 'rejected':
-        return 'bg-red-100 text-red-700';
+        return 'admin-badge-danger';
       case 'needmoreinfo':
-        return 'bg-amber-100 text-amber-700';
+        return 'admin-badge-warning';
       default:
-        return 'bg-blue-100 text-blue-700';
+        return 'admin-badge-info';
     }
   };
 
   const isSelectedPartnerApproved = selectedPartner?.verificationStatus.toLowerCase() === 'approved';
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mb-8 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-red-50 px-4 py-2 text-xs font-black uppercase tracking-[0.2em] text-red-700">
-            <ShieldCheck size={14} /> Admin Partner Approval
-          </div>
-          <h1 className="text-4xl font-black tracking-tight text-slate-900">DUYET DOI TAC CUNG CAP DICH VU</h1>
-          <p className="mt-3 max-w-3xl font-medium text-slate-500">
-            Xac minh doi tac truoc khi cho phep dang dich vu tren he thong, dong thoi xem toan bo danh sach partner.
-          </p>
-        </div>
-
-        <button
-onClick={() => void fetchPartners()}
-          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900 px-6 py-3 text-sm font-black text-white shadow-lg transition-all hover:bg-red-600 active:scale-95"
-        >
-          <RefreshCw size={18} /> Tai lai
-        </button>
-      </div>
+    <div className="admin-page">
+      <AdminPageHeader
+        eyebrow="Quản lý đối tác"
+        title="Duyệt đối tác cung cấp dịch vụ"
+        description="Xác minh thông tin đối tác trước khi cho phép đăng dịch vụ trên hệ thống."
+        actionLabel="Tải lại"
+        actionIcon={<RefreshCw size={18} />}
+        onAction={() => void fetchPartners()}
+      />
 
       <div className="mb-6 flex flex-col gap-4">
         {/* Search Bar */}
@@ -195,8 +185,8 @@ onClick={() => void fetchPartners()}
             type="text"
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="Tim theo ten, email, doanh nghiep, ma so thue..."
-            className="w-full rounded-full border-2 border-slate-100 bg-white py-3 pl-11 pr-5 font-semibold text-slate-700 outline-none transition focus:border-red-400"
+            placeholder="Tìm theo tên, email, doanh nghiệp, mã số thuế..."
+            className="admin-input py-3 pl-11 pr-5"
           />
         </div>
 
@@ -211,8 +201,8 @@ onClick={() => void fetchPartners()}
             }}
             className={`rounded-full px-4 py-2 text-sm font-bold transition ${
               activeTab === 'all' && statusFilter === 'all'
-                ? 'bg-slate-900 text-white shadow-md'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                ? 'admin-button-primary'
+                : 'admin-button-secondary'
             }`}
           >
             Tất cả ({allPartners.length})
@@ -225,8 +215,8 @@ onClick={() => void fetchPartners()}
             }}
             className={`rounded-full px-4 py-2 text-sm font-bold transition ${
               statusFilter === 'Pending'
-                ? 'bg-blue-600 text-white shadow-md'
-                : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                ? 'admin-button-primary'
+                : 'admin-button-secondary'
             }`}
           >
             Chờ duyệt ({pendingPartners.length})
@@ -239,8 +229,8 @@ onClick={() => void fetchPartners()}
             }}
             className={`rounded-full px-4 py-2 text-sm font-bold transition ${
               statusFilter === 'Approved'
-                ? 'bg-emerald-600 text-white shadow-md'
-                : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                ? 'admin-button-primary'
+                : 'admin-button-secondary'
             }`}
           >
             Đã duyệt
@@ -253,8 +243,8 @@ onClick={() => void fetchPartners()}
             }}
             className={`rounded-full px-4 py-2 text-sm font-bold transition ${
               statusFilter === 'Rejected'
-                ? 'bg-red-600 text-white shadow-md'
-: 'bg-red-100 text-red-700 hover:bg-red-200'
+                ? 'admin-button-primary'
+                : 'admin-button-secondary'
             }`}
           >
             Từ chối
@@ -267,8 +257,8 @@ onClick={() => void fetchPartners()}
             }}
             className={`rounded-full px-4 py-2 text-sm font-bold transition ${
               statusFilter === 'NeedMoreInfo'
-                ? 'bg-amber-600 text-white shadow-md'
-                : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                ? 'admin-button-primary'
+                : 'admin-button-secondary'
             }`}
           >
             Cần bổ sung
@@ -278,28 +268,28 @@ onClick={() => void fetchPartners()}
 
       {loading ? (
         <div className="flex justify-center py-24">
-          <Loader2 className="animate-spin text-red-600" size={40} />
+          <Loader2 className="animate-spin text-blue-600" size={40} />
         </div>
       ) : (
         <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-          <div className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white shadow-xl">
+          <div className="admin-card overflow-hidden">
             <div className="border-b border-slate-100 px-6 py-5 text-left">
               <h2 className="text-lg font-black text-slate-900">
                 {statusFilter === 'all' 
-                  ? 'Tất cả partners' 
+                  ? 'Tất cả đối tác' 
                   : statusFilter === 'Pending' 
-                  ? 'Partners chờ duyệt'
+                  ? 'Đối tác chờ duyệt'
                   : statusFilter === 'Approved'
-                  ? 'Partners đã duyệt'
+                  ? 'Đối tác đã duyệt'
                   : statusFilter === 'Rejected'
-                  ? 'Partners bị từ chối'
-                  : 'Partners cần bổ sung thông tin'}
+                  ? 'Đối tác bị từ chối'
+                  : 'Đối tác cần bổ sung thông tin'}
               </h2>
             </div>
             <div className="max-h-[70vh] overflow-y-auto custom-scrollbar p-4">
               {filteredPartners.length === 0 ? (
                 <div className="rounded-[1.5rem] border border-dashed border-slate-200 bg-slate-50 px-6 py-14 text-center">
-                  <p className="font-bold text-slate-400">Khong co partner nao phu hop bo loc hien tai.</p>
+                  <p className="font-bold text-slate-400">Không có partner nào phù hợp bộ lọc hiện tại.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -310,13 +300,13 @@ onClick={() => void fetchPartners()}
                       onClick={() => setSelectedPartner(partner)}
                       className={`w-full rounded-[1.5rem] border p-4 text-left transition ${
                         selectedPartner?.profileId === partner.profileId
-                          ? 'border-red-200 bg-red-50/70 shadow-sm'
+                          ? 'border-blue-200 bg-blue-50/70 shadow-sm'
                           : 'border-slate-100 bg-white hover:border-slate-200 hover:bg-slate-50'
                       }`}
                     >
                       <div className="mb-2 flex items-center justify-between gap-3">
                         <p className="font-black text-slate-900">{partner.businessName}</p>
-                        <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${getStatusClassName(partner.verificationStatus)}`}>
+                        <span className={`admin-badge ${getStatusClassName(partner.verificationStatus)}`}>
 {partner.verificationStatus}
                         </span>
                       </div>
@@ -329,11 +319,11 @@ onClick={() => void fetchPartners()}
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-xl">
+          <div className="admin-card p-6">
             {selectedPartner ? (
               <div className="text-left">
                 <div className="mb-5 flex flex-wrap items-center gap-3">
-                  <span className={`rounded-full px-3 py-1.5 text-[11px] font-black uppercase tracking-widest ${getStatusClassName(selectedPartner.verificationStatus)}`}>
+                  <span className={`admin-badge ${getStatusClassName(selectedPartner.verificationStatus)}`}>
                     {selectedPartner.verificationStatus}
                   </span>
                   <span className="text-sm font-bold text-slate-400">Profile #{selectedPartner.profileId}</span>
@@ -343,70 +333,70 @@ onClick={() => void fetchPartners()}
                 <p className="mt-1 font-semibold text-slate-600">{selectedPartner.fullName}</p>
 
                 <div className="mt-6 grid gap-3 md:grid-cols-2">
-                  <div className="rounded-2xl bg-slate-50 p-4">
+                  <div className="admin-muted-card p-4">
                     <p className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-400">
                       <Mail size={14} /> Email
                     </p>
                     <p className="font-bold text-slate-800">{selectedPartner.email}</p>
                   </div>
-                  <div className="rounded-2xl bg-slate-50 p-4">
+                  <div className="admin-muted-card p-4">
                     <p className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-400">
-                      <Phone size={14} /> Lien he
+                      <Phone size={14} /> Liên hệ
                     </p>
-                    <p className="font-bold text-slate-800">{selectedPartner.contactPhone || 'Chua cap nhat'}</p>
+                    <p className="font-bold text-slate-800">{selectedPartner.contactPhone || 'Chưa cập nhật'}</p>
                   </div>
-                  <div className="rounded-2xl bg-slate-50 p-4">
+                  <div className="admin-muted-card p-4">
                     <p className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-400">
-                      <Building2 size={14} /> Ma so thue
+                      <Building2 size={14} /> Mã số thuế
                     </p>
-                    <p className="font-bold text-slate-800">{selectedPartner.taxCode || 'Chua cap nhat'}</p>
+                    <p className="font-bold text-slate-800">{selectedPartner.taxCode || 'Chưa cập nhật'}</p>
                   </div>
-                  <div className="rounded-2xl bg-slate-50 p-4">
+                  <div className="admin-muted-card p-4">
                     <p className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-400">
-                      <BadgeCheck size={14} /> Tai khoan thanh toan
+                      <BadgeCheck size={14} /> Tài khoản thanh toán
                     </p>
-                    <p className="font-bold text-slate-800">{selectedPartner.bankAccount || 'Chua cap nhat'}</p>
+                    <p className="font-bold text-slate-800">{selectedPartner.bankAccount || 'Chưa cập nhật'}</p>
                   </div>
                 </div>
-<div className="mt-5 rounded-[1.5rem] border border-slate-100 bg-slate-50 p-5">
-                  <p className="mb-3 text-xs font-black uppercase tracking-widest text-slate-400">Dia chi</p>
-                  <p className="text-sm leading-7 text-slate-600">{selectedPartner.address || 'Chua cap nhat dia chi doanh nghiep.'}</p>
-                </div>
-
-                <div className="mt-5 rounded-[1.5rem] border border-slate-100 bg-slate-50 p-5">
-                  <p className="mb-3 text-xs font-black uppercase tracking-widest text-slate-400">Mo ta doanh nghiep</p>
-                  <p className="text-sm leading-7 text-slate-600">{selectedPartner.description || 'Chua co mo ta doanh nghiep.'}</p>
+<div className="admin-muted-card mt-5 p-5">
+                  <p className="mb-3 text-xs font-black uppercase tracking-widest text-slate-400">Địa chỉ</p>
+                  <p className="text-sm leading-7 text-slate-600">{selectedPartner.address || 'Chưa cập nhật địa chỉ doanh nghiệp.'}</p>
                 </div>
 
-                <div className="mt-5 rounded-[1.5rem] border border-slate-100 bg-slate-50 p-5">
-                  <p className="mb-3 text-xs font-black uppercase tracking-widest text-slate-400">Giay phep kinh doanh</p>
+                <div className="admin-muted-card mt-5 p-5">
+                  <p className="mb-3 text-xs font-black uppercase tracking-widest text-slate-400">Mô tả doanh nghiệp</p>
+                  <p className="text-sm leading-7 text-slate-600">{selectedPartner.description || 'Chưa có mô tả doanh nghiệp.'}</p>
+                </div>
+
+                <div className="admin-muted-card mt-5 p-5">
+                  <p className="mb-3 text-xs font-black uppercase tracking-widest text-slate-400">Giấy phép kinh doanh</p>
                   {selectedPartner.businessLicenseUrl ? (
                     <a
                       href={`${API_BASE_URL}${selectedPartner.businessLicenseUrl}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-black text-blue-600 shadow-sm hover:text-blue-700"
+                      className="admin-button-secondary"
                     >
-                      <ExternalLink size={16} /> Mo tai lieu
+                      <ExternalLink size={16} /> Mở tài liệu
                     </a>
                   ) : (
-                    <p className="text-sm font-semibold text-slate-500">Chua co tai lieu dinh kem.</p>
+                    <p className="text-sm font-semibold text-slate-500">Chưa có tài liệu đính kèm.</p>
                   )}
                 </div>
 
-                <div className="mt-5 rounded-[1.5rem] border border-slate-100 bg-slate-50 p-5">
-                  <p className="mb-3 text-xs font-black uppercase tracking-widest text-slate-400">Ghi chu review</p>
-                  <p className="text-sm leading-7 text-slate-600">{selectedPartner.reviewNote || 'Chua co ghi chu review.'}</p>
+                <div className="admin-muted-card mt-5 p-5">
+                  <p className="mb-3 text-xs font-black uppercase tracking-widest text-slate-400">Ghi chú review</p>
+                  <p className="text-sm leading-7 text-slate-600">{selectedPartner.reviewNote || 'Chưa có ghi chú review.'}</p>
                 </div>
 
                 {!isSelectedPartnerApproved && (
                   <div className="mt-6 rounded-[1.5rem] border border-amber-200 bg-amber-50 p-5">
-                    <p className="mb-3 text-xs font-black uppercase tracking-widest text-amber-700">Nhan xet kiem duyet</p>
+                    <p className="mb-3 text-xs font-black uppercase tracking-widest text-amber-700">Nhận xét kiểm duyệt</p>
                     <textarea
                       value={reviewNote}
                       onChange={(event) => setReviewNote(event.target.value)}
-                      placeholder="Nhap ghi chu cho partner..."
-                      className="h-28 w-full rounded-2xl border border-amber-200 bg-white p-4 text-sm font-medium text-slate-700 outline-none transition focus:border-amber-400"
+                      placeholder="Nhập ghi chú cho partner..."
+                      className="admin-input h-28 text-sm"
                     />
 
                     <div className="mt-4 flex flex-col gap-3 sm:flex-row">
@@ -414,28 +404,28 @@ onClick={() => void fetchPartners()}
                         type="button"
                         onClick={() => void handleAction('approve')}
                         disabled={actionLoading === selectedPartner.profileId}
-className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3.5 text-sm font-black text-white shadow-lg transition hover:bg-emerald-700 disabled:opacity-70"
+className="admin-button-success flex-1 px-5 py-3.5 disabled:opacity-70"
                       >
                         {actionLoading === selectedPartner.profileId ? <Loader2 size={16} className="animate-spin" /> : <BadgeCheck size={16} />}
-                        Approve
+                        Duyệt
                       </button>
                       <button
                         type="button"
                         onClick={() => void handleAction('need-more-info')}
                         disabled={actionLoading === selectedPartner.profileId}
-                        className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-amber-500 px-5 py-3.5 text-sm font-black text-white shadow-lg transition hover:bg-amber-600 disabled:opacity-70"
+                        className="admin-button-warning flex-1 px-5 py-3.5 disabled:opacity-70"
                       >
                         {actionLoading === selectedPartner.profileId ? <Loader2 size={16} className="animate-spin" /> : <AlertCircle size={16} />}
-                        Need more info
+                        Cần bổ sung
                       </button>
                       <button
                         type="button"
                         onClick={() => void handleAction('reject')}
                         disabled={actionLoading === selectedPartner.profileId}
-                        className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-red-600 px-5 py-3.5 text-sm font-black text-white shadow-lg transition hover:bg-red-700 disabled:opacity-70"
+                        className="admin-button-danger flex-1 px-5 py-3.5 disabled:opacity-70"
                       >
                         {actionLoading === selectedPartner.profileId ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
-                        Reject
+                        Từ chối
                       </button>
                     </div>
                   </div>
@@ -444,8 +434,8 @@ className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-
             ) : (
               <div className="flex min-h-[30rem] items-center justify-center rounded-[1.5rem] border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
                 <div>
-                  <p className="text-lg font-black text-slate-500">Khong co partner de hien thi</p>
-                  <p className="mt-2 text-sm font-medium text-slate-400">Danh sach se hien o day khi co partner trong he thong.</p>
+                  <p className="text-lg font-black text-slate-500">Không có partner để hiển thị</p>
+                  <p className="mt-2 text-sm font-medium text-slate-400">Danh sách sẽ hiển thị ở đây khi có partner trong hệ thống.</p>
                 </div>
               </div>
             )}
@@ -457,3 +447,5 @@ className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-
 };
 
 export default AdminManagePartners;
+
+

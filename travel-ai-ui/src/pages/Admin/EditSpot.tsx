@@ -91,28 +91,28 @@ const EditSpot = () => {
                 <ArrowLeft size={20} /> Quay lại
             </button>
 
-            <div className="bg-white p-8 rounded-2xl shadow">
+            <div className="admin-card p-8">
                 <div className="flex items-center gap-2 mb-6">
                     <MapPin />
                     <h2 className="text-2xl font-bold">Edit Spot</h2>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    <input value={name} onChange={e => setName(e.target.value)} placeholder="Name" className="w-full p-3 border rounded" required />
+                    <input value={name} onChange={e => setName(e.target.value)} placeholder="Name" className="admin-input" required />
 
                     <div className="grid grid-cols-2 gap-4">
-                        <input type="number" value={latitude} onChange={e => setLatitude(e.target.value)} placeholder="Latitude" className="p-3 border rounded" />
-                        <input type="number" value={longitude} onChange={e => setLongitude(e.target.value)} placeholder="Longitude" className="p-3 border rounded" />
+                        <input type="number" value={latitude} onChange={e => setLatitude(e.target.value)} placeholder="Latitude" className="admin-input" />
+                        <input type="number" value={longitude} onChange={e => setLongitude(e.target.value)} placeholder="Longitude" className="admin-input" />
                     </div>
 
-                    <input type="number" value={avgTimeSpent} onChange={e => setAvgTimeSpent(e.target.value)} placeholder="Avg Time" className="w-full p-3 border rounded" />
+                    <input type="number" value={avgTimeSpent} onChange={e => setAvgTimeSpent(e.target.value)} placeholder="Avg Time" className="admin-input" />
 
-                    <input value={openingHours} onChange={e => setOpeningHours(e.target.value)} placeholder="Opening Hours" className="w-full p-3 border rounded" />
+                    <input value={openingHours} onChange={e => setOpeningHours(e.target.value)} placeholder="Opening Hours" className="admin-input" />
 
-                    <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Description" className="w-full p-3 border rounded" />
+                    <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Description" className="admin-input" />
 
                     <div>
-                        <label className="cursor-pointer bg-blue-500 text-white px-4 py-2 rounded flex items-center gap-2 w-fit">
+                        <label className="admin-button-secondary w-fit cursor-pointer">
                             <Upload size={16} /> Upload
                             <input type="file" hidden onChange={handleFileChange} />
                         </label>
@@ -122,7 +122,7 @@ const EditSpot = () => {
                         )}
                     </div>
 
-                    <button disabled={loading} className="w-full bg-black text-white py-3 rounded flex justify-center items-center gap-2">
+                    <button disabled={loading} className="admin-button-primary w-full py-3">
                         <Save size={18} /> {loading ? 'Saving...' : 'Update'}
                     </button>
                 </form>

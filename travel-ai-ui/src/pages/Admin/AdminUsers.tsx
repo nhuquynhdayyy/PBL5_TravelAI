@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import axiosClient from '../../api/axiosClient';
 import {
   ChevronLeft,
@@ -20,6 +20,7 @@ import {
   Database,
 } from 'lucide-react';
 import { formatVietnameseDate, formatVietnameseDateTime } from '../../utils/dateTimeUtils';
+import AdminPageHeader from '../../components/admin/AdminPageHeader';
 
 type UserItem = {
   userId: number;
@@ -61,17 +62,17 @@ type RoleTab = 'customer' | 'partner';
 const TABS: { key: RoleTab; label: string; icon: React.ReactNode; color: string; activeColor: string }[] = [
   {
     key: 'customer',
-    label: 'Khach hang',
+    label: 'Khách hàng',
     icon: <Users size={14} />,
-    color: 'bg-white text-slate-500 shadow-sm ring-1 ring-slate-200 hover:text-slate-900',
-    activeColor: 'bg-slate-900 text-white shadow-lg',
+    color: 'admin-button-secondary',
+    activeColor: 'admin-button-primary',
   },
   {
     key: 'partner',
-    label: 'Doi tac',
+    label: 'Đối tác',
     icon: <Store size={14} />,
-    color: 'bg-white text-slate-500 shadow-sm ring-1 ring-slate-200 hover:text-slate-900',
-    activeColor: 'bg-slate-900 text-white shadow-lg',
+    color: 'admin-button-secondary',
+    activeColor: 'admin-button-primary',
   },
 ];
 
@@ -100,7 +101,7 @@ const AdminUsers = () => {
       setData(response.data);
     } catch (error) {
       console.error(error);
-      alert('Khong the tai danh sach nguoi dung.');
+      alert('Không thể tải danh sách người dùng.');
     } finally {
       setLoading(false);
     }
@@ -144,7 +145,7 @@ const AdminUsers = () => {
       await fetchUsers(page, searchQuery, activeTab);
     } catch (error: any) {
       console.error(error);
-      alert(error.response?.data?.message ?? 'Khong the cap nhat trang thai nguoi dung.');
+      alert(error.response?.data?.message ?? 'Không thể cập nhật trạng thái người dùng.');
     } finally {
       setActionLoading(null);
     }
@@ -166,7 +167,7 @@ const AdminUsers = () => {
       setActivityLogData(response.data);
     } catch (error) {
       console.error(error);
-      alert('Khong the tai lich su hoat dong.');
+      alert('Không thể tải lịch sử hoạt động.');
     } finally {
       setActivityLogLoading(false);
     }
@@ -193,13 +194,13 @@ const AdminUsers = () => {
   const getActionColor = (action: string) => {
     switch (action.toUpperCase()) {
       case 'CREATE':
-        return 'bg-green-100 text-green-700';
+        return 'admin-badge admin-badge-success';
       case 'UPDATE':
-        return 'bg-blue-100 text-blue-700';
+        return 'admin-badge admin-badge-info';
       case 'DELETE':
-        return 'bg-red-100 text-red-700';
+        return 'admin-badge admin-badge-danger';
       default:
-        return 'bg-gray-100 text-gray-700';
+        return 'admin-badge admin-badge-neutral';
     }
   };
 
@@ -213,28 +214,15 @@ const AdminUsers = () => {
   }, [activityLogPage, activityLogData]);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      {/* Header */}
-      <div className="mb-8 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-indigo-50 px-4 py-2 text-xs font-black uppercase tracking-[0.2em] text-indigo-700">
-            <Users size={14} /> Quan ly nguoi dung
-          </div>
-          <h1 className="text-4xl font-black tracking-tight text-slate-900">
-            QUAN LY NGUOI DUNG
-          </h1>
-          <p className="mt-3 max-w-3xl font-medium text-slate-500">
-            Xem danh sach, tim kiem va khoa/mo khoa tai khoan nguoi dung tren he thong.
-          </p>
-        </div>
-
-        <button
-          onClick={() => void fetchUsers(page, searchQuery, activeTab)}
-          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900 px-6 py-3 text-sm font-black text-white shadow-lg transition-all hover:bg-indigo-600 active:scale-95"
-        >
-          <RefreshCw size={18} /> Tai lai
-        </button>
-      </div>
+    <div className="admin-page">
+      <AdminPageHeader
+        eyebrow="Người dùng"
+        title="Quản lý tài khoản người dùng"
+        description="Theo dõi, tìm kiếm và quản lý thông tin tài khoản người dùng."
+        actionLabel="Tải lại"
+        actionIcon={<RefreshCw size={18} />}
+        onAction={() => void fetchUsers(page, searchQuery, activeTab)}
+      />
 
       {/* Tabs + Search */}
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -244,7 +232,7 @@ const AdminUsers = () => {
               key={tab.key}
               type="button"
               onClick={() => handleTabChange(tab.key)}
-              className={`inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-black transition ${
+              className={`${
                 activeTab === tab.key ? tab.activeColor : tab.color
               }`}
             >
@@ -267,14 +255,14 @@ const AdminUsers = () => {
             type="text"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Tim theo ten hoac email..."
-            className="w-full rounded-full border-2 border-slate-100 bg-white py-3 pl-11 pr-28 font-semibold text-slate-700 outline-none transition focus:border-indigo-400"
+            placeholder="Tìm theo tên hoặc email..."
+            className="admin-input py-3 pl-11 pr-28"
           />
           <button
             type="submit"
-            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-indigo-600 px-5 py-2 text-sm font-black text-white transition hover:bg-indigo-700"
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-xl bg-blue-600 px-5 py-2 text-sm font-black text-white transition hover:bg-blue-700"
           >
-            Tim kiem
+            Tìm kiếm
           </button>
         </form>
       </div>
@@ -282,28 +270,28 @@ const AdminUsers = () => {
       {/* Table */}
       {loading ? (
         <div className="flex justify-center py-24">
-          <Loader2 className="animate-spin text-indigo-600" size={40} />
+          <Loader2 className="animate-spin text-blue-600" size={40} />
         </div>
       ) : (
-        <div className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white shadow-xl">
+        <div className="admin-card overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left">
+            <table className="admin-table">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/80">
                   <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-slate-400">
-                    {activeTab === 'customer' ? 'Khach hang' : 'Doi tac'}
+                    {activeTab === 'customer' ? 'Khách hàng' : 'Đối tác'}
                   </th>
                   <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-slate-400">
-                    Lien he
+                    Liên hệ
                   </th>
                   <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-slate-400">
-                    Ngay tao
+                    Ngày tạo
                   </th>
                   <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-slate-400">
-                    Trang thai
+                    Trạng thái
                   </th>
                   <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-slate-400 text-right">
-                    Hanh dong
+                    Hành động
                   </th>
                 </tr>
               </thead>
@@ -314,10 +302,10 @@ const AdminUsers = () => {
                       <div className="mx-auto max-w-sm">
                         <User size={48} className="mx-auto mb-4 text-slate-300" />
                         <p className="text-lg font-black text-slate-400">
-                          Khong tim thay {activeTab === 'customer' ? 'khach hang' : 'doi tac'} nao
+                          Không tìm thấy {activeTab === 'customer' ? 'khách hàng' : 'đối tác'} nào
                         </p>
                         <p className="mt-2 text-sm font-medium text-slate-400">
-                          Thu thay doi tu khoa tim kiem.
+                          Thử thay đổi từ khóa tìm kiếm.
                         </p>
                       </div>
                     </td>
@@ -331,7 +319,7 @@ const AdminUsers = () => {
                       {/* User info */}
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 text-sm font-black text-white shadow-sm">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-black text-white shadow-sm">
                             {user.avatarUrl ? (
                               <img
                                 src={user.avatarUrl}
@@ -373,19 +361,19 @@ const AdminUsers = () => {
                       {/* Status */}
                       <td className="px-6 py-4">
                         <span
-                          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-widest ${
+                          className={`admin-badge ${
                             user.isActive
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : 'bg-red-100 text-red-700'
+                              ? 'admin-badge-success'
+                              : 'admin-badge-danger'
                           }`}
                         >
                           {user.isActive ? (
                             <>
-                              <ShieldCheck size={12} /> Active
+                              <ShieldCheck size={12} /> Đang hoạt động
                             </>
                           ) : (
                             <>
-                              <ShieldOff size={12} /> Banned
+                              <ShieldOff size={12} /> Đã khóa
                             </>
                           )}
                         </span>
@@ -397,19 +385,19 @@ const AdminUsers = () => {
                           <button
                             type="button"
                             onClick={() => handleViewActivityLog(user)}
-                            className="inline-flex items-center gap-2 rounded-2xl bg-slate-600 px-4 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-slate-700 active:scale-95"
+                            className="admin-button-secondary px-4 py-2.5 text-xs"
                           >
                             <History size={14} />
-                            Lich su
+                            Lịch sử
                           </button>
                           <button
                             type="button"
                             onClick={() => void handleToggleActive(user)}
                             disabled={actionLoading === user.userId}
-                            className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-black shadow-sm transition active:scale-95 disabled:opacity-60 ${
+                            className={`px-4 py-2.5 text-xs disabled:opacity-60 ${
                               user.isActive
-                                ? 'bg-red-600 text-white hover:bg-red-700'
-                                : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                                ? 'admin-button-danger'
+                                : 'admin-button-success'
                             }`}
                           >
                             {actionLoading === user.userId ? (
@@ -419,7 +407,7 @@ const AdminUsers = () => {
                             ) : (
                               <ShieldCheck size={14} />
                             )}
-                            {user.isActive ? 'Khoa' : 'Mo khoa'}
+                            {user.isActive ? 'Khóa' : 'Mở khóa'}
                           </button>
                         </div>
                       </td>
@@ -458,7 +446,7 @@ const AdminUsers = () => {
                     }}
                     className={`min-w-[2.25rem] rounded-xl px-3 py-2 text-sm font-bold transition ${
                       p === page
-                        ? 'bg-indigo-600 text-white shadow-sm'
+                        ? 'bg-blue-600 text-white shadow-sm'
                         : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
                     }`}
                   >
@@ -489,15 +477,15 @@ const AdminUsers = () => {
           onClick={() => setShowActivityLog(false)}
         >
           <div 
-            className="relative w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-3xl bg-white shadow-2xl my-8"
+            className="admin-card relative my-8 max-h-[90vh] w-full max-w-4xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
             <div className="sticky top-0 z-10 border-b border-slate-100 bg-white px-8 py-6">
               <div className="flex items-start justify-between">
                 <div>
-                  <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-indigo-50 px-3 py-1 text-xs font-black uppercase tracking-wider text-indigo-700">
-                    <History size={12} /> Lich su hoat dong
+                  <div className="admin-eyebrow mb-2 px-3 py-1 text-xs">
+                    <History size={12} /> Lịch sử hoạt động
                   </div>
                   <h2 className="text-2xl font-black text-slate-900">
                     {selectedUser?.fullName}
@@ -519,16 +507,16 @@ const AdminUsers = () => {
             <div className="overflow-y-auto custom-scrollbar p-8" style={{ maxHeight: 'calc(90vh - 180px)' }}>
               {activityLogLoading ? (
                 <div className="flex justify-center py-20">
-                  <Loader2 className="animate-spin text-indigo-600" size={40} />
+                  <Loader2 className="animate-spin text-blue-600" size={40} />
                 </div>
               ) : activityLogData && activityLogData.items.length > 0 ? (
                 <div className="space-y-3">
                   {activityLogData.items.map((log) => (
                     <div
                       key={log.logId}
-                      className="flex items-start gap-4 rounded-2xl border border-slate-100 bg-slate-50/50 p-5 transition hover:border-slate-200 hover:bg-white"
+                      className="admin-muted-card flex items-start gap-4 p-5 transition hover:border-slate-200 hover:bg-white"
                     >
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 text-white shadow-sm">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-sm">
                         <Database size={18} />
                       </div>
                       <div className="flex-1">
@@ -536,7 +524,7 @@ const AdminUsers = () => {
                           <div>
                             <div className="flex items-center gap-2">
                               <span
-                                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${getActionColor(
+                                className={`${getActionColor(
                                   log.action
                                 )}`}
                               >
@@ -563,10 +551,10 @@ const AdminUsers = () => {
                 <div className="py-20 text-center">
                   <History size={48} className="mx-auto mb-4 text-slate-300" />
                   <p className="text-lg font-black text-slate-400">
-                    Chua co lich su hoat dong
+                    Chưa có lịch sử hoạt động
                   </p>
                   <p className="mt-2 text-sm font-medium text-slate-400">
-                    Nguoi dung nay chua co hoat dong nao duoc ghi nhan.
+                    Người dùng này chưa có hoạt động nào được ghi nhận.
                   </p>
                 </div>
               )}
@@ -577,8 +565,8 @@ const AdminUsers = () => {
               <div className="sticky bottom-0 border-t border-slate-100 bg-white px-8 py-4">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-semibold text-slate-500">
-                    Trang {activityLogPage} / {activityLogData.totalPages} • Tong:{' '}
-                    {activityLogData.totalCount} hoat dong
+                    Trang {activityLogPage} / {activityLogData.totalPages} • Tổng:{' '}
+                    {activityLogData.totalCount} hoạt động
                   </p>
                   <div className="flex items-center gap-1">
                     <button
@@ -603,7 +591,7 @@ const AdminUsers = () => {
                         }}
                         className={`min-w-[2.25rem] rounded-xl px-3 py-2 text-sm font-bold transition ${
                           p === activityLogPage
-                            ? 'bg-indigo-600 text-white shadow-sm'
+                            ? 'bg-blue-600 text-white shadow-sm'
                             : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
                         }`}
                       >
@@ -634,3 +622,5 @@ const AdminUsers = () => {
 };
 
 export default AdminUsers;
+
+

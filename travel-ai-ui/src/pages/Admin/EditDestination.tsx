@@ -93,7 +93,7 @@ const EditDestination: React.FC = () => {
     );
 
     return (
-        <div className="max-w-3xl mx-auto bg-white p-8 rounded-3xl shadow-2xl mt-10 mb-20 border border-slate-50 animate-in fade-in duration-500">
+        <div className="admin-card mx-auto mb-20 mt-10 max-w-3xl p-8 animate-in fade-in duration-500">
             {/* Header Form */}
             <div className="flex items-center justify-between mb-8">
                 <div>
@@ -114,7 +114,7 @@ const EditDestination: React.FC = () => {
                         Tên tỉnh/thành phố
                     </label>
                     <input 
-                        className="w-full p-4 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium text-slate-700 bg-slate-50 focus:bg-white" 
+                        className="admin-input" 
                         value={name} 
                         onChange={e => setName(e.target.value)} 
                         placeholder="Nhập tên địa danh..."
@@ -128,7 +128,7 @@ const EditDestination: React.FC = () => {
                         Mô tả chi tiết
                     </label>
                     <textarea 
-                        className="w-full p-4 border border-slate-200 rounded-2xl h-40 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium text-slate-700 bg-slate-50 focus:bg-white resize-none" 
+                        className="admin-input h-40 resize-none" 
                         value={description} 
                         onChange={e => setDescription(e.target.value)} 
                         placeholder="Nhập thông tin giới thiệu..."
@@ -154,7 +154,7 @@ const EditDestination: React.FC = () => {
                     <label className="block text-sm font-bold mb-3 text-slate-700 uppercase tracking-wider ml-1">
                         Ảnh đại diện
                     </label>
-                    <div className="flex flex-col sm:flex-row items-center gap-6 p-6 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
+                    <div className="admin-muted-card flex flex-col items-center gap-6 border-dashed p-6 sm:flex-row">
                         {/* Ảnh Preview */}
                         <div className="shrink-0">
                             {preview ? (
@@ -172,7 +172,7 @@ const EditDestination: React.FC = () => {
 
                         {/* Nút chọn tệp tùy chỉnh */}
                         <div className="flex-1 text-center sm:text-left">
-                            <label className="cursor-pointer inline-flex items-center gap-2 px-6 py-3 bg-white text-blue-600 border border-blue-100 rounded-xl font-bold hover:bg-blue-600 hover:text-white transition-all shadow-md active:scale-95 group">
+                            <label className="admin-button-secondary cursor-pointer group">
                                 <Upload size={20} className="group-hover:animate-bounce" />
                                 {image ? "Thay đổi ảnh khác" : "Chọn ảnh mới từ máy"}
                                 <input 
@@ -193,7 +193,7 @@ const EditDestination: React.FC = () => {
                 <button 
                     type="submit" 
                     disabled={loading}
-                    className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black text-lg shadow-xl shadow-blue-200 hover:bg-blue-700 transition-all flex items-center justify-center gap-2 disabled:bg-slate-300 disabled:shadow-none active:scale-[0.98]"
+                    className="admin-button-primary w-full py-4 text-lg disabled:bg-slate-300 disabled:shadow-none"
                 >
                     {loading ? (
                         <>
