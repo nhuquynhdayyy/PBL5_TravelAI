@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
@@ -138,11 +139,38 @@ using (var scope = app.Services.CreateScope())
     var logger    = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
     // Chạy migration tự động
-    dbContext.Database.Migrate();
+    try
+    {
+        dbContext.Database.Migrate();
+    }
+    catch (SqlException ex) when (ex.Number == 1801)
+    {
+        logger.LogWarning(ex, "Database already exists while applying migrations. Retrying migration against the existing database.");
+        dbContext.Database.CloseConnection();
+        dbContext.Database.Migrate();
+    }
 
     // Patch schema thủ công
     dbContext.Database.ExecuteSqlRaw(
         """
+        IF COL_LENGTH('ItineraryItems', 'CustomTitle') IS NULL
+        BEGIN
+            ALTER TABLE [ItineraryItems]
+            ADD [CustomTitle] nvarchar(200) NULL;
+        END
+
+        IF COL_LENGTH('ItineraryItems', 'Latitude') IS NULL
+        BEGIN
+            ALTER TABLE [ItineraryItems]
+            ADD [Latitude] float NULL;
+        END
+
+        IF COL_LENGTH('ItineraryItems', 'Longitude') IS NULL
+        BEGIN
+            ALTER TABLE [ItineraryItems]
+            ADD [Longitude] float NULL;
+        END
+
         IF COL_LENGTH('Reviews', 'ReplyText') IS NULL
         BEGIN
             ALTER TABLE [Reviews]

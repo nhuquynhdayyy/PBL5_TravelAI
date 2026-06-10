@@ -1,10 +1,88 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Mail, Phone, ShieldCheck, LogOut, Edit3, Loader2, Settings2, Save, X, Camera, QrCode } from 'lucide-react';
+import { User, Mail, Phone, ShieldCheck, LogOut, Edit3, Loader2, Settings2, Save, X, Camera, QrCode, Ticket, Ban, Package } from 'lucide-react';
 import axiosClient from '../../api/axiosClient';
 import MainLayout from '../../layouts/MainLayout';
 import { DollarSign, ChevronRight, Calendar, MapPin } from 'lucide-react';
 import { formatVietnameseDate } from '../../utils/dateTimeUtils';
+
+type BookingStatus = number | string;
+
+type ProfileBookingQr = {
+  bookingCode: string;
+  bookingId: number;
+  serviceName: string;
+};
+
+type ProfileTicket = {
+  ticketId: number;
+  ticketCode: string;
+  serviceName: string;
+  travelDate: string;
+  status: string;
+};
+
+type ProfileBooking = {
+  bookingId: number;
+  serviceName: string;
+  checkInDate: string;
+  totalAmount: number;
+  status: BookingStatus;
+  paymentMethod: string | null;
+  bookingQr?: ProfileBookingQr | null;
+  tickets?: ProfileTicket[];
+};
+
+const bookingStatusMap: Record<string, number> = {
+  pending: 1,
+  paid: 2,
+  refunded: 3,
+  cancelled: 4,
+};
+
+function resolveBookingStatus(status: BookingStatus) {
+  if (typeof status === 'number') {
+    return status;
+  }
+
+  return bookingStatusMap[status.toLowerCase()] ?? 0;
+}
+
+function getBookingStatusLabel(status: BookingStatus) {
+  const key = resolveBookingStatus(status);
+
+  if (key === 1) return 'Cho thanh toan';
+  if (key === 2) return 'Da dat';
+  if (key === 3) return 'Da hoan tien';
+  if (key === 4) return 'Da huy';
+
+  return String(status);
+}
+
+function getStoredUser() {
+  try {
+    const raw = localStorage.getItem('user');
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeUserProfile(apiData: any) {
+  const data = apiData?.data ?? apiData ?? {};
+  const storedUser = getStoredUser() ?? {};
+
+  return {
+    ...storedUser,
+    ...data,
+    fullName: data.fullName ?? data.FullName ?? storedUser.fullName ?? storedUser.FullName ?? '',
+    email: data.email ?? data.Email ?? storedUser.email ?? storedUser.Email ?? '',
+    phone: data.phone ?? data.Phone ?? storedUser.phone ?? storedUser.Phone ?? '',
+    roleName: data.roleName ?? data.RoleName ?? storedUser.roleName ?? storedUser.RoleName ?? 'Customer',
+    avatarUrl: data.avatarUrl ?? data.AvatarUrl ?? storedUser.avatarUrl ?? storedUser.AvatarUrl ?? '',
+    createdAt: data.createdAt ?? data.CreatedAt ?? storedUser.createdAt ?? storedUser.CreatedAt ?? null,
+  };
+}
 
 const Profile: React.FC = () => {
   const [profile, setProfile] = useState<any>(null);
@@ -22,6 +100,8 @@ const Profile: React.FC = () => {
   const navigate = useNavigate();
   const API_BASE_URL = 'http://localhost:5134'; // ĐỔI PORT CHO ĐÚNG BACKEND CỦA BẠN (5134 hoặc 7243)
   const [myTrips, setMyTrips] = useState<any[]>([]);
+  const [myBookings, setMyBookings] = useState<ProfileBooking[]>([]);
+  const isCustomer = (profile?.roleName ?? 'Customer').toLowerCase() === 'customer';
 
   useEffect(() => {
     fetchData();
@@ -31,13 +111,14 @@ const Profile: React.FC = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [profileRes, prefRes, tripsRes] = await Promise.all([
+      const [profileRes, prefRes, tripsRes, bookingsRes] = await Promise.all([
         axiosClient.get('/users/me'),
         axiosClient.get('/preferences').catch(() => ({ data: { data: null } })),
-        axiosClient.get('/itinerary/my-trips')
+        axiosClient.get('/itinerary/my-trips').catch(() => ({ data: { data: [] } })),
+        axiosClient.get('/bookings/my-bookings').catch(() => ({ data: [] }))
       ]);
      
-      const userData = profileRes.data;
+      const userData = normalizeUserProfile(profileRes.data);
       setProfile(userData);
       setEditData({ fullName: userData.fullName, phone: userData.phone || '' });
      
@@ -46,10 +127,14 @@ const Profile: React.FC = () => {
         setPreviewUrl(`${API_BASE_URL}${userData.avatarUrl}`);
       }
      
-      setUserPref(prefRes.data.data);
-      setMyTrips(tripsRes.data.data);
+      setUserPref(prefRes.data?.data ?? prefRes.data ?? null);
+      setMyTrips(tripsRes.data?.data ?? tripsRes.data ?? []);
+      setMyBookings(bookingsRes.data?.data ?? bookingsRes.data ?? []);
     } catch (err) {
       console.error("Lỗi lấy dữ liệu:", err);
+      const fallbackUser = normalizeUserProfile(null);
+      setProfile(fallbackUser);
+      setEditData({ fullName: fallbackUser.fullName, phone: fallbackUser.phone || '' });
     } finally {
       setLoading(false);
     }
@@ -135,6 +220,15 @@ const Profile: React.FC = () => {
       alert('Khong the tai lai lich trinh luc nay.');
     }
   };
+
+  const activeBookings = myBookings.filter((booking) => resolveBookingStatus(booking.status) === 2);
+  const cancelledBookings = myBookings.filter((booking) => resolveBookingStatus(booking.status) === 4);
+  const electronicTicketCount = myBookings.reduce((total, booking) => total + (booking.tickets?.length ?? 0), 0);
+  const bookingQrCount = myBookings.filter((booking) =>
+    resolveBookingStatus(booking.status) === 1
+    && String(booking.paymentMethod ?? '').trim().toLowerCase() === 'counter'
+    && booking.bookingQr
+  ).length;
 
 
   if (loading) return (
@@ -305,6 +399,78 @@ const Profile: React.FC = () => {
                 </div>
             )}
 
+            {isCustomer && (
+                <div className="mt-10 rounded-[2rem] border border-slate-100 bg-slate-50/70 p-5">
+                    <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-500">Dich vu cua toi</p>
+                            <h2 className="mt-1 text-2xl font-black tracking-tighter text-slate-900">Booking, ve va QR</h2>
+                        </div>
+                        <button
+                            onClick={() => navigate('/my-bookings?filter=paid')}
+                            className="rounded-full bg-slate-900 px-5 py-2 text-sm font-black text-white shadow-lg transition-all hover:bg-black"
+                        >
+                            Xem tat ca
+                        </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                        <button
+                            onClick={() => navigate('/my-bookings?filter=cancelled')}
+                            className="rounded-2xl bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+                        >
+                            <div className="mb-3 flex size-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                                <Package size={20} />
+                            </div>
+                            <p className="text-2xl font-black text-slate-900">{activeBookings.length}</p>
+                            <p className="mt-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Da dat</p>
+                        </button>
+                        <button
+                            onClick={() => navigate('/my-bookings')}
+                            className="rounded-2xl bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+                        >
+                            <div className="mb-3 flex size-10 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
+                                <Ban size={20} />
+                            </div>
+                            <p className="text-2xl font-black text-slate-900">{cancelledBookings.length}</p>
+                            <p className="mt-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Da huy</p>
+                        </button>
+                        <button
+                            onClick={() => navigate('/my-bookings?filter=tickets')}
+                            className="rounded-2xl bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+                        >
+                            <div className="mb-3 flex size-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                                <Ticket size={20} />
+                            </div>
+                            <p className="text-2xl font-black text-slate-900">{electronicTicketCount}</p>
+                            <p className="mt-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Ve dien tu</p>
+                        </button>
+                        <button
+                            onClick={() => navigate('/my-bookings?filter=bookingQr')}
+                            className="rounded-2xl bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+                        >
+                            <div className="mb-3 flex size-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+                                <QrCode size={20} />
+                            </div>
+                            <p className="text-2xl font-black text-slate-900">{bookingQrCount}</p>
+                            <p className="mt-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Booking QR</p>
+                        </button>
+                    </div>
+
+                    {myBookings.length === 0 && (
+                        <div className="mt-5 rounded-2xl border-2 border-dashed border-slate-200 bg-white p-6 text-center">
+                            <p className="text-sm font-bold text-slate-400">Ban chua co dich vu nao.</p>
+                            <button
+                                onClick={() => navigate('/services')}
+                                className="mt-3 text-sm font-black text-blue-600 hover:underline"
+                            >
+                                Kham pha dich vu
+                            </button>
+                        </div>
+                    )}
+                </div>
+            )}
+
             <div className="mt-10 mb-20">
                 <div className="mb-6 flex flex-wrap items-center gap-3">
                     <button
@@ -312,7 +478,7 @@ const Profile: React.FC = () => {
                     >
                         Lich trinh da luu
                     </button>
-                    {profile?.roleName?.toLowerCase() === 'customer' && (
+                    {/* {isCustomer && (
                         <button
                             onClick={() => navigate('/my-bookings')}
                             className="rounded-full border border-slate-200 px-5 py-2 text-sm font-black text-slate-500 transition-all hover:border-slate-300 hover:text-slate-700"
@@ -320,15 +486,15 @@ const Profile: React.FC = () => {
                             Dich vu da dat
                         </button>
                     )}
-                    {profile?.roleName?.toLowerCase() === 'customer' && (
+                    {isCustomer && (
                         <button
-                            onClick={() => navigate('/my-bookings?tickets=1')}
+                            onClick={() => navigate('/my-bookings?filter=tickets')}
                             className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-5 py-2 text-sm font-black text-blue-600 transition-all hover:border-blue-300 hover:bg-blue-100"
                         >
                             <QrCode size={16} />
                             Ve dien tu cua toi
                         </button>
-                    )}
+                    )} */}
                 </div>
                 <div className="flex items-center justify-between mb-6">
                     <h2 className="text-2xl font-black text-slate-900 tracking-tighter flex items-center gap-2">

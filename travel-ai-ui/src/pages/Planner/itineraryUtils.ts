@@ -9,8 +9,16 @@ export const formatCurrency = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value || 0) + 'đ';
 
-export const getImageUrl = (url?: string) => {
-  if (!url) return 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1200';
+export const getImageUrl = (url?: string, title?: string, location?: string) => {
+  if (!url) {
+    const query = [title, location, 'Vietnam travel']
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+
+    return `https://source.unsplash.com/1200x800/?${encodeURIComponent(query || 'Vietnam travel destination')}`;
+  }
+
   return url.startsWith('http') ? url : `${API_HOST}${url}`;
 };
 

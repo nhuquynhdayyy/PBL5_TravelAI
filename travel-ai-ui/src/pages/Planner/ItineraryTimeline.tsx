@@ -37,7 +37,7 @@ const ActivityCard = ({ activity, onBook, onActivityClick }: ActivityCardProps) 
         <div className="grid gap-0 sm:grid-cols-[180px_1fr]">
           <div className="relative h-52 overflow-hidden sm:h-full">
             <img
-              src={getImageUrl(activity.imageUrl)}
+              src={getImageUrl(activity.imageUrl, activity.title, activity.location)}
               alt={activity.title}
               className="h-full w-full object-cover transition duration-700 group-hover:scale-110"
             />
