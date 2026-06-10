@@ -328,10 +328,6 @@ const TrendingDestinationsSection = () => {
                   className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent" />
-                <div className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-white/95 px-3 py-1.5 text-xs font-black text-slate-900 shadow-lg backdrop-blur-sm">
-                  <span className="text-yellow-500">★</span>
-                  {dest.rating}
-                </div>
                 <div className="absolute bottom-0 left-0 right-0 p-4">
                   <h3 className="text-2xl font-black text-white drop-shadow-lg">{dest.name}</h3>
                 </div>
