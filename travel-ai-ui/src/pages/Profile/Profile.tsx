@@ -1,16 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Mail, Phone, ShieldCheck, LogOut, Edit3, Loader2, Settings2, Save, X, Camera, QrCode } from 'lucide-react';
+import { 
+  User, Mail, Phone, ShieldCheck, LogOut, Settings2, Save, X, Camera, QrCode, 
+  DollarSign, ChevronRight, Calendar, MapPin, Loader2, Sparkles, Wallet, Zap, Lock, CreditCard
+} from 'lucide-react';
 import axiosClient from '../../api/axiosClient';
-import MainLayout from '../../layouts/MainLayout';
-import { DollarSign, ChevronRight, Calendar, MapPin } from 'lucide-react';
-import { formatVietnameseDate } from '../../utils/dateTimeUtils';
+import { formatVietnameseDate, formatVietnameseCurrency } from '../../utils/dateTimeUtils';
 
 const Profile: React.FC = () => {
   const [profile, setProfile] = useState<any>(null);
   const [userPref, setUserPref] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [isEditing, setIsEditing] = useState(false); // Trạng thái chỉnh sửa
   const [saving, setSaving] = useState(false);
  
   // State cho Form sửa
@@ -18,15 +18,16 @@ const Profile: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState('');
 
-
   const navigate = useNavigate();
   const API_BASE_URL = 'http://localhost:5134'; // ĐỔI PORT CHO ĐÚNG BACKEND CỦA BẠN (5134 hoặc 7243)
   const [myTrips, setMyTrips] = useState<any[]>([]);
 
+  // Tab state
+  const [activeTab, setActiveTab] = useState<'itineraries' | 'bookings' | 'preferences' | 'settings'>('itineraries');
+
   useEffect(() => {
     fetchData();
   }, []);
-
 
   const fetchData = async () => {
     try {
@@ -44,17 +45,18 @@ const Profile: React.FC = () => {
       // Nếu có avatar trong DB thì hiển thị full URL
       if (userData.avatarUrl) {
         setPreviewUrl(`${API_BASE_URL}${userData.avatarUrl}`);
+      } else {
+        setPreviewUrl('');
       }
      
       setUserPref(prefRes.data.data);
-      setMyTrips(tripsRes.data.data);
+      setMyTrips(tripsRes.data.data || []);
     } catch (err) {
       console.error("Lỗi lấy dữ liệu:", err);
     } finally {
       setLoading(false);
     }
   };
-
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -64,8 +66,11 @@ const Profile: React.FC = () => {
     }
   };
 
-
   const handleUpdate = async () => {
+    if (!editData.fullName.trim()) {
+      alert("Họ và tên không được để trống.");
+      return;
+    }
     setSaving(true);
     const formData = new FormData();
     formData.append('fullName', editData.fullName);
@@ -78,7 +83,6 @@ const Profile: React.FC = () => {
       });
  
       if (response.data.success) {
-        // --- BẮT ĐẦU FIX BUG TẠI ĐÂY ---
         // 1. Lấy dữ liệu user hiện tại từ localStorage
         const userStr = localStorage.getItem('user');
         if (userStr) {
@@ -95,18 +99,14 @@ const Profile: React.FC = () => {
           // 3. Lưu ngược lại vào localStorage để Header nhận diện được sự thay đổi
           localStorage.setItem('user', JSON.stringify(userData));
         }
-        // --- KẾT THÚC FIX BUG ---
  
         alert("Cập nhật thành công!");
-        setIsEditing(false);
-       
+        
         // Load lại dữ liệu để cập nhật UI tại trang Profile
         await fetchData();
  
-        // (Tùy chọn) Nếu Header không dùng Context/Redux, cách nhanh nhất để Header
-        // cập nhật lại tên là phát một sự kiện storage hoặc reload nhẹ
-        window.dispatchEvent(new Event("storage"));
-        // Hoặc: window.location.reload(); (nếu muốn chắc chắn 100% đồng bộ mọi nơi)
+        // Phát sự kiện userUpdated để Header đồng bộ ngay lập tức mà không cần reload
+        window.dispatchEvent(new Event("userUpdated"));
       }
     } catch (err) {
       console.error(err);
@@ -116,9 +116,22 @@ const Profile: React.FC = () => {
     }
   };
 
+  const handleCancel = () => {
+    if (profile) {
+      setEditData({ fullName: profile.fullName, phone: profile.phone || '' });
+      setPreviewUrl(profile.avatarUrl ? `${API_BASE_URL}${profile.avatarUrl}` : '');
+      setSelectedFile(null);
+    }
+  };
+
+  const handleTabChange = (tab: typeof activeTab) => {
+    setActiveTab(tab);
+    if (tab !== 'settings') {
+      handleCancel();
+    }
+  };
 
   const handleLogout = () => {
-    // Chỉ xóa token và user info, không xóa toàn bộ localStorage
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('travelai_cart'); // Xóa cart trong memory
@@ -132,261 +145,436 @@ const Profile: React.FC = () => {
       navigate('/itinerary/latest', { state: { data: detail.data.data } });
     } catch (err) {
       console.error('Loi lay chi tiet lich trinh:', err);
-      alert('Khong the tai lai lich trinh luc nay.');
+      alert('Không thể tải lại lịch trình lúc này.');
     }
   };
 
-
   if (loading) return (
-    <MainLayout>
-      <div className="flex h-[60vh] items-center justify-center">
-        <Loader2 className="animate-spin text-blue-500 size-10" />
-      </div>
-    </MainLayout>
+    <div className="flex h-[60vh] items-center justify-center">
+      <Loader2 className="animate-spin text-blue-500 size-10" />
+    </div>
   );
 
-
   return (
-      <div className="max-w-2xl mx-auto mt-10">
-        <div className="bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 mb-10">
-          {/* Cover Image */}
-          <div className="h-32 bg-gradient-to-r from-blue-600 to-indigo-700"></div>
+    <div className="bg-slate-50/40 min-h-screen py-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        {/* Cover Banner */}
+        <div className="relative h-44 sm:h-52 w-full rounded-3xl overflow-hidden shadow-lg bg-gradient-to-r from-blue-600 via-indigo-650 to-violet-750 mb-8">
+          <div className="absolute inset-0 bg-black/10"></div>
+          {/* Decorative shapes */}
+          <div className="absolute -top-12 -right-12 size-48 rounded-full bg-white/10 blur-2xl"></div>
+          <div className="absolute -bottom-16 -left-16 size-64 rounded-full bg-white/10 blur-3xl"></div>
+          <div className="absolute bottom-6 left-8 text-white z-10">
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Hồ Sơ Cá Nhân</h1>
+            <p className="text-blue-100 text-xs sm:text-sm mt-1 font-medium">Quản lý thông tin tài khoản, sở thích cá nhân và lịch trình của bạn.</p>
+          </div>
+        </div>
 
-
-          <div className="px-8 pb-8 relative">
-            {/* Avatar Section */}
-            <div className="absolute -top-12 left-8">
-              <div className="size-28 rounded-3xl bg-white p-1.5 shadow-xl relative group">
-                <div className="size-full rounded-2xl bg-slate-100 overflow-hidden flex items-center justify-center text-slate-400">
-                  {previewUrl ? (
-                    <img src={previewUrl} className="size-full object-cover" alt="avatar" />
-                  ) : (
-                    <User size={50} />
+        {/* Dashboard Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          
+          {/* Left Panel - Profile Sidebar Card */}
+          <div className="lg:col-span-4 space-y-6">
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 relative">
+              {/* Profile Overview */}
+              <div className="flex flex-col items-center text-center pb-6 border-b border-slate-100">
+                {/* Avatar with edit overlay */}
+                <div className="relative group size-28 mb-4">
+                  <div className="size-full rounded-full bg-slate-55 overflow-hidden ring-4 ring-indigo-50 flex items-center justify-center text-slate-350 shadow-md">
+                    {previewUrl ? (
+                      <img src={previewUrl} className="size-full object-cover transition-transform group-hover:scale-105 duration-300" alt="Avatar" />
+                    ) : (
+                      <User size={50} className="text-slate-300" />
+                    )}
+                  </div>
+                  {/* Camera overlay - visible in settings tab */}
+                  {activeTab === 'settings' && (
+                    <label className="absolute inset-0 flex items-center justify-center bg-black/40 text-white rounded-full cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                      <Camera size={22} />
+                      <input type="file" className="hidden" onChange={handleFileChange} accept="image/*" />
+                    </label>
                   )}
                 </div>
-               
-                {/* Overlay nút Camera khi ở chế độ Edit */}
-                {isEditing && (
-                  <label className="absolute inset-1.5 flex items-center justify-center bg-black/40 rounded-2xl cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Camera className="text-white size-8" />
-                    <input type="file" className="hidden" onChange={handleFileChange} accept="image/*" />
-                  </label>
-                )}
-              </div>
-            </div>
 
+                <h2 className="text-lg font-bold text-slate-900 leading-snug">{profile?.fullName || "Người dùng"}</h2>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">{profile?.email}</p>
 
-            {/* User Info Header */}
-            <div className="pt-20 sm:pl-32 flex flex-col sm:flex-row justify-between items-start gap-4">
-              <div className="flex-grow w-full">
-                {isEditing ? (
-                  <input
-                    className="text-3xl font-black text-slate-900 border-b-2 border-blue-500 outline-none w-full bg-blue-50/30 px-2"
-                    value={editData.fullName}
-                    onChange={e => setEditData({...editData, fullName: e.target.value})}
-                    placeholder="Nhập họ tên..."
-                  />
-                ) : (
-                  <h1 className="text-3xl font-black text-slate-900 leading-tight">
-                    {profile?.fullName || "Người dùng"}
-                  </h1>
-                )}
-                <div className="flex items-center gap-2 mt-2">
-                    <span className="px-3 py-1 bg-blue-600 text-white text-[10px] font-black rounded-lg flex items-center gap-1 uppercase tracking-widest">
-                        <ShieldCheck size={12} /> {profile?.roleName || "Customer"}
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
-                        Thành viên từ: {profile?.createdAt ? formatVietnameseDate(profile.createdAt) : '...'}
-                    </span>
+                {/* Role & Date joined badges */}
+                <div className="flex flex-wrap items-center justify-center gap-2 mt-3.5">
+                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] font-bold rounded-full uppercase tracking-wider">
+                    <ShieldCheck size={12} />
+                    {profile?.roleName || "Customer"}
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-slate-50 border border-slate-100 text-slate-500 text-[10px] font-bold rounded-full">
+                    Gia nhập: {profile?.createdAt ? formatVietnameseDate(profile.createdAt) : '...'}
+                  </span>
                 </div>
               </div>
-             
-              <div className="flex gap-2">
-                {isEditing ? (
-                  <>
+
+              {/* Navigation Menu */}
+              <div className="py-6 space-y-1">
+                <button
+                  onClick={() => handleTabChange('itineraries')}
+                  className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-xs font-bold transition-all duration-205 ${
+                    activeTab === 'itineraries'
+                      ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  <MapPin size={16} />
+                  <span>Lịch trình đã lưu</span>
+                  <span className={`ml-auto text-[10px] px-2 py-0.5 rounded-full font-black ${
+                    activeTab === 'itineraries' ? 'bg-indigo-500 text-white' : 'bg-slate-100 text-slate-500'
+                  }`}>
+                    {myTrips.length}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => handleTabChange('bookings')}
+                  className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-xs font-bold transition-all duration-205 ${
+                    activeTab === 'bookings'
+                      ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  <CreditCard size={16} />
+                  <span>Dịch vụ & Vé của tôi</span>
+                </button>
+
+                <button
+                  onClick={() => handleTabChange('preferences')}
+                  className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-xs font-bold transition-all duration-205 ${
+                    activeTab === 'preferences'
+                      ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  <Sparkles size={16} />
+                  <span>Sở thích du lịch AI</span>
+                </button>
+
+                <button
+                  onClick={() => handleTabChange('settings')}
+                  className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-xs font-bold transition-all duration-205 ${
+                    activeTab === 'settings'
+                      ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  <Settings2 size={16} />
+                  <span>Cài đặt tài khoản</span>
+                </button>
+              </div>
+
+              {/* Logout Button */}
+              <div className="pt-4 border-t border-slate-100">
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center justify-center gap-2 py-3.5 px-4 bg-red-50 hover:bg-red-100 active:bg-red-200 text-red-600 rounded-2xl font-bold transition-all duration-150 text-xs tracking-wider uppercase"
+                >
+                  <LogOut size={15} />
+                  <span>Đăng xuất tài khoản</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Panel - Detailed Content Card */}
+          <div className="lg:col-span-8">
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 sm:p-8 min-h-[480px] flex flex-col">
+              
+              {/* Tab 1: Saved Itineraries */}
+              {activeTab === 'itineraries' && (
+                <div className="flex-grow flex flex-col">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-5 mb-6">
+                    <div>
+                      <h2 className="text-lg font-bold text-slate-900">Lịch Trình Đã Lưu</h2>
+                      <p className="text-xs text-slate-400 mt-1 font-medium">Danh sách các hành trình du lịch bạn đã tạo và lưu lại.</p>
+                    </div>
+                    <span className="px-3 py-1 bg-indigo-50 text-indigo-700 font-bold text-xs rounded-full">
+                      {myTrips.length} chuyến đi
+                    </span>
+                  </div>
+
+                  {myTrips.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {myTrips.map((trip, index) => (
+                        <div
+                          key={trip.itineraryId ?? index}
+                          onClick={() => handleOpenTrip(trip.itineraryId)}
+                          className="bg-white p-5 rounded-2xl border border-slate-150 shadow-sm hover:shadow-md hover:border-indigo-100 transition-all cursor-pointer group flex flex-col justify-between min-h-[140px]"
+                        >
+                          <div>
+                            <div className="flex items-start justify-between">
+                              <span className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
+                                <MapPin size={18} />
+                              </span>
+                              <ChevronRight className="text-slate-400 group-hover:text-indigo-600 transition-all transform group-hover:translate-x-1 size-5" />
+                            </div>
+                            <h3 className="font-bold text-slate-800 group-hover:text-indigo-600 transition-colors mt-3 text-sm line-clamp-2 leading-snug">
+                              {trip.tripTitle}
+                            </h3>
+                          </div>
+
+                          <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-50">
+                            <span className="text-[10px] text-slate-400 font-semibold flex items-center gap-1.5">
+                              <Calendar size={12} />
+                              Vừa tạo
+                            </span>
+                            <span className="text-xs font-bold text-indigo-700 bg-indigo-50/70 px-2.5 py-1 rounded-lg">
+                              {formatVietnameseCurrency(trip.totalEstimatedCost)}₫
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex-grow flex flex-col items-center justify-center text-center p-8 bg-slate-50/30 rounded-2xl border-2 border-dashed border-slate-200">
+                      <div className="p-4 bg-white rounded-full shadow-sm text-slate-350 mb-4">
+                        <MapPin size={32} />
+                      </div>
+                      <p className="text-slate-500 font-medium max-w-sm text-sm">Bạn chưa lưu lịch trình du lịch nào. Hãy bắt đầu lên lịch ngay!</p>
+                      <button
+                        onClick={() => navigate('/destinations')}
+                        className="mt-5 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-100 hover:shadow-lg transition-all"
+                      >
+                        Khám phá ngay →
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Tab 2: Bookings & Tickets */}
+              {activeTab === 'bookings' && (
+                <div className="flex-grow flex flex-col">
+                  <div className="border-b border-slate-100 pb-5 mb-6">
+                    <h2 className="text-lg font-bold text-slate-900">Dịch Vụ & Vé Của Tôi</h2>
+                    <p className="text-xs text-slate-400 mt-1 font-medium">Truy cập lịch sử đặt dịch vụ và lấy mã QR vé điện tử nhanh.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Booked Services Card */}
+                    <div className="bg-slate-50/50 hover:bg-slate-50/80 rounded-2xl border border-slate-100 p-6 flex flex-col justify-between transition-all group">
+                      <div>
+                        <div className="size-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-sm">
+                          <CreditCard size={22} />
+                        </div>
+                        <h3 className="text-sm font-bold text-slate-800 mt-4">Lịch Sử Đặt Dịch Vụ</h3>
+                        <p className="text-xs text-slate-550 mt-2 leading-relaxed">
+                          Xem lại thông tin và tình trạng đặt chỗ đối với các khách sạn, tour du lịch hoặc phương tiện di chuyển bạn đã đặt.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => navigate('/my-bookings')}
+                        className="mt-6 w-full py-2.5 bg-white border border-slate-200 hover:border-blue-500 text-slate-700 hover:text-blue-600 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1"
+                      >
+                        <span>Danh sách dịch vụ</span>
+                        <ChevronRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
+                      </button>
+                    </div>
+
+                    {/* E-Tickets Card */}
+                    <div className="bg-slate-50/50 hover:bg-slate-50/80 rounded-2xl border border-slate-100 p-6 flex flex-col justify-between transition-all group">
+                      <div>
+                        <div className="size-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-sm">
+                          <QrCode size={22} />
+                        </div>
+                        <h3 className="text-sm font-bold text-slate-800 mt-4">Vé Điện Tử & Check-in</h3>
+                        <p className="text-xs text-slate-550 mt-2 leading-relaxed">
+                          Lấy mã QR check-in điện tử nhanh chóng để xuất trình khi sử dụng dịch vụ tại điểm đến.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => navigate('/my-bookings?tickets=1')}
+                        className="mt-6 w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-50/50 flex items-center justify-center gap-1.5"
+                      >
+                        <span>Mở vé điện tử</span>
+                        <QrCode size={14} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 3: AI Preferences */}
+              {activeTab === 'preferences' && (
+                <div className="flex-grow flex flex-col">
+                  <div className="border-b border-slate-100 pb-5 mb-6">
+                    <h2 className="text-lg font-bold text-slate-900">Sở Thích Du Lịch AI</h2>
+                    <p className="text-xs text-slate-400 mt-1 font-medium">Các thiết lập sở thích cá nhân giúp AI thiết kế lịch trình tối ưu.</p>
+                  </div>
+
+                  {userPref ? (
+                    <div className="space-y-6">
+                      <div className="p-6 rounded-2xl border border-indigo-50 bg-gradient-to-br from-indigo-50/30 via-purple-50/20 to-white relative overflow-hidden">
+                        <div className="absolute right-0 top-0 translate-x-4 -translate-y-4 text-indigo-100/30 pointer-events-none">
+                          <Sparkles size={110} />
+                        </div>
+                        
+                        <div className="flex justify-between items-center mb-6 z-10 relative">
+                          <h3 className="text-[10px] font-black text-indigo-750 uppercase tracking-widest">Cấu Hình Hành Trình</h3>
+                          <span className="p-1.5 bg-white rounded-lg shadow-sm border border-indigo-50 text-indigo-500">
+                            <Sparkles size={14} />
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 z-10 relative">
+                          {/* Style */}
+                          <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100/80">
+                            <div className="flex items-center gap-2 text-indigo-500 mb-2">
+                              <Sparkles size={14} />
+                              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Phong cách</span>
+                            </div>
+                            <p className="text-sm font-bold text-slate-800 line-clamp-1">{userPref.travelStyle}</p>
+                          </div>
+
+                          {/* Pace */}
+                          <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100/80">
+                            <div className="flex items-center gap-2 text-violet-500 mb-2">
+                              <Zap size={14} />
+                              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Nhịp độ</span>
+                            </div>
+                            <p className="text-sm font-bold text-slate-800">
+                              {userPref.travelPace === 0 ? "Thong thả" : userPref.travelPace === 1 ? "Cân bằng" : "Dày đặc"}
+                            </p>
+                          </div>
+
+                          {/* Budget */}
+                          <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100/80">
+                            <div className="flex items-center gap-2 text-emerald-500 mb-2">
+                              <Wallet size={14} />
+                              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Ngân sách</span>
+                            </div>
+                            <p className="text-sm font-bold text-slate-800">
+                              {userPref.budgetLevel === 0 ? "Tiết kiệm" : userPref.budgetLevel === 1 ? "Trung bình" : "Cao"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-6 flex justify-end z-10 relative">
+                          <button
+                            onClick={() => navigate('/preferences')}
+                            className="text-xs font-bold text-indigo-600 hover:text-indigo-850 hover:underline flex items-center gap-1"
+                          >
+                            <span>Thay đổi tùy chọn sở thích</span>
+                            <ChevronRight size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex-grow flex flex-col items-center justify-center text-center p-8 bg-slate-50/30 rounded-2xl border-2 border-dashed border-slate-200">
+                      <div className="p-4 bg-white rounded-full shadow-sm text-indigo-300 mb-4">
+                        <Sparkles size={32} />
+                      </div>
+                      <p className="text-slate-500 font-medium max-w-sm text-sm">Bạn chưa cài đặt sở thích du lịch. Thiết lập ngay để nhận gợi ý tốt nhất!</p>
+                      <button
+                        onClick={() => navigate('/preferences')}
+                        className="mt-5 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-750 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-100 hover:shadow-lg transition-all"
+                      >
+                        Thiết lập ngay
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Tab 4: Account Settings */}
+              {activeTab === 'settings' && (
+                <div className="flex-grow flex flex-col">
+                  <div className="border-b border-slate-100 pb-5 mb-6">
+                    <h2 className="text-lg font-bold text-slate-900">Cài Đặt Tài Khoản</h2>
+                    <p className="text-xs text-slate-400 mt-1 font-medium">Chỉnh sửa thông tin liên hệ và cập nhật ảnh đại diện của bạn.</p>
+                  </div>
+
+                  <div className="space-y-5 flex-grow">
+                    {/* Họ và Tên */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Họ và Tên</label>
+                      <input
+                        className="w-full bg-slate-50 hover:bg-slate-50/80 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 font-medium outline-none focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 transition-all text-sm"
+                        value={editData.fullName}
+                        onChange={e => setEditData({...editData, fullName: e.target.value})}
+                        placeholder="Nhập họ tên..."
+                      />
+                    </div>
+
+                    {/* Số Điện Thoại */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Số Điện Thoại</label>
+                      <input
+                        className="w-full bg-slate-50 hover:bg-slate-50/80 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 font-medium outline-none focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 transition-all text-sm"
+                        value={editData.phone}
+                        onChange={e => setEditData({...editData, phone: e.target.value})}
+                        placeholder="Nhập số điện thoại..."
+                      />
+                    </div>
+
+                    {/* Email (Read-only) */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                        <span>Địa Chỉ Email</span>
+                        <Lock size={11} className="text-slate-400" />
+                        <span className="text-[10px] font-semibold text-slate-400 lowercase tracking-normal">(không thể thay đổi)</span>
+                      </label>
+                      <div className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-slate-400 font-medium text-sm flex items-center justify-between">
+                        <span>{profile?.email}</span>
+                        <Lock size={13} className="text-slate-300" />
+                      </div>
+                    </div>
+
+                    {/* Vai Trò (Read-only) */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                        <span>Vai Trò Tài Khoản</span>
+                        <Lock size={11} className="text-slate-400" />
+                      </label>
+                      <div className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-slate-400 font-medium text-sm flex items-center justify-between">
+                        <span className="capitalize">{profile?.roleName || "Customer"}</span>
+                        <ShieldCheck size={13} className="text-slate-350" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions buttons */}
+                  <div className="mt-8 pt-5 border-t border-slate-100 flex items-center justify-end gap-3">
+                    <button
+                      onClick={handleCancel}
+                      className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-650 rounded-xl text-xs font-bold transition-all"
+                    >
+                      Hủy bỏ
+                    </button>
                     <button
                       onClick={handleUpdate}
                       disabled={saving}
-                      className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-2xl font-black text-sm shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95 disabled:bg-slate-300"
+                      className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-150 transition-all flex items-center gap-1.5"
                     >
-                      {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />} SAVE
+                      {saving ? (
+                        <>
+                          <Loader2 size={13} className="animate-spin" />
+                          <span>Đang lưu...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Save size={13} />
+                          <span>Lưu thay đổi</span>
+                        </>
+                      )}
                     </button>
-                    <button
-                      onClick={() => { setIsEditing(false); setPreviewUrl(profile.avatarUrl ? `${API_BASE_URL}${profile.avatarUrl}` : ''); }}
-                      className="px-4 py-2.5 bg-slate-100 text-slate-500 rounded-2xl font-black text-sm hover:bg-slate-200 transition-all"
-                    >
-                      <X size={18} />
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={() => setIsEditing(true)}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-2xl font-black text-sm shadow-xl hover:bg-black transition-all active:scale-95"
-                  >
-                    <Edit3 size={18} /> EDIT PROFILE
-                  </button>
-                )}
-              </div>
+                  </div>
+                </div>
+              )}
+
             </div>
-
-
-            {/* Contact Details */}
-            <div className="mt-10 space-y-4">
-              <div className="flex items-center gap-5 p-5 rounded-[1.5rem] bg-slate-50 border border-slate-100">
-                <div className="p-3 bg-white rounded-xl shadow-sm text-blue-500"><Mail size={22} /></div>
-                <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Email Address</p>
-                  <p className="text-slate-700 font-bold">{profile?.email}</p>
-                </div>
-              </div>
-
-
-              <div className="flex items-center gap-5 p-5 rounded-[1.5rem] bg-slate-50 border border-slate-100 transition-all">
-                <div className="p-3 bg-white rounded-xl shadow-sm text-green-500"><Phone size={22} /></div>
-                <div className="flex-grow">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Phone Number</p>
-                  {isEditing ? (
-                    <input
-                      className="bg-transparent border-b-2 border-slate-200 outline-none w-full text-slate-700 font-bold focus:border-green-500 transition-colors"
-                      value={editData.phone}
-                      onChange={e => setEditData({...editData, phone: e.target.value})}
-                      placeholder="Nhập số điện thoại..."
-                    />
-                  ) : (
-                    <p className="text-slate-700 font-bold">{profile?.phone || "Chưa cung cấp"}</p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-
-            {/* AI Preferences Shortcut */}
-            {!userPref && (
-                <div className="mt-8 rounded-3xl border border-dashed border-indigo-200 bg-indigo-50/50 p-6">
-                    <div className="flex items-center justify-between gap-4">
-                        <div>
-                            <h3 className="text-xs font-black uppercase tracking-widest text-indigo-400">AI Preferences</h3>
-                            <p className="mt-2 text-sm text-slate-500">
-                                Ban chua cai dat so thich du lich. Can phan nay de test itinerary ca nhan hoa.
-                            </p>
-                        </div>
-                        <button
-                            onClick={() => navigate('/preferences')}
-                            className="shrink-0 rounded-full bg-indigo-600 px-4 py-2 text-xs font-black text-white"
-                        >
-                            Thiet lap ngay
-                        </button>
-                    </div>
-                </div>
-            )}
-            {userPref && (
-                <div className="mt-8 p-6 bg-indigo-50/50 rounded-3xl border border-dashed border-indigo-200">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-xs font-black text-indigo-400 uppercase tracking-widest">Sở thích du lịch của bạn</h3>
-                        <Settings2 size={16} className="text-indigo-300" />
-                    </div>
-                    <div className="flex flex-wrap gap-3">
-                        <div className="px-3 py-1.5 bg-white border border-indigo-100 text-indigo-600 rounded-xl text-[10px] font-black shadow-sm uppercase tracking-tighter">
-                            {userPref.travelStyle}
-                        </div>
-                        <div className="px-3 py-1.5 bg-white border border-indigo-100 text-indigo-600 rounded-xl text-[10px] font-black shadow-sm uppercase tracking-tighter">
-                            PACE: {userPref.travelPace === 0 ? "Thong thả" : userPref.travelPace === 1 ? "Cân bằng" : "Dày đặc"}
-                        </div>
-                        <div className="px-3 py-1.5 bg-white border border-indigo-100 text-indigo-600 rounded-xl text-[10px] font-black shadow-sm uppercase tracking-tighter">
-                            BUDGET: {userPref.budgetLevel === 0 ? "Tiết kiệm" : userPref.budgetLevel === 1 ? "Trung bình" : "Cao"}
-                        </div>
-                    </div>
-                    <button
-                        onClick={() => navigate('/preferences')}
-                        className="mt-5 w-full text-[10px] font-black text-indigo-500 hover:underline"
-                    >
-                        Cập nhật sở thích ngay →
-                    </button>
-                </div>
-            )}
-
-            <div className="mt-10 mb-20">
-                <div className="mb-6 flex flex-wrap items-center gap-3">
-                    <button
-                        className="rounded-full bg-slate-900 px-5 py-2 text-sm font-black text-white shadow-lg"
-                    >
-                        Lich trinh da luu
-                    </button>
-                    {profile?.roleName?.toLowerCase() === 'customer' && (
-                        <button
-                            onClick={() => navigate('/my-bookings')}
-                            className="rounded-full border border-slate-200 px-5 py-2 text-sm font-black text-slate-500 transition-all hover:border-slate-300 hover:text-slate-700"
-                        >
-                            Dich vu da dat
-                        </button>
-                    )}
-                    {profile?.roleName?.toLowerCase() === 'customer' && (
-                        <button
-                            onClick={() => navigate('/my-bookings?tickets=1')}
-                            className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-5 py-2 text-sm font-black text-blue-600 transition-all hover:border-blue-300 hover:bg-blue-100"
-                        >
-                            <QrCode size={16} />
-                            Ve dien tu cua toi
-                        </button>
-                    )}
-                </div>
-                <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-2xl font-black text-slate-900 tracking-tighter flex items-center gap-2">
-                        <MapPin className="text-blue-500" /> LỊCH TRÌNH ĐÃ LƯU
-                    </h2>
-                    <span className="bg-blue-100 text-blue-600 px-3 py-1 rounded-full text-xs font-black">
-                        {myTrips.length} TRIPS
-                    </span>
-                </div>
-
-                {myTrips.length > 0 ? (
-                    <div className="space-y-4">
-                        {myTrips.map((trip, index) => (
-                            <div
-                                key={trip.itineraryId ?? index}
-                                onClick={() => handleOpenTrip(trip.itineraryId)}
-                                className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-xl transition-all cursor-pointer group"
-                            >
-                                <div className="flex justify-between items-center">
-                                    <div className="flex-1">
-                                        <h3 className="font-bold text-lg text-slate-800 group-hover:text-blue-600 transition-colors">
-                                            {trip.tripTitle}
-                                        </h3>
-                                        <div className="flex items-center gap-4 mt-2 text-slate-400 font-bold text-[10px] uppercase tracking-widest">
-                                            <span className="flex items-center gap-1"><Calendar size={12}/> Vừa tạo</span>
-                                            <span className="flex items-center gap-1 text-green-600 bg-green-50 px-2 py-0.5 rounded-md">
-                                                <DollarSign size={12}/> {new Intl.NumberFormat('vi-VN').format(trip.totalEstimatedCost)}₫
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <ChevronRight className="text-slate-300 group-hover:text-blue-500 transition-all group-hover:translate-x-1" />
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                ) : (
-                    <div className="bg-slate-50 p-10 rounded-[2.5rem] border-2 border-dashed border-slate-200 text-center">
-                        <p className="text-slate-400 font-medium italic">Bạn chưa lưu lịch trình nào.</p>
-                        <button 
-                            onClick={() => navigate('/destinations')}
-                            className="mt-4 text-blue-500 font-bold text-sm hover:underline"
-                        >
-                            Khám phá ngay →
-                        </button>
-                    </div>
-                )}
-            </div>
-            <button
-              onClick={handleLogout}
-              className="w-full mt-10 flex items-center justify-center gap-2 py-5 bg-red-50 hover:bg-red-100 text-red-600 rounded-[1.5rem] font-black transition-all active:scale-[0.98]"
-            >
-              <LogOut size={20} /> LOGOUT ACCOUNT
-            </button>
           </div>
+
         </div>
       </div>
+    </div>
   );
 };
-
 
 export default Profile;
