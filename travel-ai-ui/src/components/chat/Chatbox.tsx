@@ -43,6 +43,8 @@ const Chatbox = () => {
   const [messages, setMessages] = useState<ChatboxMessage[]>([initialMessage]);
   const [isTyping, setIsTyping] = useState(false);
   const [bookingServiceId, setBookingServiceId] = useState<number | null>(null);
+  // Track all service IDs already shown to the user in this conversation
+  const [shownServiceIds, setShownServiceIds] = useState<number[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -70,13 +72,13 @@ const Chatbox = () => {
 
   const handleBooking = async (serviceId: number | null) => {
     if (!serviceId) {
-      alert('Dich vu nay chua co ma dat cho hop le.');
+      alert('Dịch vụ này chưa có mã đặt chỗ hợp lệ.');
       return;
     }
 
     const token = localStorage.getItem('token');
     if (!token) {
-      alert('Vui long dang nhap de dat cho!');
+      alert('Vui lòng đăng nhập để đặt chỗ!');
       navigate('/login');
       return;
     }
@@ -97,29 +99,42 @@ const Chatbox = () => {
         return;
       }
 
-      alert('Chua tao duoc don hang cho dich vu nay.');
+      alert('Chưa tạo được đơn hàng cho dịch vụ này.');
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Loi khi dat cho!');
+      alert(err.response?.data?.message || 'Lỗi khi đặt chỗ!');
     } finally {
       setBookingServiceId(null);
     }
   };
 
-  const shouldUseRichChat = (message: string) => {
+  // Kiểm tra message hiện tại có chứa từ khóa dịch vụ không
+  const hasServiceKeyword = (message: string) => {
     const normalized = message.toLowerCase();
     return [
-      'lich trinh',
-      'lịch trình',
-      'itinerary',
-      'khach san',
-      'khách sạn',
-      'hotel',
+      'lich trinh', 'lịch trình', 'itinerary',
+      'khach san', 'khách sạn', 'hotel', 'resort', 'homestay', 'villa',
       'tour',
-      'gia',
-      'giá',
-      'bao nhieu',
-      'bao nhiêu',
+      'gia', 'giá', 'bao nhieu', 'bao nhiêu', 'chi phi', 'chi phí',
+      'dat phong', 'đặt phòng', 'dat cho', 'đặt chỗ',
+      'xe', 'transport', 'di chuyển',
     ].some(keyword => normalized.includes(keyword));
+  };
+
+  // Kiểm tra xem conversation context có đang trong luồng tìm dịch vụ không
+  const isInServiceSearchContext = (currentMessages: ChatboxMessage[]) => {
+    // Lấy 6 tin nhắn gần nhất
+    const recent = currentMessages.slice(-6);
+    return recent.some(
+      msg => msg.sender === 'ai' && (msg.type === 'hotel' || msg.type === 'service' || msg.type === 'itinerary')
+    );
+  };
+
+  const shouldUseRichChat = (message: string, currentMessages: ChatboxMessage[]) => {
+    // Luôn dùng rich chat nếu message có từ khóa dịch vụ
+    if (hasServiceKeyword(message)) return true;
+    // Dùng rich chat nếu đang trong context tìm kiếm dịch vụ (follow-up)
+    if (isInServiceSearchContext(currentMessages)) return true;
+    return false;
   };
 
   const readSseStream = async (
@@ -181,7 +196,7 @@ const Chatbox = () => {
     setIsTyping(true);
 
     try {
-      if (!shouldUseRichChat(trimmedInput)) {
+      if (!shouldUseRichChat(trimmedInput, messages)) {
         const aiMessage: ChatboxMessage = { text: '', sender: 'ai', type: 'text' };
         setMessages(prev => [...prev, aiMessage]);
 
@@ -220,13 +235,25 @@ const Chatbox = () => {
       const { data } = await axiosClient.post('/chat', {
         message: trimmedInput,
         history,
+        shownServiceIds,
       });
+
+      // Sau khi nhận response, cập nhật danh sách IDs đã hiển thị
+      if (data?.data && Array.isArray(data.data)) {
+        const newIds = (data.data as ServiceItem[])
+          .map(resolveServiceId)
+          .filter((id): id is number => id !== null);
+        setShownServiceIds(prev => [
+          ...prev,
+          ...newIds.filter(id => !prev.includes(id)),
+        ]);
+      }
 
       setMessages(prev => [...prev, { ...data, sender: 'ai' }]);
     } catch {
       setMessages(prev => [
         ...prev,
-        { text: 'Xin lỗi, tôi đang bận tí!', sender: 'ai', type: 'text' },
+        { text: 'Xin lỗi, mình đang bận xử lý. Bạn thử lại nhé!', sender: 'ai', type: 'text' },
       ]);
     } finally {
       setIsTyping(false);
@@ -326,7 +353,7 @@ const Chatbox = () => {
                                 disabled={!serviceId || isBooking}
                                 className="mt-2 w-full rounded-lg bg-blue-600 px-3 py-1.5 text-[10px] font-black uppercase text-white shadow-sm shadow-blue-500/20 transition-all hover:bg-blue-700 active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
                               >
-                                {isBooking ? 'Dang dat...' : 'Đặt ngay'}
+                                {isBooking ? 'Đang đặt...' : 'Đặt ngay'}
                               </button>
                             </div>
                           </div>
