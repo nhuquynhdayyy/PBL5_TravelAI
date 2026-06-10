@@ -56,7 +56,9 @@ public class PromptBuilder
         List<AISuggestionLog>? historyLogs = null,
         dynamic? weatherData = null,
         List<Service>? availableServiceEntities = null,
-        ServiceFilterRequest? serviceFilters = null)
+        ServiceFilterRequest? serviceFilters = null,
+        int adults = 1,
+        int children = 0)
     {
         var openSpots = spots
             .Where(spot => IsSpotOpenForTrip(spot, startDate, days))
@@ -110,7 +112,7 @@ public class PromptBuilder
                                       || normalizedTravelStyle.Contains("backpacker", StringComparison.Ordinal);
 
         var prompt = new StringBuilder();
-        prompt.AppendLine($"Ban la chuyen gia lap ke hoach du lich. Hay lap lich trinh {days} ngay tai {dest.Name}.");
+        prompt.AppendLine($"Ban la chuyen gia lap ke hoach du lich. Hay lap lich trinh {days} ngay tai {dest.Name} cho {adults} nguoi lon va {children} tre em.");
         prompt.AppendLine($"Chuyen di bat dau tu ngay {startDate:dd/MM/yyyy}. Day la moc ngay bat dau co dinh cho ca hanh trinh.");
         prompt.AppendLine($"Hay sap xep tung ngay trong lich trinh gan voi cac ngay cu the dua tren moc thoi gian nay, trong do ngay 1 ung voi {startDate:dd/MM/yyyy} va moi ngay sau la ngay lien ke.");
         prompt.AppendLine();
@@ -179,6 +181,7 @@ public class PromptBuilder
         prompt.AppendLine(comboLines);
         prompt.AppendLine();
         prompt.AppendLine("### THONG TIN NGUOI DUNG:");
+        prompt.AppendLine($"- So luong khach: {adults} nguoi lon, {children} tre em");
         prompt.AppendLine($"- Phong cach: {travelStyle}");
         prompt.AppendLine($"- Ngan sach: {budgetLevel}");
         prompt.AppendLine($"- Nhip do: {travelPace}");

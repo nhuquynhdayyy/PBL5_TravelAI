@@ -60,7 +60,7 @@ public class ItineraryService : IItineraryService
                 status = "started",
                 destinationId = request.DestinationId,
                 days = request.NumberOfDays,
-                message = "AI dang phan tich so thich, thoi tiet va dich vu phu hop."
+                message = "AI đang phân tích sở thích, thời tiết và dịch vụ phù hợp."
             });
         }
 
@@ -147,7 +147,9 @@ public class ItineraryService : IItineraryService
             historyLogs,
             weatherData,
             availableServiceEntities,
-            request.ServiceFilters);
+            request.ServiceFilters,
+            request.Adults,
+            request.Children);
 
         // Inject SpecialRequest as a TOP-PRIORITY mandatory block at the beginning of the prompt
         // This ensures AI sees and honors specific named places before reading anything else
@@ -241,7 +243,7 @@ public class ItineraryService : IItineraryService
                 status = "completed",
                 destination = dest.Name,
                 days = parsed.Days.Count,
-                message = "AI da tao xong lich trinh."
+                message = "AI đã tạo xong lịch trình."
             });
         }
 
