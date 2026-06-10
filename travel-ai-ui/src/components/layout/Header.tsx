@@ -28,8 +28,8 @@ const Header: React.FC = () => {
     const isActive = location.pathname.startsWith(path);
     return `flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-extrabold transition-all ${
       isActive
-        ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-100'
-        : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50 hover:text-blue-600'
+        ? 'bg-blue-50 text-blue-700'
+        : 'bg-white text-slate-600 hover:bg-slate-50 hover:text-blue-600'
     }`;
   };
 
