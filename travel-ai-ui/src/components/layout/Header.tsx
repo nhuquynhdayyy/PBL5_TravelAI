@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Menu, X, Plane, LogOut, LayoutDashboard, Store, User, ChevronDown, Hotel, Compass, ClipboardList, MessageSquare, BarChart3, Building2, ShoppingCart, Landmark, Sparkles } from 'lucide-react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useCart } from '../../contexts/CartContext';
 import { NotificationBell } from '../notifications';
 import { getUser } from '../../utils/userUtils';
@@ -14,6 +14,7 @@ const Header: React.FC = () => {
   const [userState, setUserState] = useState(getUser());
   const navigate = useNavigate();
   const { items } = useCart();
+  const location = useLocation();
 
   const role = userState?.roleName?.toLowerCase(); 
 
@@ -39,6 +40,10 @@ const Header: React.FC = () => {
     return () => window.removeEventListener('userUpdated', handleUserUpdated);
   }, []);
 
+  const isActive = (path: string) => {
+    return location.pathname === path || location.pathname.startsWith(path + '/');
+  };
+
   return (
     <header className={`fixed w-full z-50 transition-all duration-300 ${
       isScrolled ? 'bg-white shadow-md py-3' : 'bg-white/90 backdrop-blur-md py-4'
@@ -60,7 +65,7 @@ const Header: React.FC = () => {
           </Link>
 
           {/* DESKTOP MENU */}
-          <nav className="hidden md:flex space-x-8 items-center">
+          <nav className="hidden md:flex space-x-6 items-center">
             {role !== 'partner' && role !== 'admin' && (
               <>
                 <Link to="/" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all">Trang chủ</Link>
@@ -77,7 +82,7 @@ const Header: React.FC = () => {
                     </button>
 
                     {isServicesOpen && (
-<div className="absolute top-full left-0 w-60 bg-white rounded-3xl shadow-2xl border border-slate-50 p-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                        <div className="absolute top-full left-0 w-60 bg-white rounded-3xl shadow-2xl border border-slate-50 p-3 animate-in fade-in slide-in-from-top-2 duration-300">
                             <Link to="/hotels" className="flex items-center gap-3 p-3 hover:bg-blue-50 rounded-2xl transition-all group/item">
                                 <div className="p-2 bg-blue-100 text-blue-600 rounded-xl group-hover/item:bg-blue-600 group-hover/item:text-white transition-colors">
                                     <Hotel size={20} />
@@ -129,20 +134,60 @@ const Header: React.FC = () => {
             {/* PARTNER MENU */}
             {role === 'partner' && (
               <>
-                <Link to="/partner/dashboard" className="flex items-center gap-2 px-6 py-2 bg-slate-900 text-white rounded-full font-black text-xs hover:bg-slate-700 transition-all shadow-lg shadow-slate-100 uppercase tracking-widest">
-                  <BarChart3 size={14} /> DASHBOARD
+                <Link 
+                  to="/partner/dashboard" 
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-sm transition-all duration-200 ${
+                    isActive('/partner/dashboard')
+                      ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400 shadow-sm border border-blue-100/50 dark:border-blue-900/30'
+                      : 'text-slate-600 hover:text-blue-600 hover:bg-slate-50 dark:text-slate-350 dark:hover:text-white dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <BarChart3 size={16} />
+                  <span>Báo cáo</span>
                 </Link>
-                <Link to="/partner/profile" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
-                  <Building2 size={14} /> BUSINESS
+                <Link 
+                  to="/partner/profile" 
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-sm transition-all duration-200 ${
+                    isActive('/partner/profile')
+                      ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400 shadow-sm border border-blue-100/50 dark:border-blue-900/30'
+                      : 'text-slate-600 hover:text-blue-600 hover:bg-slate-50 dark:text-slate-350 dark:hover:text-white dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <Building2 size={16} />
+                  <span>Doanh nghiệp</span>
                 </Link>
-                <Link to="/partner/services" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
-                  <Store size={14} /> MY SERVICES
+                <Link 
+                  to="/partner/services" 
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-sm transition-all duration-200 ${
+                    isActive('/partner/services')
+                      ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400 shadow-sm border border-blue-100/50 dark:border-blue-900/30'
+                      : 'text-slate-600 hover:text-blue-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:text-white dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <Store size={16} />
+                  <span>Dịch vụ</span>
                 </Link>
-                <Link to="/partner/orders" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
-                  <ClipboardList size={14} /> MY ORDERS
+                <Link 
+                  to="/partner/orders" 
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-sm transition-all duration-200 ${
+                    isActive('/partner/orders')
+                      ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400 shadow-sm border border-blue-100/50 dark:border-blue-900/30'
+                      : 'text-slate-600 hover:text-blue-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:text-white dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <ClipboardList size={16} />
+                  <span>Đơn hàng</span>
                 </Link>
-                <Link to="/partner/reviews" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
-                  <MessageSquare size={14} /> MY REVIEWS
+                <Link 
+                  to="/partner/reviews" 
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-sm transition-all duration-200 ${
+                    isActive('/partner/reviews')
+                      ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400 shadow-sm border border-blue-100/50 dark:border-blue-900/30'
+                      : 'text-slate-600 hover:text-blue-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:text-white dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <MessageSquare size={16} />
+                  <span>Đánh giá</span>
                 </Link>
               </>
             )}
@@ -179,21 +224,34 @@ const Header: React.FC = () => {
                         {userState.fullName} <User size={14} className="text-blue-500" />
                       </Link>
                     </div>
-                    <button onClick={handleLogout} className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors">
+                    <button onClick={handleLogout} className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors cursor-pointer">
                       <LogOut size={20} />
                     </button>
                 </div>
             ) : (
               <div className="flex items-center gap-2">
                 <button onClick={() => navigate('/login')} className="px-5 py-2 text-slate-700 font-bold text-sm hover:text-blue-500">Login</button>
-<button onClick={() => navigate('/register')} className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-200 transition-all active:scale-95">Register</button>
+                <button onClick={() => navigate('/register')} className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-200 transition-all active:scale-95">Register</button>
               </div>
             )}
           </div>
 
           <div className="flex items-center gap-2 md:hidden">
+            {isOpen && (
+              <div className="absolute top-16 left-0 w-full bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex flex-col p-4 gap-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                {role === 'partner' && (
+                  <>
+                    <Link to="/partner/dashboard" onClick={() => setIsOpen(false)} className="px-4 py-2.5 rounded-xl text-slate-700 font-bold text-sm hover:bg-slate-50">Báo cáo</Link>
+                    <Link to="/partner/profile" onClick={() => setIsOpen(false)} className="px-4 py-2.5 rounded-xl text-slate-700 font-bold text-sm hover:bg-slate-50">Doanh nghiệp</Link>
+                    <Link to="/partner/services" onClick={() => setIsOpen(false)} className="px-4 py-2.5 rounded-xl text-slate-700 font-bold text-sm hover:bg-slate-50">Dịch vụ</Link>
+                    <Link to="/partner/orders" onClick={() => setIsOpen(false)} className="px-4 py-2.5 rounded-xl text-slate-700 font-bold text-sm hover:bg-slate-50">Đơn hàng</Link>
+                    <Link to="/partner/reviews" onClick={() => setIsOpen(false)} className="px-4 py-2.5 rounded-xl text-slate-700 font-bold text-sm hover:bg-slate-50">Đánh giá</Link>
+                  </>
+                )}
+              </div>
+            )}
             {userState && <NotificationBell />}
-            <button onClick={() => setIsOpen(!isOpen)} className="text-slate-600 p-2">
+            <button onClick={() => setIsOpen(!isOpen)} className="text-slate-600 p-2 cursor-pointer">
               {isOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
           </div>

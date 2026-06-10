@@ -400,7 +400,7 @@ const Profile: React.FC = () => {
                       <p className="text-slate-500 font-medium max-w-sm text-sm">Bạn chưa lưu lịch trình du lịch nào. Hãy bắt đầu lên lịch ngay!</p>
                       <button
                         onClick={() => navigate('/destinations')}
-                        className="mt-5 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-750 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-100 hover:shadow-lg transition-all"
+                        className="mt-5 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-100 hover:shadow-lg transition-all"
                       >
                         Khám phá ngay →
                       </button>
