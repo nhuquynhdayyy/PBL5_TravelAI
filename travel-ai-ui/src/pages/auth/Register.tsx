@@ -1,10 +1,20 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
 import MainLayout from '../../layouts/MainLayout';
 import { UserPlus, Mail, Lock, User } from 'lucide-react';
 
 const Register = () => {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const user = localStorage.getItem('user');
+    if (token && user) {
+      navigate('/', { replace: true });
+    }
+  }, [navigate]);
+
   const [formData, setFormData] = useState({ 
     email: '', 
     password: '', 
