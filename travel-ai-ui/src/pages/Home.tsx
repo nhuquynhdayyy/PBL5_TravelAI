@@ -336,11 +336,7 @@ const TrendingDestinationsSection = () => {
                 <p className="mb-3 text-sm font-medium text-slate-600 line-clamp-2 dark:text-slate-300">
                   {dest.description}
                 </p>
-                <div className="flex items-center justify-between">
-                  <div className="text-sm">
-                    <span className="font-medium text-slate-500 dark:text-slate-400">Từ </span>
-                    <span className="font-black text-[#0061ff]">{formatPrice(dest.estimatedPrice)}</span>
-                  </div>
+                <div className="flex items-center justify-end">
                   <div className="flex items-center gap-1 text-[#0061ff] transition-transform group-hover:translate-x-1">
                     <span className="text-xs font-black">Khám phá</span>
                     <ArrowRight size={14} />
