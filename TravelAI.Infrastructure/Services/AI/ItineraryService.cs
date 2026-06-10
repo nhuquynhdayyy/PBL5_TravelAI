@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Linq;
 using Microsoft.EntityFrameworkCore;
 using TravelAI.Application.DTOs.AI;
 using TravelAI.Application.Helpers;
@@ -60,7 +61,7 @@ public class ItineraryService : IItineraryService
                 status = "started",
                 destinationId = request.DestinationId,
                 days = request.NumberOfDays,
-                message = "AI dang phan tich so thich, thoi tiet va dich vu phu hop."
+                message = "AI đang phân tích sở thích, thời tiết và dịch vụ phù hợp."
             });
         }
 
@@ -147,7 +148,11 @@ public class ItineraryService : IItineraryService
             historyLogs,
             weatherData,
             availableServiceEntities,
-            request.ServiceFilters);
+            request.ServiceFilters,
+            request.Adults,
+            request.Children,
+            userFeedback: request.UserFeedback,
+            priorItinerary: request.PriorItinerary);
 
         // Inject SpecialRequest as a TOP-PRIORITY mandatory block at the beginning of the prompt
         // This ensures AI sees and honors specific named places before reading anything else
@@ -226,6 +231,48 @@ public class ItineraryService : IItineraryService
         parsed.EndDate = tripStartDate.AddDays(parsed.Days.Count);
         parsed.CreatedAt = DateTime.UtcNow;
 
+        // Apply fallbacks for custom activities in generated itinerary
+        foreach (var day in parsed.Days)
+        {
+            foreach (var activity in day.Activities)
+            {
+                if (activity.ServiceId == null)
+                {
+                    if (string.IsNullOrWhiteSpace(activity.Description) || activity.Description == "No description available.")
+                    {
+                        var (fallbackCost, fallbackDesc) = GetFallbackCostAndDescription(activity.Title);
+                        activity.Description = fallbackDesc;
+                        if (activity.EstimatedCost == 0)
+                        {
+                            activity.EstimatedCost = fallbackCost;
+                        }
+                    }
+                    else if (activity.EstimatedCost == 0)
+                    {
+                        var (fallbackCost, _) = GetFallbackCostAndDescription(activity.Title);
+                        activity.EstimatedCost = fallbackCost;
+                    }
+                }
+                else
+                {
+                    var svc = await _db.Services.FindAsync(activity.ServiceId.Value);
+                    if (svc != null)
+                    {
+                        if (activity.EstimatedCost == 0)
+                        {
+                            activity.EstimatedCost = svc.BasePrice;
+                        }
+                        if (string.IsNullOrWhiteSpace(activity.Description) || activity.Description == "No description available.")
+                        {
+                            activity.Description = svc.Description ?? "No description available.";
+                        }
+                    }
+                }
+            }
+        }
+
+        parsed.TotalEstimatedCost = parsed.Days.Sum(d => d.Activities.Sum(a => a.EstimatedCost));
+
         // Lưu metadata vào log để analytics query thẳng DB — chỉ khi user đã đăng nhập
         if (aiLog != null)
         {
@@ -241,7 +288,7 @@ public class ItineraryService : IItineraryService
                 status = "completed",
                 destination = dest.Name,
                 days = parsed.Days.Count,
-                message = "AI da tao xong lich trinh."
+                message = "AI đã tạo xong lịch trình."
             });
         }
 
@@ -266,7 +313,7 @@ public class ItineraryService : IItineraryService
                 Title = dto.TripTitle,
                 StartDate = tripStartDate,
                 EndDate = tripStartDate.AddDays(dto.Days.Count),
-                EstimatedCost = dto.TotalEstimatedCost,
+                EstimatedCost = dto.Days.Sum(d => d.Activities.Sum(a => a.EstimatedCost)),
                 Status = ItineraryStatus.Confirmed
             };
 
@@ -327,12 +374,19 @@ public class ItineraryService : IItineraryService
 
                     var endTime = startTime.AddMinutes(durationMinutes);
 
+                    string? customTitle = null;
+                    if (service == null)
+                    {
+                        var sanitizedDesc = activity.Description?.Replace("\r", " ").Replace("\n", " ").Replace("|", " ");
+                        customTitle = $"{activity.Title}|{activity.EstimatedCost.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{sanitizedDesc}";
+                    }
+
                     _db.ItineraryItems.Add(new ItineraryItem
                     {
                         ItineraryId = itinerary.ItineraryId,
                         SpotId = spot?.SpotId,
                         ServiceId = service?.ServiceId,
-                        CustomTitle = (service == null && spot == null) ? activity.Title : null,
+                        CustomTitle = customTitle,
                         StartTime = startTime,
                         EndTime = endTime,
                         ActivityOrder = order++,
@@ -381,6 +435,35 @@ public class ItineraryService : IItineraryService
                              ?? item.TouristSpot?.Destination?.Name)
                 .FirstOrDefault(name => !string.IsNullOrEmpty(name));
 
+            // Calculate total cost dynamically by mapping each item and summing their costs
+            var totalCost = i.Items.Sum(item => {
+                var service = item.Service;
+                var spot = ResolvePrimarySpot(item);
+                
+                decimal estimatedCost = service?.BasePrice ?? 0;
+                if (service == null && !string.IsNullOrEmpty(item.CustomTitle))
+                {
+                    var parts = item.CustomTitle.Split('|');
+                    if (parts.Length > 1 && decimal.TryParse(parts[1], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsedCost))
+                    {
+                        estimatedCost = parsedCost;
+                    }
+                }
+                
+                if (estimatedCost == 0)
+                {
+                    var title = service?.Name ?? spot?.Name ?? item.CustomTitle ?? "Hoạt động tự do";
+                    if (service == null && !string.IsNullOrEmpty(item.CustomTitle))
+                    {
+                        title = item.CustomTitle.Split('|')[0];
+                    }
+                    var (fallbackCost, _) = GetFallbackCostAndDescription(title);
+                    estimatedCost = fallbackCost;
+                }
+                
+                return estimatedCost;
+            });
+
             return new ItineraryResponseDto
             {
                 ItineraryId = i.ItineraryId,
@@ -388,8 +471,7 @@ public class ItineraryService : IItineraryService
                 Destination = firstDestination ?? i.Title,
                 StartDate = i.StartDate,
                 EndDate = i.EndDate,
-                // Recalculate total cost from actual items
-                TotalEstimatedCost = i.Items.Sum(item => item.Service?.BasePrice ?? 0),
+                TotalEstimatedCost = totalCost,
                 CreatedAt = i.CreatedAt
             };
         });
@@ -438,7 +520,7 @@ public class ItineraryService : IItineraryService
             Destination = ResolveDestinationName(orderedItems, itinerary.Title),
             StartDate = itinerary.StartDate,
             EndDate = itinerary.EndDate,
-            TotalEstimatedCost = totalEstimatedCost,
+            TotalEstimatedCost = itinerary.EstimatedCost,
             Days = days,
             CreatedAt = itinerary.CreatedAt
         };
@@ -941,13 +1023,47 @@ public class ItineraryService : IItineraryService
             imageUrl = spot.ImageUrl;
         }
 
+        string title = service?.Name ?? spot?.Name ?? item.CustomTitle ?? "Hoạt động tự do";
+        decimal estimatedCost = service?.BasePrice ?? 0;
+        string description = service?.Description ?? spot?.Description ?? "No description available.";
+
+        if (service == null && !string.IsNullOrEmpty(item.CustomTitle))
+        {
+            var parts = item.CustomTitle.Split('|');
+            title = parts[0];
+            if (parts.Length > 1 && decimal.TryParse(parts[1], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsedCost))
+            {
+                estimatedCost = parsedCost;
+            }
+            if (parts.Length > 2 && !string.IsNullOrEmpty(parts[2]))
+            {
+                description = parts[2];
+            }
+        }
+
+        // Apply fallback if description is empty or default, or if cost is 0
+        if (description == "No description available." || string.IsNullOrWhiteSpace(description))
+        {
+            var (fallbackCost, fallbackDesc) = GetFallbackCostAndDescription(title);
+            description = fallbackDesc;
+            if (estimatedCost == 0)
+            {
+                estimatedCost = fallbackCost;
+            }
+        }
+        else if (estimatedCost == 0)
+        {
+            var (fallbackCost, _) = GetFallbackCostAndDescription(title);
+            estimatedCost = fallbackCost;
+        }
+
         return new ActivityDto
         {
-            Title = service?.Name ?? spot?.Name ?? item.CustomTitle ?? "Hoạt động tự do",
+            Title = title,
             Location = spot?.Name ?? service?.Name ?? "Custom activity",
-            Description = service?.Description ?? spot?.Description ?? "No description available.",
+            Description = description,
             Duration = FormatDuration(durationMinutes, service?.ServiceType),
-            EstimatedCost = service?.BasePrice ?? 0,
+            EstimatedCost = estimatedCost,
             ServiceId = service?.ServiceId,
             Latitude = latitude,
             Longitude = longitude,
@@ -955,6 +1071,54 @@ public class ItineraryService : IItineraryService
             StartTime = item.StartTime.ToString("HH:mm"),
             EndTime = item.EndTime.ToString("HH:mm")
         };
+    }
+
+    private static (decimal Cost, string Description) GetFallbackCostAndDescription(string title)
+    {
+        var normalized = title.ToLowerInvariant();
+        decimal cost = 50000;
+        string description = "Hoạt động tham quan, khám phá và trải nghiệm tự do tại điểm đến.";
+
+        if (normalized.Contains("an sang") || normalized.Contains("breakfast") || normalized.Contains("ăn sáng"))
+        {
+            cost = 50000;
+            description = "Thưởng thức bữa sáng thơm ngon với các món ăn đặc sản địa phương.";
+        }
+        else if (normalized.Contains("an trua") || normalized.Contains("lunch") || normalized.Contains("ăn trưa") ||
+                 normalized.Contains("an toi") || normalized.Contains("dinner") || normalized.Contains("ăn tối"))
+        {
+            cost = 150000;
+            description = "Thưởng thức ẩm thực đặc sản địa phương phong phú và hấp dẫn.";
+        }
+        else if (normalized.Contains("cafe") || normalized.Contains("cà phê") || normalized.Contains("nước uống") || normalized.Contains("sinh tố"))
+        {
+            cost = 40000;
+            description = "Thư giãn, thưởng thức đồ uống và ngắm cảnh phố phường.";
+        }
+        else if (normalized.Contains("ngu hanh son") || normalized.Contains("ngũ hành sơn"))
+        {
+            cost = 80000;
+            description = "Tham quan danh thắng Ngũ Hành Sơn với hệ thống hang động kì vĩ và các ngôi chùa cổ kính.";
+        }
+        else if (normalized.Contains("tam bien") || normalized.Contains("tắm biển") || normalized.Contains("bien") || normalized.Contains("biển") ||
+                 normalized.Contains("di bo") || normalized.Contains("đi bộ") || normalized.Contains("cong vien") || normalized.Contains("công viên") ||
+                 normalized.Contains("ngam song") || normalized.Contains("ngắm sông") || normalized.Contains("check-in") || normalized.Contains("check in"))
+        {
+            cost = 0;
+            description = "Hoạt động ngắm cảnh, thư giãn và chụp ảnh lưu niệm tự do.";
+        }
+        else if (normalized.Contains("chua") || normalized.Contains("chùa") || normalized.Contains("nha tho") || normalized.Contains("nhà thờ"))
+        {
+            cost = 20000;
+            description = "Viếng thăm công trình tôn giáo cổ kính, cầu bình an và tìm kiếm sự thanh tịnh.";
+        }
+        else if (normalized.Contains("bao tang") || normalized.Contains("bảo tàng"))
+        {
+            cost = 60000;
+            description = "Tìm hiểu lịch sử, văn hóa và nghệ thuật trưng bày tại bảo tàng.";
+        }
+
+        return (cost, description);
     }
 
     private static string ResolveDestinationName(IEnumerable<ItineraryItem> items, string fallback)

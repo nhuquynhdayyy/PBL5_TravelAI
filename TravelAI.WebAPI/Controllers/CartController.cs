@@ -303,6 +303,46 @@ public class CartController : ControllerBase
             return StatusCode(500, new { message = "Lỗi khi đồng bộ giỏ hàng" });
         }
     }
+
+    /// <summary>
+    /// PUT /api/cart/{cartItemId} - Cập nhật số lượng của item trong giỏ hàng
+    /// </summary>
+    [HttpPut("{cartItemId:int}")]
+    public async Task<IActionResult> UpdateQuantity(int cartItemId, [FromBody] UpdateQuantityRequest request)
+    {
+        try
+        {
+            var userId = GetUserId();
+
+            var cartItem = await _context.CartItems
+                .FirstOrDefaultAsync(ci => ci.CartItemId == cartItemId && ci.UserId == userId);
+
+            if (cartItem == null)
+            {
+                return NotFound(new { message = "Cart item không tồn tại" });
+            }
+
+            if (request.Quantity <= 0)
+            {
+                return BadRequest(new { message = "Số lượng phải lớn hơn 0" });
+            }
+
+            cartItem.Quantity = request.Quantity;
+            _context.CartItems.Update(cartItem);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Cập nhật số lượng thành công" });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating cart item quantity");
+            return StatusCode(500, new { message = "Lỗi khi cập nhật số lượng" });
+        }
+    }
 }
 
 // Request DTOs
@@ -314,6 +354,11 @@ public class AddToCartRequest
     public string CheckInDate { get; set; } = string.Empty;
     public string? CheckOutDate { get; set; }
     public string? Notes { get; set; }
+}
+
+public class UpdateQuantityRequest
+{
+    public int Quantity { get; set; }
 }
 
 public class SyncCartRequest

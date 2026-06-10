@@ -37,7 +37,6 @@ const AIItineraryResult: React.FC<Props> = ({ data }) => {
         <p className="text-slate-500 font-medium text-lg">Lịch trình tối ưu tại {destination}</p>
         
         <div className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-green-500 text-white rounded-2xl font-black text-lg shadow-lg shadow-green-200">
-          <DollarSign size={20} /> 
           Dự kiến: {new Intl.NumberFormat('vi-VN').format(totalCost)} VNĐ
         </div>
       </div>

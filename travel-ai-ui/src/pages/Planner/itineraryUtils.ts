@@ -9,16 +9,27 @@ export const formatCurrency = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value || 0) + 'đ';
 
-export const getImageUrl = (url?: string, title?: string, location?: string) => {
+export const getImageUrl = (url?: string, kind?: string, title?: string) => {
   if (!url) {
-    const query = [title, location, 'Vietnam travel']
-      .filter(Boolean)
-      .join(' ')
-      .trim();
-
-    return `https://source.unsplash.com/1200x800/?${encodeURIComponent(query || 'Vietnam travel destination')}`;
+    const normalizedTitle = title ? title.toLowerCase() : '';
+    if (kind === 'food' || normalizedTitle.includes('ăn') || normalizedTitle.includes('cafe') || normalizedTitle.includes('cà phê') || normalizedTitle.includes('nhà hàng') || normalizedTitle.includes('quán')) {
+      return 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=1200'; // food/restaurant
+    }
+    if (kind === 'hotel' || normalizedTitle.includes('khách sạn') || normalizedTitle.includes('resort') || normalizedTitle.includes('chỗ nghỉ')) {
+      return 'https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=1200'; // hotel
+    }
+    if (kind === 'transport' || normalizedTitle.includes('xe') || normalizedTitle.includes('di chuyển') || normalizedTitle.includes('sân bay') || normalizedTitle.includes('đi lại')) {
+      return 'https://images.unsplash.com/photo-1494976388531-d1058494cdd8?q=80&w=1200'; // car/transport
+    }
+    // Default sightseeing/nature categories based on title
+    if (normalizedTitle.includes('biển') || normalizedTitle.includes('beach') || normalizedTitle.includes('sông') || normalizedTitle.includes('vịnh') || normalizedTitle.includes('bán đảo')) {
+      return 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=1200'; // beach
+    }
+    if (normalizedTitle.includes('chùa') || normalizedTitle.includes('ngũ hành sơn') || normalizedTitle.includes('bảo tàng') || normalizedTitle.includes('di tích') || normalizedTitle.includes('núi') || normalizedTitle.includes('sơn')) {
+      return 'https://images.unsplash.com/photo-1542856391-010fb87dcfed?q=80&w=1200'; // cultural/historical spot
+    }
+    return 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1200'; // default road
   }
-
   return url.startsWith('http') ? url : `${API_HOST}${url}`;
 };
 
@@ -181,7 +192,6 @@ export const normalizeItinerary = (payload: any): ItineraryViewModel => {
       activities,
     }));
 
-  // Always recalculate total cost from activities to ensure accuracy
   const calculatedTotalCost = days.reduce((total, day) => 
     total + day.activities.reduce((dayTotal, activity) => 
       dayTotal + (activity.estimatedCost || 0), 0
@@ -195,10 +205,14 @@ export const normalizeItinerary = (payload: any): ItineraryViewModel => {
     destination: valueOf(data, ['destinationName', 'destination', 'destination_name'], 'Việt Nam'),
     startDate,
     endDate: valueOf<string | undefined>(data, ['endDate', 'end_date'], undefined),
-    totalEstimatedCost: calculatedTotalCost, // Use calculated value instead of API value
+    totalEstimatedCost: calculatedTotalCost,
     days,
     createdAt: valueOf<string | undefined>(data, ['createdAt', 'created_at', 'created'], undefined),
-    raw: data,
+    raw: {
+      ...data,
+      totalEstimatedCost: calculatedTotalCost,
+      total_estimated_cost: calculatedTotalCost,
+    },
   };
 };
 

@@ -6,4 +6,8 @@ public record GenerateItineraryRequest(int DestinationId, int NumberOfDays, Date
 {
     public ServiceFilterRequest? ServiceFilters { get; init; }
     public string? SpecialRequest { get; init; }
+    public int Adults { get; init; } = 1;
+    public int Children { get; init; } = 0;
+    public string? UserFeedback { get; init; }
+    public ItineraryResponseDto? PriorItinerary { get; init; }
 }

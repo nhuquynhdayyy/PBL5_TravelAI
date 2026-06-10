@@ -28,7 +28,7 @@ const StickyFooter = ({ totalCost, guestCount = 2, onBookAll, disabled = false }
           className="flex items-center gap-2 rounded-2xl bg-cyan-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-cyan-200 transition hover:bg-cyan-600 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <ShoppingBag size={16} />
-          Đặt toàn bộ lịch trình
+          Đặt toàn bộ dịch vụ
         </button>
       </div>
     </div>

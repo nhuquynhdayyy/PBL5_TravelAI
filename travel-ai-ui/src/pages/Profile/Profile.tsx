@@ -521,7 +521,7 @@ const Profile: React.FC = () => {
                                         <div className="flex items-center gap-4 mt-2 text-slate-400 font-bold text-[10px] uppercase tracking-widest">
                                             <span className="flex items-center gap-1"><Calendar size={12}/> Vừa tạo</span>
                                             <span className="flex items-center gap-1 text-green-600 bg-green-50 px-2 py-0.5 rounded-md">
-                                                <DollarSign size={12}/> {new Intl.NumberFormat('vi-VN').format(trip.totalEstimatedCost)}₫
+                                                {new Intl.NumberFormat('vi-VN').format(trip.totalEstimatedCost)}₫
                                             </span>
                                         </div>
                                     </div>

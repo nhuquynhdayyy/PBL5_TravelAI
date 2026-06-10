@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -56,7 +57,11 @@ public class PromptBuilder
         List<AISuggestionLog>? historyLogs = null,
         dynamic? weatherData = null,
         List<Service>? availableServiceEntities = null,
-        ServiceFilterRequest? serviceFilters = null)
+        ServiceFilterRequest? serviceFilters = null,
+        int adults = 1,
+        int children = 0,
+        string? userFeedback = null,
+        ItineraryResponseDto? priorItinerary = null)
     {
         var openSpots = spots
             .Where(spot => IsSpotOpenForTrip(spot, startDate, days))
@@ -110,7 +115,71 @@ public class PromptBuilder
                                       || normalizedTravelStyle.Contains("backpacker", StringComparison.Ordinal);
 
         var prompt = new StringBuilder();
-        prompt.AppendLine($"Ban la chuyen gia lap ke hoach du lich. Hay lap lich trinh {days} ngay tai {dest.Name}.");
+        prompt.AppendLine($"Ban la chuyen gia lap ke hoach du lich. Hay lap lich trinh {days} ngay tai {dest.Name} cho {adults} nguoi lon va {children} tre em.");
+        if (!string.IsNullOrWhiteSpace(userFeedback) && priorItinerary != null)
+        {
+            prompt.AppendLine("### RANG BUOC DIEU CHINH LICH TRINH (REVISION CONSTRAINTS):");
+            prompt.AppendLine("Nguoi dung khong muon tao moi tu dau. Ho muon thay doi/chinh sua mot so phan cua lich trinh cu.");
+            prompt.AppendLine($"- YEU CAU CHINH SUA CUA NGUOI DUNG: \"{userFeedback}\"");
+            prompt.AppendLine("- LICH TRINH HIEN TAI:");
+            
+            var simplified = new
+            {
+                tripTitle = priorItinerary.TripTitle,
+                destination = priorItinerary.Destination,
+                days = priorItinerary.Days.Select(d => new
+                {
+                    day = d.Day,
+                    activities = d.Activities.Select(a => new
+                    {
+                        title = a.Title,
+                        location = a.Location,
+                        description = a.Description,
+                        duration = a.Duration,
+                        estimatedCost = a.EstimatedCost,
+                        service_id = a.ServiceId
+                    }).ToList()
+                }).ToList()
+            };
+            var priorItineraryJson = JsonSerializer.Serialize(simplified);
+            prompt.AppendLine(priorItineraryJson);
+            prompt.AppendLine();
+            prompt.AppendLine($"Lich trinh hien tai dang co tong gia: {priorItinerary.TotalEstimatedCost:#,##0} VND.");
+            prompt.AppendLine();
+            prompt.AppendLine("RANG BUOC BAT BUOC KHI DIEU CHINH:");
+            prompt.AppendLine("1. Hay phan tich \"YEU CAU CHINH SUA CUA NGUOI DUNG\" de thuc hien cap nhat tuong ung (vi du: them quan an, giam di bo, hoac doi khach san).");
+            
+            var normalizedFeedback = RemoveDiacritics(userFeedback).ToLowerInvariant();
+            var isBudgetSavingRequest = normalizedFeedback.Contains("tiet kiem", StringComparison.Ordinal)
+                                        || normalizedFeedback.Contains("re ", StringComparison.Ordinal)
+                                        || normalizedFeedback.Contains("re hon", StringComparison.Ordinal)
+                                        || normalizedFeedback.Contains("giam gia", StringComparison.Ordinal)
+                                        || normalizedFeedback.Contains("giam chi phi", StringComparison.Ordinal)
+                                        || normalizedFeedback.Contains("cheap", StringComparison.Ordinal)
+                                        || normalizedFeedback.Contains("save", StringComparison.Ordinal)
+                                        || normalizedFeedback.Contains("bot ", StringComparison.Ordinal)
+                                        || normalizedFeedback.Contains("giam ", StringComparison.Ordinal);
+
+            if (isBudgetSavingRequest)
+            {
+                prompt.AppendLine($"*** CHI THI NGHIEM NGAT VE AN TOAN CHI PHI (BUDGET SAFETY CHECK): ***");
+                prompt.AppendLine($"- Nguoi dung yeu cau 'tiet kiem hon'. Ban BAT BUOC phai dieu chinh cac hoat dong hoac thay doi khach san de tong chi phi cua lich trinh moi PHAI thap hon hoac bang muc gia cu la {priorItinerary.TotalEstimatedCost:#,##0} VND.");
+                prompt.AppendLine($"- TUYET DOI KHONG DUOC TU Y TANG GIA hoac tra ve muc gia cao hon {priorItinerary.TotalEstimatedCost:#,##0} VND va gan mac 'Tiet kiem'.");
+                prompt.AppendLine($"- Neu trong co so du lieu khong co bat ky phuong an phu hop nao re hon (do chi phi thuc te cua cac dich vu bat buoc da o muc toi thieu va khong the bot di ma van dam bao yeu cau chuyen di), ban KHONG DUOC TRA VE JSON lich trinh.");
+                prompt.AppendLine($"- Trong truong hop do, ban phai tra ve JSON loi theo dung dinh dang sau de he thong thong bao cho nguoi dung:");
+                prompt.AppendLine("  {");
+                prompt.AppendLine("    \"error\": \"Không thể tạo lịch trình tiết kiệm hơn\",");
+                prompt.AppendLine($"    \"details\": \"Chi phí hiện tại ({priorItinerary.TotalEstimatedCost:#,##0} VND) đã ở mức tối thiểu cho các dịch vụ cơ bản. Không có phương án thay thế rẻ hơn phù hợp tại {dest.Name}.\"");
+                prompt.AppendLine("  }");
+                prompt.AppendLine("  (Luu y: Khi tra ve JSON loi nay, tuyet doi khong kem theo bat ky truong nao khac ngoai 'error' va 'details').");
+            }
+
+            prompt.AppendLine("2. GIU NGUYEN (BAO TOAN) tat ca cac hoat dong, khach san hoac ngay trinh ma khong lien quan den yeu cau thay doi. Cam tuyet doi viec tao ra mot lich trinh moi khac hoan toan khong co su ke thua.");
+            prompt.AppendLine("3. Neu khong thay doi mot hoat dong he thong, phai giu nguyen service_id goc cua no.");
+            prompt.AppendLine("4. Tat ca cac hoat dong moi duoc them vao phai thuoc dung dia phan cua tinh thanh du lich da chon va co thoi gian/chi phi hop ly.");
+            prompt.AppendLine();
+        }
+        prompt.AppendLine($"RANG BUOC DIA LY TUYET DOI: Tat ca cac dia diem, hoat dong, diem tham quan, nha hang, ca phe, khach san duoc goi y trong lich trinh PHAI thuoc dung dia phan cua {dest.Name}. Cam tuyet doi viec lay cac dia diem o cac tinh thanh khac (vi du: neu diem den la Da Nang, cam tuyet doi khong duoc goi y cac dia diem o Ha Noi nhu 'Pho di bo Ho Hoan Kiem' hay 'Ho Tay' vi do la loi sai lam dia ly nghiem trong).");
         prompt.AppendLine($"Chuyen di bat dau tu ngay {startDate:dd/MM/yyyy}. Day la moc ngay bat dau co dinh cho ca hanh trinh.");
         prompt.AppendLine($"Hay sap xep tung ngay trong lich trinh gan voi cac ngay cu the dua tren moc thoi gian nay, trong do ngay 1 ung voi {startDate:dd/MM/yyyy} va moi ngay sau la ngay lien ke.");
         prompt.AppendLine();
@@ -179,6 +248,7 @@ public class PromptBuilder
         prompt.AppendLine(comboLines);
         prompt.AppendLine();
         prompt.AppendLine("### THONG TIN NGUOI DUNG:");
+        prompt.AppendLine($"- So luong khach: {adults} nguoi lon, {children} tre em");
         prompt.AppendLine($"- Phong cach: {travelStyle}");
         prompt.AppendLine($"- Ngan sach: {budgetLevel}");
         prompt.AppendLine($"- Nhip do: {travelPace}");
@@ -219,7 +289,7 @@ public class PromptBuilder
         prompt.AppendLine("    }");
         prompt.AppendLine("  ]");
         prompt.AppendLine("}");
-        prompt.AppendLine("Luu y quan trong: field 'duration' BAT BUOC phai co va phai la thoi gian thuc te cua hoat dong do (vi du: tham quan bao tang 2 gio, an trua 1 gio, check-in khach san 30 phut). Tinh toan 'estimatedCost' la 0 cho cac diem tu do va dung gia he thong cho cac diem chinh thuc. Moi activity phai co field service_id. Lich trinh phai khop voi ngay bat dau da cung cap.");
+        prompt.AppendLine("Luu y quan trong: field 'duration' BAT BUOC phai co va phai la thoi gian thuc te cua hoat dong do (vi du: tham quan bao tang 2 gio, an trua 1 gio, check-in khach san 30 phut). Uoc luong chi phi (estimatedCost) thuc te va hop ly cho tat ca cac hoat dong tu do hoac an uong (vi du: an sang khoang 50000 VND, an trua/an toi khoang 150000-250000 VND, uong ca phe khoang 40000-60000 VND, tham quan bao tang hoac diem di tich khoang 50000-100000 VND tren moi nguoi) chu tuyet doi khong de mac dinh la 0. Chi de 0 cho cac hoat dong hoan toan mien phi nhu tam bien, di bo cong vien public. Voi cac dich vu he thong duoc cung cap san o tren, phai dung dung gia cua he thong. Moi activity phai co field service_id. Lich trinh phai khop voi ngay bat dau da cung cap.");
 
         return prompt.ToString();
     }
