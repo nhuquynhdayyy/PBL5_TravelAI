@@ -33,6 +33,7 @@ interface ChatMessage {
   text: string;
   quickReplies?: QuickReply[];
   showDatePicker?: boolean;
+  showGuestPicker?: boolean;
   isTyping?: boolean;
   timestamp: number;
 }

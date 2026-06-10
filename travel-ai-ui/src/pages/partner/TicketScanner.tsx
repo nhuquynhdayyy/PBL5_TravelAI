@@ -345,6 +345,7 @@ const TicketScanner = () => {
         )}
         </div>
       </div>
+    </div>
       
       {/* Laser scan keyframe style for scanning */}
       <style>{`
