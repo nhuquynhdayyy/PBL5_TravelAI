@@ -65,7 +65,7 @@ const NotificationDropdown = ({ trigger }: NotificationDropdownProps) => {
                 onClick={() => markAllAsRead()}
                 className="text-xs font-bold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
               >
-                Doc tat ca
+                Đọc tất cả
               </button>
             )}
           </div>
@@ -87,16 +87,14 @@ const NotificationDropdown = ({ trigger }: NotificationDropdownProps) => {
                 {notifications.slice(0, 8).map((item) => (
                   <div
                     key={item.id}
-                    className={`group flex items-start gap-3 p-4 transition-colors ${
-                      item.isRead 
-                        ? 'bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800/60' 
+                    className={`group flex items-start gap-3 p-4 transition-colors ${item.isRead
+                        ? 'bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800/60'
                         : 'bg-blue-50/70 hover:bg-blue-50 dark:bg-blue-950/25 dark:hover:bg-blue-950/40'
-                    }`}
+                      }`}
                   >
                     <div
-                      className={`flex-shrink-0 rounded-xl p-2 text-white ${
-                        item.isRead ? 'bg-slate-300 dark:bg-slate-700' : 'bg-blue-600 dark:bg-blue-500'
-                      }`}
+                      className={`flex-shrink-0 rounded-xl p-2 text-white ${item.isRead ? 'bg-slate-300 dark:bg-slate-700' : 'bg-blue-600 dark:bg-blue-500'
+                        }`}
                     >
                       {getIcon(item.type)}
                     </div>

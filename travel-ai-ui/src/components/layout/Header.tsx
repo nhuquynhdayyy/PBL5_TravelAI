@@ -1,4 +1,4 @@
-﻿// src/components/layout/Header.tsx
+// src/components/layout/Header.tsx
 
 import React, { useState, useEffect } from 'react';
 import { Menu, X, Plane, LogOut, LayoutDashboard, Store, User, ChevronDown, Hotel, Compass, ClipboardList, MessageSquare, BarChart3, Building2, ShoppingCart, Landmark, Sparkles } from 'lucide-react';
@@ -15,9 +15,8 @@ const Header: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { items } = useCart();
-  const location = useLocation();
 
-  const role = userState?.roleName?.toLowerCase(); 
+  const role = userState?.roleName?.toLowerCase();
 
   const handleLogout = () => {
     localStorage.clear();
@@ -27,11 +26,10 @@ const Header: React.FC = () => {
 
   const getAdminLinkClass = (path: string) => {
     const isActive = location.pathname.startsWith(path);
-    return `flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-extrabold transition-all ${
-      isActive
-        ? 'bg-blue-50 text-blue-700'
-        : 'bg-white text-slate-600 hover:bg-slate-50 hover:text-blue-600'
-    }`;
+    return `flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-extrabold transition-all ${isActive
+      ? 'bg-blue-50 text-blue-700'
+      : 'bg-white text-slate-600 hover:bg-slate-50 hover:text-blue-600'
+      }`;
   };
 
   useEffect(() => {
@@ -44,7 +42,7 @@ const Header: React.FC = () => {
     const handleUserUpdated = () => {
       setUserState(getUser());
     };
-    
+
     window.addEventListener('userUpdated', handleUserUpdated);
     return () => window.removeEventListener('userUpdated', handleUserUpdated);
   }, []);
@@ -54,80 +52,79 @@ const Header: React.FC = () => {
   };
 
   return (
-    <header className={`fixed w-full z-50 border-b transition-all duration-300 ${
-      isScrolled
-        ? 'border-slate-200 bg-white shadow-md py-3 dark:border-slate-800 dark:bg-slate-950'
-        : 'border-transparent bg-white/90 backdrop-blur-md py-4 dark:bg-slate-950/90'
-    }`}>
+    <header className={`fixed w-full z-50 border-b transition-all duration-300 ${isScrolled
+      ? 'border-slate-200 bg-white shadow-md py-3 dark:border-slate-800 dark:bg-slate-950'
+      : 'border-transparent bg-white/90 backdrop-blur-md py-4 dark:bg-slate-950/90'
+      }`}>
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
-        <div className="flex items-center">
-          
+        <div className="flex items-center justify-between">
+
           {/* LOGO */}
           <Link
             to={role === 'partner' ? '/partner/services' : role === 'admin' ? '/admin/stats' : '/'}
-            className="group mr-10 flex shrink-0 cursor-pointer items-center gap-2 lg:mr-12"
+            className="group flex shrink-0 cursor-pointer items-center gap-2"
           >
             <div className="bg-blue-500 p-1.5 rounded-lg group-hover:rotate-12 transition-transform">
-                <Plane className="text-white size-6" />
+              <Plane className="text-white size-6" />
             </div>
             <span className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-                Travel<span className="text-blue-500">AI</span>
+              Travel<span className="text-blue-500">AI</span>
             </span>
           </Link>
 
           {/* DESKTOP MENU */}
-          <nav className="hidden flex-1 items-center gap-6 md:flex lg:gap-7">
+          <nav className="hidden flex-1 items-center justify-center gap-5 md:flex lg:gap-6">
             {role !== 'partner' && role !== 'admin' && (
               <>
-                <Link to="/" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all dark:text-slate-300 dark:hover:text-blue-400">Trang chá»§</Link>
-                <Link to="/destinations" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all dark:text-slate-300 dark:hover:text-blue-400">Äiá»ƒm Ä‘áº¿n</Link>
-                
-                {/* DROPDOWN SERVICES */}
-                <div 
-                    className="relative py-2"
-                    onMouseEnter={() => setIsServicesOpen(true)}
-                    onMouseLeave={() => setIsServicesOpen(false)}
-                >
-                    <button className="flex items-center gap-1 text-slate-600 hover:text-blue-500 font-medium text-sm transition-all outline-none dark:text-slate-300">
-                        Dịch vụ <ChevronDown size={14} className={`transition-transform duration-300 ${isServicesOpen ? 'rotate-180' : ''}`} />
-                    </button>
+                <Link to="/" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all dark:text-slate-300 dark:hover:text-blue-400">Trang chủ</Link>
+                <Link to="/destinations" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all dark:text-slate-300 dark:hover:text-blue-400">Địa điểm</Link>
 
-                    {isServicesOpen && (
-                        <div className="absolute top-full left-0 w-60 bg-white rounded-3xl shadow-2xl border border-slate-100 p-3 animate-in fade-in slide-in-from-top-2 duration-300 dark:border-slate-800 dark:bg-slate-900">
-                            <Link to="/hotels" className="flex items-center gap-3 p-3 hover:bg-blue-50 rounded-2xl transition-all group/item dark:hover:bg-slate-800">
-                                <div className="p-2 bg-blue-100 text-blue-600 rounded-xl group-hover/item:bg-blue-600 group-hover/item:text-white transition-colors">
-                                    <Hotel size={20} />
-                                </div>
-                                <div className="text-left">
-                                    <p className="text-sm font-black text-slate-800 dark:text-slate-100">Khách sạn</p>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Tìm chỗ ở ưng ý</p>
-                                </div>
-                            </Link>
-                            <Link to="/tours" className="flex items-center gap-3 p-3 hover:bg-emerald-50 rounded-2xl transition-all group/item mt-1 dark:hover:bg-slate-800">
-                                <div className="p-2 bg-emerald-100 text-emerald-600 rounded-xl group-hover/item:bg-emerald-600 group-hover/item:text-white transition-colors">
-                                    <Compass size={20} />
-                                </div>
-                                <div className="text-left">
-                                    <p className="text-sm font-black text-slate-800 dark:text-slate-100">Tour du lịch</p>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Trải nghiệm thú vị</p>
-                                </div>
-                            </Link>
-                            <Link to="/transportation" className="flex items-center gap-3 p-3 hover:bg-purple-50 rounded-2xl transition-all group/item mt-1 dark:hover:bg-slate-800">
-                                <div className="p-2 bg-purple-100 text-purple-600 rounded-xl group-hover/item:bg-purple-600 group-hover/item:text-white transition-colors">
-                                    <Plane size={20} />
-                                </div>
-                                <div className="text-left">
-                                    <p className="text-sm font-black text-slate-800 dark:text-slate-100">Di chuyển</p>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Tiện lợi, dễ dàng</p>
-                                </div>
-                            </Link>
+                {/* DROPDOWN SERVICES */}
+                <div
+                  className="relative py-2"
+                  onMouseEnter={() => setIsServicesOpen(true)}
+                  onMouseLeave={() => setIsServicesOpen(false)}
+                >
+                  <button className="flex items-center gap-1 text-slate-600 hover:text-blue-500 font-medium text-sm transition-all outline-none dark:text-slate-300">
+                    Dịch vụ <ChevronDown size={14} className={`transition-transform duration-300 ${isServicesOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {isServicesOpen && (
+                    <div className="absolute top-full left-0 w-60 bg-white rounded-3xl shadow-2xl border border-slate-100 p-3 animate-in fade-in slide-in-from-top-2 duration-300 dark:border-slate-800 dark:bg-slate-900">
+                      <Link to="/hotels" className="flex items-center gap-3 p-3 hover:bg-blue-50 rounded-2xl transition-all group/item dark:hover:bg-slate-800">
+                        <div className="p-2 bg-blue-100 text-blue-600 rounded-xl group-hover/item:bg-blue-600 group-hover/item:text-white transition-colors">
+                          <Hotel size={20} />
                         </div>
-                    )}
+                        <div className="text-left">
+                          <p className="text-sm font-black text-slate-800 dark:text-slate-100">Khách sạn</p>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Tìm chỗ ở ưng ý</p>
+                        </div>
+                      </Link>
+                      <Link to="/tours" className="flex items-center gap-3 p-3 hover:bg-emerald-50 rounded-2xl transition-all group/item mt-1 dark:hover:bg-slate-800">
+                        <div className="p-2 bg-emerald-100 text-emerald-600 rounded-xl group-hover/item:bg-emerald-600 group-hover/item:text-white transition-colors">
+                          <Compass size={20} />
+                        </div>
+                        <div className="text-left">
+                          <p className="text-sm font-black text-slate-800 dark:text-slate-100">Tour du lịch</p>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Trải nghiệm thú vị</p>
+                        </div>
+                      </Link>
+                      <Link to="/transportation" className="flex items-center gap-3 p-3 hover:bg-purple-50 rounded-2xl transition-all group/item mt-1 dark:hover:bg-slate-800">
+                        <div className="p-2 bg-purple-100 text-purple-600 rounded-xl group-hover/item:bg-purple-600 group-hover/item:text-white transition-colors">
+                          <Plane size={20} />
+                        </div>
+                        <div className="text-left">
+                          <p className="text-sm font-black text-slate-800 dark:text-slate-100">Di chuyển</p>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Tiện lợi, dễ dàng</p>
+                        </div>
+                      </Link>
+                    </div>
+                  )}
                 </div>
 
                 <Link to="/ai-suggestions" className="flex items-center gap-1.5 text-slate-600 hover:text-blue-500 font-medium text-sm transition-all group dark:text-slate-300">
                   <Sparkles size={16} className="text-blue-400 group-hover:text-blue-500 transition-colors" />
-                  <span>Gá»£i Ã½ AI</span>
+                  <span>Gợi ý AI</span>
                 </Link>
 
                 <Link to="/planner" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all dark:text-slate-300">Lịch trình</Link>
@@ -186,17 +183,17 @@ const Header: React.FC = () => {
           </nav>
 
           {/* USER ACTIONS */}
-          <div className="hidden shrink-0 items-center gap-3 md:flex">
+          <div className="hidden shrink-0 items-center gap-2 md:flex">
             {userState ? (
-                <div className="flex items-center gap-4">
-                    <NotificationBell />
-                    <Link to="/profile" className="text-sm font-black text-slate-900 hover:text-blue-600 transition-all flex items-center gap-1 dark:text-white dark:hover:text-blue-400">
-                      {userState.fullName} <User size={14} className="text-blue-500" />
-                    </Link>
-                    <button onClick={handleLogout} className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors dark:hover:bg-red-950/40">
-                      <LogOut size={20} />
-                    </button>
-                </div>
+              <div className="flex items-center gap-2">
+                <NotificationBell />
+                <Link to="/profile" className="text-sm font-black text-slate-900 hover:text-blue-600 transition-all flex items-center gap-1 dark:text-white dark:hover:text-blue-400">
+                  {userState.fullName} <User size={14} className="text-blue-500" />
+                </Link>
+                <button onClick={handleLogout} className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors dark:hover:bg-red-950/40">
+                  <LogOut size={20} />
+                </button>
+              </div>
             ) : (
               <div className="flex items-center gap-2">
                 <button onClick={() => navigate('/login')} className="px-5 py-2 text-slate-700 font-bold text-sm hover:text-blue-500 dark:text-slate-300">Đăng nhập</button>
