@@ -48,12 +48,12 @@ const buildRequest = (filters: ServiceFilterState, searchKeyword: string, pageNu
   tourThemes: filters.tourThemes.length ? filters.tourThemes : undefined,
   tourDuration: filters.tourDuration || undefined,
   transportType: filters.transportType || undefined,
-  departureTime: filters.departureTime || undefined,
 });
 
 const Services: React.FC<ServicesProps> = ({ defaultType = '' }) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialType = typeFromRoute(searchParams.get('type') || defaultType);
+  
   const [filters, setFilters] = useState<ServiceFilterState>(defaultServiceFilters(initialType));
   const [searchKeyword, setSearchKeyword] = useState('');
   const [debouncedKeyword, setDebouncedKeyword] = useState('');

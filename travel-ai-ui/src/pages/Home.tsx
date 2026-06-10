@@ -84,7 +84,7 @@ const HeroSection = () => (
         </div>
         <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
           <Link
-            to="/preferences"
+            to="/planner/create"
             className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-6 py-3.5 text-sm font-black text-slate-900 shadow-xl transition hover:scale-105 hover:shadow-2xl"
           >
             Tạo lịch trình AI <ArrowRight size={18} />
@@ -490,7 +490,7 @@ const CommunitySection = () => {
               </p>
               <button
                 type="button"
-                onClick={() => navigate('/preferences')}
+                onClick={() => navigate('/planner/create')}
                 className="mt-5 inline-flex items-center gap-2 rounded-xl bg-blue-50 px-4 py-3 text-sm font-black text-[#0061ff] transition hover:bg-[#0061ff] hover:text-white dark:bg-blue-900/30 dark:hover:bg-[#0061ff]"
               >
                 Dùng làm cảm hứng <ArrowRight size={15} />
@@ -539,7 +539,7 @@ const HomeFooter = () => {
           </div>
           <div>
             <h4 className="mb-4 font-black uppercase tracking-widest text-slate-300 text-xs">AI Planner</h4>
-            <Link className="block text-slate-400 transition hover:text-white" to="/preferences">Tạo lịch trình</Link>
+            <Link className="block text-slate-400 transition hover:text-white" to="/planner/create">Tạo lịch trình</Link>
             <Link className="mt-2 block text-slate-400 transition hover:text-white" to="/itinerary/latest">Lịch trình của tôi</Link>
           </div>
           <div>

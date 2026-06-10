@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   Bus,
-  Clock3,
   Compass,
   Hotel,
   RotateCcw,
@@ -22,7 +21,6 @@ export interface ServiceFilterState {
   tourThemes: string[];
   tourDuration: string;
   transportType: string;
-  departureTime: string;
 }
 
 interface ServiceFilterSidebarProps {
@@ -41,7 +39,6 @@ export const defaultServiceFilters = (serviceType = ''): ServiceFilterState => (
   tourThemes: [],
   tourDuration: '',
   transportType: '',
-  departureTime: '',
 });
 
 const serviceTypes = [
@@ -76,12 +73,6 @@ const transportTypes = [
   { value: 'Bus', label: 'Xe khách' },
 ];
 
-const departureTimes = [
-  { value: 'morning', label: 'Sáng' },
-  { value: 'afternoon', label: 'Chiều' },
-  { value: 'evening', label: 'Tối' },
-];
-
 const ServiceFilterSidebar: React.FC<ServiceFilterSidebarProps> = ({ value, onChange, onReset }) => {
   const patch = (partial: Partial<ServiceFilterState>) => onChange({ ...value, ...partial });
 
@@ -103,8 +94,7 @@ const ServiceFilterSidebar: React.FC<ServiceFilterSidebarProps> = ({ value, onCh
     value.hotelAmenities.length > 0 ||
     value.tourThemes.length > 0 ||
     value.tourDuration ||
-    value.transportType ||
-    value.departureTime;
+    value.transportType;
 
   return (
     <aside className="sticky top-24 rounded-2xl border border-slate-200 bg-white shadow-sm">

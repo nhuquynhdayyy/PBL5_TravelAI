@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, MapPin, Calendar } from 'lucide-react';
+import { Search, MapPin } from 'lucide-react';
 import axiosClient from '../api/axiosClient';
 
 const HeroSearchBar: React.FC = () => {
   const navigate = useNavigate();
   const [location, setLocation] = useState('');
-  const [checkInDate, setCheckInDate] = useState('');
   const [destinations, setDestinations] = useState<any[]>([]);
   const [filteredDestinations, setFilteredDestinations] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -48,43 +47,16 @@ const HeroSearchBar: React.FC = () => {
       return;
     }
 
-    // Try to find exact destination match
-    const exactMatch = destinations.find(dest => 
-      dest.name?.toLowerCase() === location.toLowerCase().trim()
-    );
-
-    if (exactMatch) {
-      // If exact match found, navigate to planner create page
-      navigate('/planner/create', {
-        state: {
-          preselectedDestinationId: exactMatch.id || exactMatch.destinationId,
-          preselectedDate: checkInDate
-        }
-      });
-    } else {
-      // Otherwise, navigate to services page with search params
-      const params = new URLSearchParams();
-      params.set('location', location);
-      if (checkInDate) {
-        params.set('checkIn', checkInDate);
-      }
-      
-      navigate(`/services?${params.toString()}`);
-    }
-    
+    // Navigate to destinations page with search query
+    navigate(`/destinations?search=${encodeURIComponent(location.trim())}`);
     setShowSuggestions(false);
   };
 
   const handleSelectDestination = (dest: any) => {
     setLocation(dest.name);
     setShowSuggestions(false);
-    // Navigate directly to planner create
-    navigate('/planner/create', {
-      state: {
-        preselectedDestinationId: dest.id || dest.destinationId,
-        preselectedDate: checkInDate
-      }
-    });
+    // Navigate to destinations page with search query
+    navigate(`/destinations?search=${encodeURIComponent(dest.name)}`);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -94,9 +66,6 @@ const HeroSearchBar: React.FC = () => {
       setShowSuggestions(false);
     }
   };
-
-  // Get today's date in YYYY-MM-DD format for min attribute
-  const today = new Date().toISOString().split('T')[0];
 
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
@@ -144,21 +113,6 @@ const HeroSearchBar: React.FC = () => {
             ))}
           </div>
         )}
-      </div>
-
-      {/* Date Input */}
-      <div className="relative sm:w-48">
-        <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-          <Calendar size={20} />
-        </div>
-        <input
-          type="date"
-          value={checkInDate}
-          onChange={(e) => setCheckInDate(e.target.value)}
-          onKeyDown={handleKeyDown}
-          min={today}
-          className="h-14 w-full rounded-xl border-2 border-slate-200 bg-white pl-12 pr-4 text-sm font-semibold text-slate-900 transition-all focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-        />
       </div>
 
       {/* Search Button */}
