@@ -14,11 +14,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, hideFooter = false })
   useDarkMode();
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
+    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-950 transition-colors duration-300 dark:bg-[#0B1220] dark:text-slate-50">
       <Header />
 
       {/* Main Content Area */}
-      <main className="flex-grow pt-20 pb-12">
+      <main className="app-dark-content flex-grow pt-20 pb-12 transition-colors duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 animate-in fade-in duration-500">
           {children}
         </div>

@@ -26,7 +26,7 @@ const Register = () => {
       setRegisteredEmail(formData.email);
       setRegistered(true);
     } catch (err: any) {
-      alert(err.response?.data?.message || err.response?.data || 'Registration failed. Please try again.');
+      alert(err.response?.data?.message || err.response?.data || 'Đăng ký thất bại. Vui lòng thử lại.');
     } finally {
       setLoading(false);
     }
@@ -35,7 +35,7 @@ const Register = () => {
   return (
     <MainLayout>
       {registered ? (
-        /* === Success: Kiểm tra email === */
+        /* === Success: Thông báo sau khi đăng ký thành công === */
         <div className="min-h-[70vh] flex items-center justify-center px-4">
           <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl border border-slate-100 p-10 text-center">
             <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-green-50 mb-6">
@@ -51,7 +51,7 @@ const Register = () => {
             </div>
             <Link
               to="/login"
-              className="inline-block w-full py-4 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 shadow-xl shadow-blue-200 transition-all"
+              className="inline-block w-full py-4 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 shadow-xl shadow-blue-200 transition-all text-center"
             >
               Về trang đăng nhập
             </Link>
@@ -59,25 +59,25 @@ const Register = () => {
         </div>
       ) : (
         /* === Form đăng ký === */
-        <div className="max-w-md mx-auto mt-10 p-8 bg-white rounded-3xl shadow-2xl border border-slate-100 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="max-w-md mx-auto mt-10 mb-20 p-8 bg-white rounded-3xl shadow-2xl border border-slate-100 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="text-center mb-8">
             <div className="inline-flex p-3 bg-blue-50 rounded-2xl text-blue-600 mb-4">
               <UserPlus size={32} />
             </div>
-            <h2 className="text-3xl font-black text-slate-900">Create Account</h2>
-            <p className="text-slate-500 mt-2 text-sm">Join TravelAI and start your smart journey.</p>
+            <h2 className="text-3xl font-black text-slate-900">Tạo tài khoản</h2>
+            <p className="text-slate-500 mt-2 text-sm">Tham gia TravelAI và bắt đầu hành trình thông minh của bạn.</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Full Name Input */}
             <div>
-              <label className="text-xs font-bold text-slate-700 uppercase ml-1 tracking-wider">Full Name</label>
+              <label className="text-xs font-bold text-slate-700 uppercase ml-1 tracking-wider">Họ và tên</label>
               <div className="relative mt-1">
                 <User className="absolute left-4 top-4 size-5 text-slate-400" />
                 <input 
                   className="w-full pl-12 pr-4 py-4 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all placeholder:text-slate-300" 
                   type="text" 
-                  placeholder="Enter your full name" 
+                  placeholder="Nhập họ và tên của bạn" 
                   onChange={e => setFormData({...formData, fullName: e.target.value})} 
                   required 
                 />
@@ -86,7 +86,7 @@ const Register = () => {
 
             {/* Email Input */}
             <div>
-              <label className="text-xs font-bold text-slate-700 uppercase ml-1 tracking-wider">Email Address</label>
+              <label className="text-xs font-bold text-slate-700 uppercase ml-1 tracking-wider">Địa chỉ Email</label>
               <div className="relative mt-1">
                 <Mail className="absolute left-4 top-4 size-5 text-slate-400" />
                 <input 
@@ -101,7 +101,7 @@ const Register = () => {
 
             {/* Password Input */}
             <div>
-              <label className="text-xs font-bold text-slate-700 uppercase ml-1 tracking-wider">Password</label>
+              <label className="text-xs font-bold text-slate-700 uppercase ml-1 tracking-wider">Mật khẩu</label>
               <div className="relative mt-1">
                 <Lock className="absolute left-4 top-4 size-5 text-slate-400" />
                 <input 
@@ -114,9 +114,11 @@ const Register = () => {
               </div>
             </div>
 
-            <label className="flex items-center gap-2 cursor-pointer">
+            {/* Partner Checkbox */}
+            <label className="flex items-center gap-2 cursor-pointer py-2">
               <input
                 type="checkbox"
+                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                 checked={isPartner}
                 onChange={e => setIsPartner(e.target.checked)}
               />
@@ -125,6 +127,7 @@ const Register = () => {
               </span>
             </label>
 
+            {/* Submit Button */}
             <button 
               disabled={loading} 
               className="w-full py-4 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 shadow-xl shadow-blue-200 transition-all active:scale-[0.98] disabled:bg-slate-300 flex items-center justify-center gap-2"
@@ -132,16 +135,17 @@ const Register = () => {
               {loading ? (
                 <div className="size-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
               ) : (
-                'Create Account'
+                'Tạo tài khoản'
               )}
             </button>
           </form>
 
+          {/* Footer Link */}
           <div className="mt-8 pt-6 border-t border-slate-50 text-center">
             <p className="text-sm text-slate-500">
-              Already have an account?{' '}
+              Đã có tài khoản?{' '}
               <Link to="/login" className="text-blue-600 font-bold hover:underline transition-all">
-                Log in here
+                Đăng nhập tại đây
               </Link>
             </p>
           </div>

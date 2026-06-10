@@ -41,8 +41,8 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, isAdminOrPartner, on
   const badgeConfig = isHotel
     ? { label: 'Khách sạn', icon: <Hotel size={12} />, bg: 'bg-blue-600/80' }
     : isTransport
-    ? { label: 'Di chuyển', icon: <Car size={12} />, bg: 'bg-orange-500/80' }
-    : { label: 'Tour du lịch', icon: <Compass size={12} />, bg: 'bg-emerald-600/80' };
+      ? { label: 'Di chuyển', icon: <Car size={12} />, bg: 'bg-orange-500/80' }
+      : { label: 'Tour du lịch', icon: <Compass size={12} />, bg: 'bg-emerald-600/80' };
 
   // Label giá theo loại
   const priceLabel = isTransport ? '/ngày' : isHotel ? '/đêm' : '/người';
@@ -118,20 +118,21 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, isAdminOrPartner, on
   };
 
   return (
-    <div className="group flex h-full flex-col overflow-hidden rounded-[2.5rem] border border-slate-100 bg-white shadow-sm transition-all duration-500 hover:shadow-2xl">
+    <div className="app-image-card group flex h-full flex-col overflow-hidden rounded-[2.5rem] border border-slate-100 bg-white shadow-sm transition-all duration-500">
       <div className="relative h-52 overflow-hidden">
         <img
           src={getImageUrl(service.imageUrls)}
           className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
           alt={service.name}
         />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent" />
         <div className="absolute left-4 top-4">
           <div className={`flex items-center gap-1 rounded-full px-4 py-1.5 text-[10px] font-black uppercase text-white backdrop-blur-md ${badgeConfig.bg}`}>
             {badgeConfig.icon} {badgeConfig.label}
           </div>
         </div>
 
-        <div className="absolute bottom-4 left-4 rounded-full bg-white/95 px-3 py-1.5 text-[10px] font-black uppercase text-emerald-700 shadow-sm">
+        <div className="absolute bottom-4 left-4 rounded-full bg-slate-950/80 px-3 py-1.5 text-[10px] font-black uppercase text-emerald-300 shadow-sm ring-1 ring-white/10">
           {activeAvailability ? `Con ${activeAvailability.remainingStock} cho` : 'Het cho'}
         </div>
 
@@ -162,7 +163,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, isAdminOrPartner, on
               <p className="mb-1 flex items-center gap-1 text-[10px] font-black uppercase text-slate-400">
                 <CalendarCheck size={12} /> {activeAvailability ? activeAvailability.date : 'Giá từ'}
               </p>
-              <p className="text-xl font-black text-blue-600">
+              <p className="text-xl font-black text-blue-400">
                 {currencyFormatter.format(displayPrice)}đ
                 <span className="ml-1 text-[10px] font-semibold text-slate-400">{priceLabel}</span>
               </p>
@@ -178,7 +179,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, isAdminOrPartner, on
                 const detailPath = isTransport ? `/transport/${service.serviceId}` : `/services/${service.serviceId}`;
                 navigate(`${detailPath}${selectedDate ? `?date=${selectedDate}` : ''}`);
               }}
-              className="flex items-center justify-center gap-1 rounded-2xl bg-slate-100 py-3 text-xs font-bold text-slate-700"
+              className="flex items-center justify-center gap-1 rounded-2xl bg-slate-800 py-3 text-xs font-bold text-slate-300 ring-1 ring-white/10"
             >
               CHI TIET <ArrowUpRight size={14} />
             </button>

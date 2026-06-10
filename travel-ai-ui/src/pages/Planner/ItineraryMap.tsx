@@ -116,23 +116,17 @@ const FitBounds = ({ points }: { points: LatLngTuple[] }) => {
   return null;
 };
 
-const FlyTo = ({ target, activityId }: { target: LatLngTuple | null; activityId?: string | null }) => {
+// clickKey is a monotonically increasing counter so re-clicking the same activity always fires
+const FlyTo = ({ target, activityId, clickKey }: { target: LatLngTuple | null; activityId?: string | null; clickKey?: number }) => {
   const map = useMap();
-  // Dedup by activityId (not coords) so clicking the same spot twice still flies
-  const prevId = useRef<string>('');
   useEffect(() => {
     if (!target) return;
-    // Use activityId as the dedup key; fall back to coords string if no id
     const key = activityId ?? target.join(',');
-    console.log(`🗺️ FlyTo triggered — id="${key}" coords=${target} (prev="${prevId.current}")`);
-    if (key === prevId.current) {
-      console.log('🗺️ FlyTo skipped — same key as previous');
-      return;
-    }
-    prevId.current = key;
-    console.log(`🗺️ FlyTo executing flyTo(${target}, zoom=16)`);
+    console.log(`🗺️ FlyTo executing flyTo(“${key}”) coords=${target} clickKey=${clickKey}`);
     map.flyTo(target, 16, { duration: 1.3, easeLinearity: 0.3 });
-  }, [map, target, activityId]);
+  // clickKey changes every click, ensuring the effect re-runs even for the same activity
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, target, activityId, clickKey]);
   return null;
 };
 
@@ -142,9 +136,11 @@ interface Props {
   days: ItineraryDay[];
   activeDay: number;
   focusedActivity?: ItineraryActivity | null;
+  /** Increment each click to force FlyTo re-trigger even for the same activity */
+  focusClickKey?: number;
 }
 
-const ItineraryMap = ({ days, activeDay, focusedActivity }: Props) => {
+const ItineraryMap = ({ days, activeDay, focusedActivity, focusClickKey = 0 }: Props) => {
   const [enrichedDays, setEnrichedDays] = useState<ItineraryDay[]>(days);
   const [geocoding, setGeocoding] = useState(false);
 
@@ -332,7 +328,7 @@ const ItineraryMap = ({ days, activeDay, focusedActivity }: Props) => {
 
               {/* Re-fits every time coordinates actually change */}
               <FitBounds points={allPoints} />
-              <FlyTo target={focusedPos} activityId={resolvedFocusedActivity?.id} />
+              <FlyTo target={focusedPos} activityId={resolvedFocusedActivity?.id} clickKey={focusClickKey} />
 
               {daysWithPoints.map(({ day, dayIdx, points }) => {
                 const color = DAY_COLORS[dayIdx % DAY_COLORS.length];

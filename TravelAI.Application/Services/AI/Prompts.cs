@@ -138,6 +138,18 @@ Phượt=vỉa hè/homestay, Văn hóa=di tích/show, Ẩm thực=food tour/ch�
 9. SERVICE_ID:
 Chỉ dùng service_id từ danh sách hệ thống. Quán ăn/cafe/tự do = null
 
+10. STRICT INCLUSION - ĐỊA ĐIỂM BẮT BUỘC (QUAN TRỌNG NHẤT):
+- Nếu đầu prompt có phần ""RANG BUOC BAT BUOC"" → ĐÓ LÀ LỆNH TỐI THƯỢNG, phải thực thi trước mọi quy tắc khác.
+- Mọi địa điểm được liệt kê với dấu >>> ... <<< phải XUẤT HIỆN trong JSON output.
+- TUYỆT ĐỐI không thay thế bằng địa điểm ""tương tự"" hoặc ""phù hợp hơn"". Người dùng đã chọn và muốn chính xác nơi đó.
+- Ví dụ: Người dùng yêu cầu ""Trình Cà Phê"" → JSON phải có activity title chứa ""Trình Cà Phê"", location chứa địa chỉ thực của quán, latitude/longitude chính xác.
+- Địa điểm bắt buộc phải có tọa độ GPS thực tế (không để 0 hoặc null).
+
+11. GEOGRAPHIC GROUPING (NHÓM THEO BÁN KÍNH 3KM):
+- Tất cả điểm tham quan và quán ăn trong CÙNG MỘT BUỔI phải nằm trong bán kính ≤3km tính từ điểm trung tâm của buổi đó.
+- Nếu có địa điểm bắt buộc (Strict Inclusion), sắp xếp các điểm khác trong buổi GẦN với địa điểm đó.
+- Check-in khách sạn: KHÔNG được tính là 1 block 2 tiếng. Chỉ ghi chú ""Gửi hành lý tại khách sạn"" (15-20 phút) buổi sáng. Check-in thực sự gộp vào giờ nghỉ trưa hoặc cuối buổi chiều.
+
 QUY TRÌNH (PHẢI TUÂN THỦ ĐÚNG THỨ TỰ):
 1. Xác định các KHU VỰC chính và ĐIỂM NEO CHÍNH (nếu có)
 2. Nếu ngày có ĐIỂM NEO CHÍNH: chỉ xếp 1 hoạt động đó + ăn uống tại chỗ + tối về nghỉ nhẹ

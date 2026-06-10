@@ -6,6 +6,7 @@ public class MyBookingSummaryDto
 {
     public int BookingId { get; set; }
     public string ServiceName { get; set; } = string.Empty;
+    public string ServiceType { get; set; } = string.Empty;
     public DateTime CheckInDate { get; set; }
     public int Quantity { get; set; }
     public decimal TotalAmount { get; set; }
@@ -17,5 +18,6 @@ public class MyBookingSummaryDto
     public bool CanCancel { get; set; }
     public string CancelPolicy { get; set; } = string.Empty;
     public string? CancellationReason { get; set; } // Lý do hủy đơn
+    public BookingQrDto? BookingQr { get; set; }
     public IReadOnlyList<ElectronicTicketDto> Tickets { get; set; } = Array.Empty<ElectronicTicketDto>();
 }

@@ -12,8 +12,8 @@ const DarkModeToggle: React.FC<DarkModeToggleProps> = ({ className = '' }) => {
   return (
     <button
       onClick={toggle}
-      aria-label={isDark ? 'Chuyển sang chế độ sáng' : 'Chuyển sang chế độ tối'}
-      title={isDark ? 'Chế độ sáng' : 'Chế độ tối'}
+      aria-label={isDark ? 'Chuyen sang che do sang' : 'Chuyen sang che do toi'}
+      title={isDark ? 'Che do sang' : 'Che do toi'}
       className={`
         relative flex h-9 w-9 items-center justify-center rounded-xl
         transition-all duration-300

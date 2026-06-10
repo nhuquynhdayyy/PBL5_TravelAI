@@ -69,35 +69,35 @@ const Login = () => {
       navigate(nextPath);
       window.location.reload();
     } catch (err: any) {
-      alert(err.response?.data?.message || err.response?.data || "Login failed");
+      alert(err.response?.data?.message || err.response?.data || "Đăng nhập thất bại");
     } finally { setLoading(false); }
   };
 
   return (
     <MainLayout>
       <div className="max-w-md mx-auto mt-12 p-8 bg-white rounded-3xl shadow-2xl border border-slate-100">
-        <h2 className="text-3xl font-black mb-2 text-slate-900">Welcome back</h2>
-        <p className="text-slate-500 mb-8 text-sm">Please enter your details to sign in.</p>
+        <h2 className="text-3xl font-black mb-2 text-slate-900">Chào mừng quay lại</h2>
+        <p className="text-slate-500 mb-8 text-sm">Vui lòng nhập thông tin để đăng nhập.</p>
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="text-xs font-bold text-slate-700 uppercase ml-1">Email Address</label>
+            <label className="text-xs font-bold text-slate-700 uppercase ml-1">Địa chỉ Email</label>
             <input className="w-full p-4 mt-1 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" type="email" placeholder="name@company.com"
               onChange={e => setFormData({ ...formData, email: e.target.value })} required />
           </div>
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-bold text-slate-700 uppercase ml-1">Password</label>
+              <label className="text-xs font-bold text-slate-700 uppercase ml-1">Mật khẩu</label>
               <Link to="/forgot-password" className="text-xs text-blue-600 hover:underline font-medium">Quên mật khẩu?</Link>
             </div>
             <input className="w-full p-4 mt-1 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" type="password" placeholder="••••••••"
               onChange={e => setFormData({ ...formData, password: e.target.value })} required />
           </div>
           <button disabled={loading} className="w-full py-4 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 shadow-xl shadow-blue-200 transition-all disabled:bg-slate-300">
-            {loading ? "Signing in..." : "Sign in"}
+            {loading ? "Đang đăng nhập..." : "Đăng nhập"}
           </button>
         </form>
         <p className="mt-8 text-center text-sm text-slate-500">
-          Don't have an account? <Link to="/register" className="text-blue-600 font-bold hover:underline">Sign up for free</Link>
+          Chưa có tài khoản? <Link to="/register" className="text-blue-600 font-bold hover:underline">Đăng ký miễn phí</Link>
         </p>
       </div>
     </MainLayout>
