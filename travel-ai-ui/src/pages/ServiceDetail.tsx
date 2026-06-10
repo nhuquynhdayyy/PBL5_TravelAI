@@ -27,6 +27,7 @@ type ServiceDetailDto = {
   ratingAvg: number;
   spotName?: string;
   imageUrls: string[];
+  serviceType?: string; // "Hotel", "Tour", "Transport", "Restaurant"
 };
 
 type ReviewItem = {
@@ -127,8 +128,10 @@ const ServiceDetail = () => {
   const [activeImg, setActiveImg] = useState(0);
 
   const [selectedDate, setSelectedDate] = useState(preselectedDate);
+  const [checkOutDate, setCheckOutDate] = useState(''); // For hotels and transport
   const [quantity, setQuantity] = useState(1);
   const [actualPrice, setActualPrice] = useState(0);
+  const [priceLoading, setPriceLoading] = useState(false); // Loading state for multi-day price calculation
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [eligibility, setEligibility] = useState<ReviewEligibility>(emptyEligibility);
   const [reviewRating, setReviewRating] = useState(5);
@@ -140,6 +143,11 @@ const ServiceDetail = () => {
   const userStr = localStorage.getItem('user');
   const user = userStr ? JSON.parse(userStr) : null;
   const isLoggedIn = Boolean(localStorage.getItem('token'));
+
+  // Check if service is Hotel or Transport (multi-day booking)
+  const isMultiDayService = service?.serviceType === 'Hotel' || service?.serviceType === 'Transport';
+  const isHotel = service?.serviceType === 'Hotel';
+  const isTransport = service?.serviceType === 'Transport';
 
   const fetchServiceDetail = async () => {
     const res = await axiosClient.get(`/services/${id}`);
@@ -216,11 +224,81 @@ const ServiceDetail = () => {
 
     if (!selectedDate) {
       setActualPrice(service.basePrice ?? 0);
+      setPriceLoading(false);
       return;
     }
 
     let isActive = true;
 
+    // Calculate price for multi-day bookings
+    if (isMultiDayService && checkOutDate) {
+      const checkIn = new Date(selectedDate);
+      const checkOut = new Date(checkOutDate);
+      
+      if (checkOut <= checkIn) {
+        setActualPrice(service.basePrice ?? 0);
+        setPriceLoading(false);
+        return;
+      }
+
+      // Fetch actual prices for each day in the range
+      const fetchMultiDayPrice = async () => {
+        try {
+          setPriceLoading(true);
+          const nights = isHotel 
+            ? Math.floor((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24))
+            : Math.floor((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+          let totalPrice = 0;
+          const promises = [];
+
+          // For hotels, don't include checkout day
+          const endDate = isHotel ? checkOut : new Date(checkOut.getTime() + 86400000);
+
+          for (let date = new Date(checkIn); date < endDate; date.setDate(date.getDate() + 1)) {
+            const dateStr = date.toISOString().split('T')[0];
+            promises.push(
+              axiosClient
+                .get(`/availability/check/${service.serviceId}`, {
+                  params: { date: dateStr, qty: 1 }
+                })
+                .then((res) => {
+                  const price = res.data?.price ?? service.basePrice ?? 0;
+                  return getDisplayAvailabilityPrice({ date: dateStr, price });
+                })
+                .catch(() => service.basePrice ?? 0)
+            );
+          }
+
+          const prices = await Promise.all(promises);
+          totalPrice = prices.reduce((sum, price) => sum + price, 0);
+
+          if (isActive) {
+            setActualPrice(totalPrice);
+            setPriceLoading(false);
+          }
+        } catch (error) {
+          console.error('Error fetching multi-day prices:', error);
+          // Fallback to base price calculation
+          const days = isHotel 
+            ? Math.floor((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24))
+            : Math.floor((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+          
+          if (isActive) {
+            setActualPrice((service.basePrice ?? 0) * days);
+            setPriceLoading(false);
+          }
+        }
+      };
+
+      fetchMultiDayPrice();
+      return () => {
+        isActive = false;
+      };
+    }
+
+    // Single day booking
+    setPriceLoading(true);
     axiosClient
       .get(`/availability/check/${service.serviceId}`, {
         params: { date: selectedDate, qty: 1 }
@@ -229,22 +307,29 @@ const ServiceDetail = () => {
         if (!isActive) return;
         const price = res.data?.price ?? service.basePrice ?? 0;
         setActualPrice(getDisplayAvailabilityPrice({ date: selectedDate, price }));
+        setPriceLoading(false);
       })
       .catch(() => {
         if (!isActive) return;
         setActualPrice(service.basePrice ?? 0);
+        setPriceLoading(false);
       });
 
     return () => {
       isActive = false;
     };
-  }, [selectedDate, service]);
+  }, [selectedDate, checkOutDate, service, isMultiDayService, isHotel]);
 
   const handleBooking = async () => {
     if (!service) return;
 
     if (!selectedDate) {
-      alert('Vui lòng chọn ngày bạn muốn sử dụng dịch vụ!');
+      alert(isHotel ? 'Vui lòng chọn ngày nhận phòng!' : 'Vui lòng chọn ngày bạn muốn sử dụng dịch vụ!');
+      return;
+    }
+
+    if (isMultiDayService && !checkOutDate) {
+      alert(isHotel ? 'Vui lòng chọn ngày trả phòng!' : 'Vui lòng chọn ngày trả xe!');
       return;
     }
 
@@ -259,7 +344,8 @@ const ServiceDetail = () => {
       const res = await axiosClient.post('/bookings/draft', {
         serviceId: service.serviceId,
         quantity,
-        checkInDate: selectedDate
+        checkInDate: selectedDate,
+        ...(isMultiDayService && checkOutDate && { checkOutDate })
       });
 
       if (res.data.bookingId) {
@@ -281,11 +367,17 @@ const ServiceDetail = () => {
       return;
     }
 
+    if (isMultiDayService && !checkOutDate) {
+      alert(isHotel ? 'Vui lòng chọn ngày trả phòng!' : 'Vui lòng chọn ngày trả xe!');
+      return;
+    }
+
     try {
       await addItem({
         serviceId: service.serviceId,
         serviceName: service.name,
         checkInDate: new Date(selectedDate),
+        ...(isMultiDayService && checkOutDate && { checkOutDate: new Date(checkOutDate) }),
         quantity,
         price: actualPrice
       });
@@ -407,33 +499,102 @@ const ServiceDetail = () => {
         <div>
           <div className="sticky top-28 rounded-[2.5rem] border border-slate-100 bg-white p-3 text-left shadow-2xl shadow-slate-200/70 sm:p-4">
             <div className="mb-5 rounded-[2rem] bg-slate-50 p-5">
-              <p className="mb-2 text-xs font-black uppercase tracking-widest text-slate-400">Giá mỗi lượt từ</p>
+              <p className="mb-2 text-xs font-black uppercase tracking-widest text-slate-400">
+                {isHotel && checkOutDate && selectedDate 
+                  ? 'Giá tổng' 
+                  : isHotel 
+                  ? 'Giá mỗi đêm từ' 
+                  : isTransport && checkOutDate && selectedDate
+                  ? 'Giá tổng'
+                  : isTransport 
+                  ? 'Giá mỗi ngày từ' 
+                  : 'Giá mỗi lượt từ'}
+              </p>
               <div className="flex flex-wrap items-end gap-x-2 gap-y-1">
-                <span className="whitespace-nowrap text-4xl font-black leading-none text-blue-600">
-                  {new Intl.NumberFormat('vi-VN').format(actualPrice)}₫
-                </span>
-                <span className="pb-1 text-sm font-bold text-slate-400">/ khách</span>
+                {priceLoading ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="animate-spin text-blue-600" size={32} />
+                    <span className="text-lg font-bold text-slate-500">Đang tính giá...</span>
+                  </div>
+                ) : (
+                  <>
+                    <span className="whitespace-nowrap text-4xl font-black leading-none text-blue-600">
+                      {new Intl.NumberFormat('vi-VN').format(actualPrice)}₫
+                    </span>
+                    <span className="pb-1 text-sm font-bold text-slate-400">
+                      {isHotel && checkOutDate && selectedDate
+                        ? `cho ${Math.floor((new Date(checkOutDate).getTime() - new Date(selectedDate).getTime()) / (1000 * 60 * 60 * 24))} đêm`
+                        : isHotel 
+                        ? '/ đêm'
+                        : isTransport && checkOutDate && selectedDate
+                        ? `cho ${Math.floor((new Date(checkOutDate).getTime() - new Date(selectedDate).getTime()) / (1000 * 60 * 60 * 24)) + 1} ngày`
+                        : isTransport
+                        ? '/ ngày'
+                        : '/ khách'}
+                    </span>
+                  </>
+                )}
               </div>
+              {isMultiDayService && (!checkOutDate || !selectedDate) && (
+                <p className="mt-3 text-xs text-slate-500">
+                  💡 Chọn ngày {isHotel ? 'nhận & trả phòng' : 'nhận & trả xe'} để xem giá tổng
+                </p>
+              )}
             </div>
 
             <div className="space-y-5">
               <div>
                 <label className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-500">
-                  <Calendar size={14} /> Chọn ngày sử dụng
+                  <Calendar size={14} /> {isHotel ? 'Ngày nhận phòng' : isTransport ? 'Ngày nhận xe' : 'Chọn ngày sử dụng'}
                 </label>
                 <AvailabilityCalendar
                   serviceId={service.serviceId}
                   selectedDate={selectedDate}
                   onSelect={(day) => {
                     setSelectedDate(day.date);
-                    setActualPrice(day.price);
+                    if (!isMultiDayService) {
+                      setActualPrice(day.price);
+                    }
                   }}
                 />
               </div>
 
+              {isMultiDayService && (
+                <div>
+                  <label className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-500">
+                    <Calendar size={14} /> {isHotel ? 'Ngày trả phòng' : 'Ngày trả xe'}
+                  </label>
+                  <input
+                    type="date"
+                    value={checkOutDate}
+                    min={selectedDate ? new Date(new Date(selectedDate).getTime() + 86400000).toISOString().split('T')[0] : getTodayVietnam()}
+                    onChange={(e) => setCheckOutDate(e.target.value)}
+                    placeholder={isHotel ? 'Chọn ngày trả phòng' : 'Chọn ngày trả xe'}
+                    className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-700 outline-none transition-all focus:border-blue-500 focus:bg-white"
+                  />
+                  {selectedDate && checkOutDate && new Date(checkOutDate) > new Date(selectedDate) && (
+                    <div className="mt-2 flex items-center justify-between rounded-xl bg-blue-50 px-4 py-2">
+                      <span className="text-xs font-semibold text-blue-700">
+                        {isHotel ? '🌙 Tổng số đêm:' : '🚗 Tổng số ngày:'}
+                      </span>
+                      <span className="text-sm font-black text-blue-600">
+                        {isHotel 
+                          ? `${Math.floor((new Date(checkOutDate).getTime() - new Date(selectedDate).getTime()) / (1000 * 60 * 60 * 24))} đêm`
+                          : `${Math.floor((new Date(checkOutDate).getTime() - new Date(selectedDate).getTime()) / (1000 * 60 * 60 * 24)) + 1} ngày`}
+                      </span>
+                    </div>
+                  )}
+                  {!selectedDate && (
+                    <p className="mt-2 text-xs text-amber-600">
+                      ⚠️ Vui lòng chọn {isHotel ? 'ngày nhận phòng' : 'ngày nhận xe'} trước
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div>
                 <label className="mb-3 flex items-center gap-2 text-xs font-black uppercase text-slate-400">
-                  <Users size={14} /> Số lượng người
+                  <Users size={14} /> {isHotel ? 'Số phòng' : isTransport ? 'Số xe' : 'Số lượng người'}
                 </label>
                 <div className="flex items-center rounded-2xl border-2 border-slate-100 bg-slate-50 p-2">
                   <button

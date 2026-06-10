@@ -19,6 +19,10 @@ public class ServiceFilterRequest
     public int PageNumber { get; set; } = 1;
     public int PageSize { get; set; } = 20;
     
+    // Date range filters for availability
+    public DateTime? CheckInDate { get; set; }
+    public DateTime? CheckOutDate { get; set; }
+    
     // Sorting
     public string? SortBy { get; set; } // price, rating, name
     public bool SortDescending { get; set; } = false;

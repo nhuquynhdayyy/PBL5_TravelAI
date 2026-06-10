@@ -48,6 +48,8 @@ const buildRequest = (filters: ServiceFilterState, searchKeyword: string, pageNu
   tourThemes: filters.tourThemes.length ? filters.tourThemes : undefined,
   tourDuration: filters.tourDuration || undefined,
   transportType: filters.transportType || undefined,
+  checkInDate: filters.checkInDate || undefined,
+  checkOutDate: filters.checkOutDate || undefined,
 });
 
 const Services: React.FC<ServicesProps> = ({ defaultType = '' }) => {

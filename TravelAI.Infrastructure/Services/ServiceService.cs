@@ -734,6 +734,39 @@ await _context.SaveChangesAsync();
                 a.AttrKey == "MealType" && a.AttrValue == request.MealType));
         }
 
+        // Date range availability filter (for Hotel and Transport)
+        if (request.CheckInDate.HasValue && request.CheckOutDate.HasValue)
+        {
+            var checkInDate = request.CheckInDate.Value.Date;
+            var checkOutDate = request.CheckOutDate.Value.Date;
+
+            if (checkOutDate > checkInDate)
+            {
+                // For hotels, check nights (not including checkout day)
+                // For transport, check all days including checkout
+                // We need to ensure availability for all required dates
+                
+                query = query.Where(s => 
+                    !_context.ServiceAvailabilities
+                        .Where(a => a.ServiceId == s.ServiceId 
+                            && a.Date >= checkInDate 
+                            && a.Date < checkOutDate)
+                        .Any(a => (a.TotalStock - (a.BookedCount + a.HeldCount)) <= 0)
+                );
+            }
+        }
+        else if (request.CheckInDate.HasValue)
+        {
+            // Single date availability check
+            var checkInDate = request.CheckInDate.Value.Date;
+            
+            query = query.Where(s => 
+                _context.ServiceAvailabilities
+                    .Where(a => a.ServiceId == s.ServiceId && a.Date == checkInDate)
+                    .Any(a => (a.TotalStock - (a.BookedCount + a.HeldCount)) > 0)
+            );
+        }
+
         return query;
     }
 
