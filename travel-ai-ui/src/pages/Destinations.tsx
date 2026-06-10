@@ -307,7 +307,7 @@ const Pagination = ({
 };
 
 const Destinations: React.FC = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const searchQuery = searchParams.get('search');
   
   const [destinations, setDestinations] = useState<any[]>([]);
@@ -322,9 +322,7 @@ const Destinations: React.FC = () => {
 
   // Update searchKeyword when URL search param changes
   useEffect(() => {
-    if (searchQuery) {
-      setSearchKeyword(searchQuery);
-    }
+    setSearchKeyword(searchQuery || '');
   }, [searchQuery]);
 
   const userStr = localStorage.getItem('user');
@@ -370,7 +368,7 @@ const Destinations: React.FC = () => {
     const keyword = normalizeText(searchKeyword.trim());
 
     return destinations.filter((destination) => {
-      const content = normalizeText(`${destination.name || ''} ${destination.description || ''}`);
+      const content = normalizeText(destination.name || '');
       const matchesSearch = !keyword || content.includes(keyword);
       const matchesRegion = region === 'all' || matchesKeywords(destination, regionKeywords[region]);
       const matchesType = travelType === 'all' || matchesKeywords(destination, travelTypeKeywords[travelType]);
@@ -400,11 +398,25 @@ const Destinations: React.FC = () => {
     }
   };
 
+  const handleSearchChange = (value: string) => {
+    setSearchKeyword(value);
+    const params = new URLSearchParams(searchParams);
+    if (value.trim()) {
+      params.set('search', value.trim());
+    } else {
+      params.delete('search');
+    }
+    setSearchParams(params);
+  };
+
   const resetFilters = () => {
     setSearchKeyword('');
     setRegion('all');
     setTravelType('all');
     setCurrentPage(1);
+    const params = new URLSearchParams(searchParams);
+    params.delete('search');
+    setSearchParams(params);
   };
 
   if (loading) {
@@ -472,7 +484,7 @@ const Destinations: React.FC = () => {
         searchKeyword={searchKeyword}
         region={region}
         travelType={travelType}
-        onSearchChange={setSearchKeyword}
+        onSearchChange={handleSearchChange}
         onRegionChange={setRegion}
         onTypeChange={setTravelType}
         onReset={resetFilters}
