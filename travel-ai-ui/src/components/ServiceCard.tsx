@@ -41,8 +41,8 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, isAdminOrPartner, on
   const badgeConfig = isHotel
     ? { label: 'Khách sạn', icon: <Hotel size={12} />, bg: 'bg-blue-600/80' }
     : isTransport
-    ? { label: 'Di chuyển', icon: <Car size={12} />, bg: 'bg-orange-500/80' }
-    : { label: 'Tour du lịch', icon: <Compass size={12} />, bg: 'bg-emerald-600/80' };
+      ? { label: 'Di chuyển', icon: <Car size={12} />, bg: 'bg-orange-500/80' }
+      : { label: 'Tour du lịch', icon: <Compass size={12} />, bg: 'bg-emerald-600/80' };
 
   // Label giá theo loại
   const priceLabel = isTransport ? '/ngày' : isHotel ? '/đêm' : '/người';

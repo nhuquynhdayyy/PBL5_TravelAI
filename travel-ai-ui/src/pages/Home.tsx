@@ -141,27 +141,27 @@ const ServicesStripSection = () => {
     <section className="py-8">
       <div className="mx-auto flex max-w-4xl justify-center">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6 w-full">
-        {services.map((service) => {
-          const Icon = service.icon;
-          return (
-            <button
-              key={service.label}
-              onClick={() => navigate(service.path)}
-              className="app-card group flex flex-col items-center gap-3 p-6 transition-all duration-300 hover:scale-[1.03] hover:shadow-xl"
-            >
-              <div className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-900 ${service.iconColor} shadow-sm ring-1 ring-white/10 transition-transform duration-300 group-hover:scale-110`}>
-                <Icon size={28} strokeWidth={2} />
-              </div>
-              <div className="text-center">
-                <h3 className="text-sm font-black text-slate-900">{service.label}</h3>
-                <p className="mt-1 text-xs font-medium text-slate-500">{service.description}</p>
-              </div>
-            </button>
-          );
-        })}
+          {services.map((service) => {
+            const Icon = service.icon;
+            return (
+              <button
+                key={service.label}
+                onClick={() => navigate(service.path)}
+                className="app-card group flex flex-col items-center gap-3 p-6 transition-all duration-300 hover:scale-[1.03] hover:shadow-xl"
+              >
+                <div className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-900 ${service.iconColor} shadow-sm ring-1 ring-white/10 transition-transform duration-300 group-hover:scale-110`}>
+                  <Icon size={28} strokeWidth={2} />
+                </div>
+                <div className="text-center">
+                  <h3 className="text-sm font-black text-slate-900">{service.label}</h3>
+                  <p className="mt-1 text-xs font-medium text-slate-500">{service.description}</p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
-    </div>
-  </section>
+    </section>
   );
 };
 
@@ -259,7 +259,7 @@ const TrendingDestinationsSection = () => {
         setLoading(true);
         const response = await axiosClient.get('/destinations');
         const data = response.data?.data || response.data || [];
-        
+
         if (Array.isArray(data) && data.length > 0) {
           // Lấy top 4 destinations
           const topDestinations = data.slice(0, 4).map((dest: any) => ({
@@ -374,7 +374,7 @@ const FeaturedServicesSection = () => {
           sortDescending: true,
         };
         console.log('🏠 Home Services Request:', requestBody);
-        
+
         const response = await axiosClient.post('/services/filter', requestBody);
 
         console.log('✅ Home Services Response:', response.data);
@@ -416,7 +416,7 @@ const FeaturedServicesSection = () => {
       ) : services.length > 0 ? (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {services.map((service) => (
-            <ServiceCard key={service.serviceId} service={service} isAdminOrPartner={false} onDelete={() => {}} />
+            <ServiceCard key={service.serviceId} service={service} isAdminOrPartner={false} onDelete={() => { }} />
           ))}
         </div>
       ) : (
