@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
@@ -17,7 +18,7 @@ public class ElectronicTicketService : IElectronicTicketService
     private const string DefaultFrontendBaseUrl = "https://travelai.vn";
     private const string TicketPathSegment = "/e-ticket/";
     private static readonly Regex TicketCodePattern = new(
-        "^TA-\\d{8}-[A-Z0-9]{6}$",
+        "^TA-\\d{8}-\\d{6}$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private readonly ApplicationDbContext _context;
@@ -158,10 +159,16 @@ public class ElectronicTicketService : IElectronicTicketService
             return new VerifyTicketResponse { IsValid = false, Message = "QR payload is empty." };
         }
 
+        var bookingId = ExtractBookingId(qrPayload);
+        if (bookingId.HasValue)
+        {
+            return await VerifyBookingQrAsync(bookingId.Value, verifierUserId, cancellationToken);
+        }
+
         var ticketCode = ExtractTicketCode(qrPayload);
         if (string.IsNullOrWhiteSpace(ticketCode))
         {
-            return new VerifyTicketResponse { IsValid = false, Message = "QR payload does not contain a valid ticket URL or ticketCode." };
+            return new VerifyTicketResponse { IsValid = false, Message = "QR payload does not contain a valid booking or ticket code." };
         }
 
         var ticket = await _context.ElectronicTickets
@@ -219,6 +226,76 @@ public class ElectronicTicketService : IElectronicTicketService
         };
     }
 
+    private async Task<VerifyTicketResponse> VerifyBookingQrAsync(
+        int bookingId,
+        int verifierUserId,
+        CancellationToken cancellationToken)
+    {
+        var booking = await _context.Bookings
+            .Include(item => item.User)
+            .Include(item => item.BookingItems)
+                .ThenInclude(item => item.Service)
+            .FirstOrDefaultAsync(item => item.BookingId == bookingId, cancellationToken);
+
+        if (booking == null)
+        {
+            return new VerifyTicketResponse { IsValid = false, Message = "Booking does not exist." };
+        }
+
+        var bookingItem = booking.BookingItems.OrderBy(item => item.ItemId).FirstOrDefault();
+        if (bookingItem == null)
+        {
+            return new VerifyTicketResponse { IsValid = false, Message = "Booking does not contain any service." };
+        }
+
+        var verifier = await _context.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(user => user.UserId == verifierUserId, cancellationToken);
+
+        if (verifier == null)
+        {
+            return new VerifyTicketResponse { IsValid = false, Message = "Verifier account does not exist." };
+        }
+
+        var isAdmin = verifier.RoleId == (int)RoleName.Admin;
+        var isOwningPartner = verifier.RoleId == (int)RoleName.Partner
+            && booking.BookingItems.Any(item => item.Service.PartnerId == verifierUserId);
+
+        if (!isAdmin && !isOwningPartner)
+        {
+            return new VerifyTicketResponse { IsValid = false, Message = "You are not allowed to verify this booking." };
+        }
+
+        var bookingQr = MapBookingQr(booking, bookingItem);
+
+        if (booking.Status == BookingStatus.Pending)
+        {
+            return new VerifyTicketResponse
+            {
+                IsValid = true,
+                Message = "Booking ton tai. Chua thanh toan. Vui long thanh toan tai quay.",
+                Booking = bookingQr
+            };
+        }
+
+        if (booking.Status == BookingStatus.Paid)
+        {
+            return new VerifyTicketResponse
+            {
+                IsValid = false,
+                Message = "Booking da thanh toan. Vui long quet ve dien tu.",
+                Booking = bookingQr
+            };
+        }
+
+        return new VerifyTicketResponse
+        {
+            IsValid = false,
+            Message = $"Booking khong the su dung voi trang thai {booking.Status}.",
+            Booking = bookingQr
+        };
+    }
+
     private async Task<string> CreateTicketCodeAsync(CancellationToken cancellationToken)
     {
         var today = DateTimeHelper.Now.Date;
@@ -226,7 +303,7 @@ public class ElectronicTicketService : IElectronicTicketService
         var count = await _context.ElectronicTickets
             .CountAsync(ticket => ticket.TicketCode.StartsWith(prefix), cancellationToken);
 
-        for (var sequence = count + 1; sequence < count + 1000; sequence++)
+        for (var sequence = count + 1; sequence <= 999999; sequence++)
         {
             var code = FormattableString.Invariant($"{prefix}{sequence:000000}");
             var exists = await _context.ElectronicTickets
@@ -238,7 +315,7 @@ public class ElectronicTicketService : IElectronicTicketService
             }
         }
 
-        return $"TA-{today:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..6].ToUpperInvariant()}";
+        throw new InvalidOperationException("Da vuot qua gioi han so luong ma ve trong ngay.");
     }
 
     private string BuildTicketUrl(string ticketCode)
@@ -296,7 +373,8 @@ public class ElectronicTicketService : IElectronicTicketService
             Quantity = ticket.Quantity,
             UseDate = ticket.TravelDate,
             Status = ticket.Status.ToString(),
-            QrCodeUrl = qrCodeUrl
+            QrCodeUrl = qrCodeUrl,
+            QrImageBase64 = GetQrImageBase64(ticket, qrCodeUrl)
         };
     }
 
@@ -306,6 +384,36 @@ public class ElectronicTicketService : IElectronicTicketService
             && !string.IsNullOrWhiteSpace(ticket.QrImageBase64)
             ? ticket.QrImageBase64
             : GenerateQrImageBase64(qrCodeUrl);
+    }
+
+    private static BookingQrDto MapBookingQr(Booking booking, BookingItem item)
+    {
+        var bookingCode = FormatBookingCode(booking.BookingId);
+        var payload = JsonSerializer.Serialize(new
+        {
+            type = "Booking",
+            bookingId = booking.BookingId,
+            bookingCode
+        });
+
+        return new BookingQrDto
+        {
+            BookingCode = bookingCode,
+            BookingId = booking.BookingId,
+            CustomerName = booking.User.FullName,
+            ServiceName = item.Service.Name,
+            UseDate = item.CheckInDate,
+            Quantity = item.Quantity,
+            PaymentStatus = booking.Status.ToString(),
+            TicketType = "Booking QR",
+            QrPayloadJson = payload,
+            QrImageBase64 = GenerateQrImageBase64(payload)
+        };
+    }
+
+    private static string FormatBookingCode(int bookingId)
+    {
+        return FormattableString.Invariant($"BK{bookingId:000000}");
     }
 
     private static string NormalizeFrontendBaseUrl(string value)
@@ -366,8 +474,45 @@ public class ElectronicTicketService : IElectronicTicketService
         return NormalizeTicketCode(raw) ?? string.Empty;
     }
 
+    private static int? ExtractBookingId(string qrContent)
+    {
+        var raw = qrContent.Trim();
+
+        try
+        {
+            var payload = JsonSerializer.Deserialize<BookingPayload>(
+                raw,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            if (payload != null
+                && string.Equals(payload.Type, "Booking", StringComparison.OrdinalIgnoreCase)
+                && payload.BookingId > 0)
+            {
+                return payload.BookingId;
+            }
+        }
+        catch (JsonException)
+        {
+            // Booking QR codes are JSON. Plain code parsing below supports manual entry.
+        }
+
+        if (raw.StartsWith("BK", StringComparison.OrdinalIgnoreCase)
+            && int.TryParse(raw[2..], NumberStyles.None, CultureInfo.InvariantCulture, out var bookingId))
+        {
+            return bookingId;
+        }
+
+        return null;
+    }
+
     private sealed class TicketPayload
     {
         public string TicketCode { get; set; } = string.Empty;
+    }
+
+    private sealed class BookingPayload
+    {
+        public string Type { get; set; } = string.Empty;
+        public int BookingId { get; set; }
     }
 }

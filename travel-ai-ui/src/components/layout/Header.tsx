@@ -40,8 +40,10 @@ const Header: React.FC = () => {
   }, []);
 
   return (
-    <header className={`fixed w-full z-50 transition-all duration-300 ${
-      isScrolled ? 'bg-white shadow-md py-3' : 'bg-white/90 backdrop-blur-md py-4'
+    <header className={`fixed w-full z-50 border-b transition-all duration-300 ${
+      isScrolled
+        ? 'border-slate-200 bg-white shadow-md py-3 dark:border-slate-800 dark:bg-slate-950'
+        : 'border-transparent bg-white/90 backdrop-blur-md py-4 dark:bg-slate-950/90'
     }`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center">
@@ -54,7 +56,7 @@ const Header: React.FC = () => {
             <div className="bg-blue-500 p-1.5 rounded-lg group-hover:rotate-12 transition-transform">
                 <Plane className="text-white size-6" />
             </div>
-            <span className="text-xl font-extrabold tracking-tight text-slate-900">
+            <span className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">
                 Travel<span className="text-blue-500">AI</span>
             </span>
           </Link>
@@ -63,8 +65,8 @@ const Header: React.FC = () => {
           <nav className="hidden md:flex space-x-8 items-center">
             {role !== 'partner' && role !== 'admin' && (
               <>
-                <Link to="/" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all">Trang chủ</Link>
-                <Link to="/destinations" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all">Điểm đến</Link>
+                <Link to="/" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all dark:text-slate-300 dark:hover:text-blue-400">Trang chủ</Link>
+                <Link to="/destinations" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all dark:text-slate-300 dark:hover:text-blue-400">Điểm đến</Link>
                 
                 {/* DROPDOWN SERVICES */}
                 <div 
@@ -77,8 +79,8 @@ const Header: React.FC = () => {
                     </button>
 
                     {isServicesOpen && (
-<div className="absolute top-full left-0 w-60 bg-white rounded-3xl shadow-2xl border border-slate-50 p-3 animate-in fade-in slide-in-from-top-2 duration-300">
-                            <Link to="/hotels" className="flex items-center gap-3 p-3 hover:bg-blue-50 rounded-2xl transition-all group/item">
+<div className="absolute top-full left-0 w-60 bg-white rounded-3xl shadow-2xl border border-slate-100 p-3 animate-in fade-in slide-in-from-top-2 duration-300 dark:border-slate-800 dark:bg-slate-900">
+                            <Link to="/hotels" className="flex items-center gap-3 p-3 hover:bg-blue-50 rounded-2xl transition-all group/item dark:hover:bg-slate-800">
                                 <div className="p-2 bg-blue-100 text-blue-600 rounded-xl group-hover/item:bg-blue-600 group-hover/item:text-white transition-colors">
                                     <Hotel size={20} />
                                 </div>
@@ -87,7 +89,7 @@ const Header: React.FC = () => {
                                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Tìm chỗ ở ưng ý</p>
                                 </div>
                             </Link>
-                            <Link to="/tours" className="flex items-center gap-3 p-3 hover:bg-emerald-50 rounded-2xl transition-all group/item mt-1">
+                            <Link to="/tours" className="flex items-center gap-3 p-3 hover:bg-emerald-50 rounded-2xl transition-all group/item mt-1 dark:hover:bg-slate-800">
                                 <div className="p-2 bg-emerald-100 text-emerald-600 rounded-xl group-hover/item:bg-emerald-600 group-hover/item:text-white transition-colors">
                                     <Compass size={20} />
                                 </div>
@@ -96,7 +98,7 @@ const Header: React.FC = () => {
                                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Trải nghiệm thú vị</p>
                                 </div>
                             </Link>
-                            <Link to="/transportation" className="flex items-center gap-3 p-3 hover:bg-purple-50 rounded-2xl transition-all group/item mt-1">
+                            <Link to="/transportation" className="flex items-center gap-3 p-3 hover:bg-purple-50 rounded-2xl transition-all group/item mt-1 dark:hover:bg-slate-800">
                                 <div className="p-2 bg-purple-100 text-purple-600 rounded-xl group-hover/item:bg-purple-600 group-hover/item:text-white transition-colors">
                                     <Plane size={20} />
                                 </div>
@@ -175,11 +177,11 @@ const Header: React.FC = () => {
                 <div className="flex items-center gap-4">
                     <NotificationBell />
                     <div className="flex flex-col items-end">
-                      <Link to="/profile" className="text-sm font-black text-slate-900 hover:text-blue-600 transition-all flex items-center gap-1">
+                      <Link to="/profile" className="text-sm font-black text-slate-900 hover:text-blue-600 transition-all flex items-center gap-1 dark:text-white dark:hover:text-blue-400">
                         {userState.fullName} <User size={14} className="text-blue-500" />
                       </Link>
                     </div>
-                    <button onClick={handleLogout} className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors">
+                    <button onClick={handleLogout} className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors dark:hover:bg-red-950/40">
                       <LogOut size={20} />
                     </button>
                 </div>
@@ -193,12 +195,63 @@ const Header: React.FC = () => {
 
           <div className="flex items-center gap-2 md:hidden">
             {userState && <NotificationBell />}
-            <button onClick={() => setIsOpen(!isOpen)} className="text-slate-600 p-2">
+            <button onClick={() => setIsOpen(!isOpen)} className="text-slate-600 p-2 dark:text-slate-200">
               {isOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
           </div>
         </div>
       </div>
+
+      {isOpen && (
+        <div className="border-t border-slate-100 bg-white px-4 py-4 shadow-lg md:hidden dark:border-slate-800 dark:bg-slate-950">
+          <nav className="mx-auto flex max-w-7xl flex-col gap-2">
+            {role !== 'partner' && role !== 'admin' && (
+              <>
+                <Link onClick={() => setIsOpen(false)} to="/" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">Home</Link>
+                <Link onClick={() => setIsOpen(false)} to="/destinations" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">Destinations</Link>
+                <Link onClick={() => setIsOpen(false)} to="/hotels" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">Hotels</Link>
+                <Link onClick={() => setIsOpen(false)} to="/tours" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">Tours</Link>
+                <Link onClick={() => setIsOpen(false)} to="/transportation" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">Transportation</Link>
+                <Link onClick={() => setIsOpen(false)} to="/planner" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">Itinerary</Link>
+                <Link onClick={() => setIsOpen(false)} to="/cart" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">Cart</Link>
+              </>
+            )}
+
+            {role === 'partner' && (
+              <>
+                <Link onClick={() => setIsOpen(false)} to="/partner/dashboard" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">Dashboard</Link>
+                <Link onClick={() => setIsOpen(false)} to="/partner/profile" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">Business</Link>
+                <Link onClick={() => setIsOpen(false)} to="/partner/services" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">My Services</Link>
+                <Link onClick={() => setIsOpen(false)} to="/partner/orders" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">My Orders</Link>
+                <Link onClick={() => setIsOpen(false)} to="/partner/reviews" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">My Reviews</Link>
+              </>
+            )}
+
+            {role === 'admin' && (
+              <>
+                <Link onClick={() => setIsOpen(false)} to="/admin/stats" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">Stats</Link>
+                <Link onClick={() => setIsOpen(false)} to="/admin/partners" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">Partners</Link>
+                <Link onClick={() => setIsOpen(false)} to="/admin/services" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">Services</Link>
+                <Link onClick={() => setIsOpen(false)} to="/admin/vietqr-payments" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">VietQR</Link>
+                <Link onClick={() => setIsOpen(false)} to="/admin/users" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">Users</Link>
+              </>
+            )}
+
+            <div className="mt-3 border-t border-slate-100 pt-3 dark:border-slate-800">
+              {userState ? (
+                <button onClick={handleLogout} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-black text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40">
+                  <LogOut size={18} /> Logout
+                </button>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={() => { setIsOpen(false); navigate('/login'); }} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-black text-slate-700 dark:border-slate-800 dark:text-slate-200">Login</button>
+                  <button onClick={() => { setIsOpen(false); navigate('/register'); }} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white">Register</button>
+                </div>
+              )}
+            </div>
+          </nav>
+        </div>
+      )}
     </header>
   );
 };

@@ -86,7 +86,7 @@ const RealtimeNotifications = () => {
         return (
           <div
             key={item.id}
-            className="flex items-start gap-3 rounded-2xl border border-slate-100 bg-white p-4 text-left shadow-2xl"
+            className="flex items-start gap-3 rounded-2xl border border-white/10 bg-[#1E293B] p-4 text-left shadow-2xl shadow-black/40"
           >
             <div
               className={`rounded-xl p-2 text-white ${
@@ -96,12 +96,12 @@ const RealtimeNotifications = () => {
               {item.tone === 'success' ? <Icon size={18} /> : <Bell size={18} />}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-black text-slate-900">{item.title}</p>
-              <p className="mt-1 text-xs leading-relaxed text-slate-500">{item.message}</p>
+              <p className="text-sm font-black text-white">{item.title}</p>
+              <p className="mt-1 text-xs leading-relaxed text-slate-400">{item.message}</p>
             </div>
             <button
               onClick={() => setItems((current) => current.filter((currentItem) => currentItem.id !== item.id))}
-              className="rounded-lg p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+              className="rounded-lg p-1 text-slate-400 transition-colors hover:bg-[#162033] hover:text-white"
               aria-label="Đóng thông báo"
             >
               <X size={16} />

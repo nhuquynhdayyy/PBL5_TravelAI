@@ -5,4 +5,5 @@ public class VerifyTicketResponse
     public bool IsValid { get; set; }
     public string Message { get; set; } = string.Empty;
     public ElectronicTicketDto? Ticket { get; set; }
+    public BookingQrDto? Booking { get; set; }
 }

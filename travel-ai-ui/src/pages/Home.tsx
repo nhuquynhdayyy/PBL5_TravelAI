@@ -147,9 +147,9 @@ const ServicesStripSection = () => {
             <button
               key={service.label}
               onClick={() => navigate(service.path)}
-              className={`group flex flex-col items-center gap-3 rounded-2xl ${service.bgColor} p-6 transition-all duration-300 ${service.hoverBg} hover:-translate-y-1 hover:shadow-xl`}
+              className="app-card group flex flex-col items-center gap-3 p-6 transition-all duration-300 hover:scale-[1.03] hover:shadow-xl"
             >
-              <div className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-white ${service.iconColor} shadow-sm transition-transform duration-300 group-hover:scale-110`}>
+              <div className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-900 ${service.iconColor} shadow-sm ring-1 ring-white/10 transition-transform duration-300 group-hover:scale-110`}>
                 <Icon size={28} strokeWidth={2} />
               </div>
               <div className="text-center">
@@ -185,7 +185,7 @@ const WhyTravelAISection = () => {
   ];
 
   return (
-    <section className="bg-white py-16 dark:bg-slate-900">
+    <section className="app-section px-4 py-16 sm:px-6 lg:px-8">
       <div className="mb-10 max-w-2xl">
         <p className="mb-2 text-xs font-black uppercase tracking-[0.24em] text-[#0061ff]">Tại sao chọn TravelAI?</p>
         <h2 className="text-3xl font-black tracking-tight text-slate-950 dark:text-white md:text-4xl">
@@ -293,7 +293,7 @@ const TrendingDestinationsSection = () => {
   };
 
   return (
-    <section className="rounded-[28px] bg-gradient-to-br from-slate-50 to-blue-50/30 px-4 py-16 dark:from-slate-800 dark:to-slate-800/80 sm:px-6 lg:px-8">
+    <section className="app-section px-4 py-16 sm:px-6 lg:px-8">
       <div className="mb-10 flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
           <p className="mb-2 text-xs font-black uppercase tracking-[0.24em] text-[#0061ff]">Điểm đến nổi bật</p>
@@ -319,7 +319,7 @@ const TrendingDestinationsSection = () => {
             <article
               key={dest.id}
               onClick={() => navigate(`/destinations/${dest.id}`)}
-              className="group cursor-pointer overflow-hidden rounded-2xl bg-white shadow-md transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl dark:bg-slate-700"
+              className="app-image-card group cursor-pointer overflow-hidden rounded-2xl bg-white shadow-md transition-all duration-300"
             >
               <div className="relative h-56 overflow-hidden">
                 <img
@@ -396,7 +396,7 @@ const FeaturedServicesSection = () => {
   }, []);
 
   return (
-    <section className="rounded-[28px] bg-slate-50 px-4 py-16 dark:bg-slate-800 sm:px-6 lg:px-8">
+    <section className="app-section px-4 py-16 sm:px-6 lg:px-8">
       <div className="mb-10 flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
           <p className="mb-2 text-xs font-black uppercase tracking-[0.24em] text-[#0061ff]">Dịch vụ nổi bật</p>
@@ -460,7 +460,7 @@ const CommunitySection = () => {
   }, []);
 
   return (
-    <section className="bg-white py-16 dark:bg-slate-900">
+    <section className="app-section px-4 py-16 sm:px-6 lg:px-8">
       <div className="mb-10 max-w-2xl">
         <p className="mb-2 text-xs font-black uppercase tracking-[0.24em] text-[#0061ff]">Gợi ý từ cộng đồng</p>
         <h2 className="text-3xl font-black tracking-tight text-slate-950 dark:text-white md:text-4xl">Những lịch trình đáng thử</h2>
@@ -469,7 +469,7 @@ const CommunitySection = () => {
         {itineraries.map((item, index) => (
           <article
             key={item.id || item.title}
-            className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-2xl dark:border-slate-700 dark:bg-slate-800"
+            className="app-image-card group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition"
           >
             <div className="relative h-56 overflow-hidden">
               <img src={item.cover} alt={item.title} className="h-full w-full object-cover transition duration-700 group-hover:scale-110" />
@@ -560,7 +560,7 @@ const HomeFooter = () => {
 };
 
 const Home: React.FC = () => (
-  <div className="space-y-16 bg-white dark:bg-slate-900 transition-colors duration-300">
+  <div className="space-y-16 bg-slate-50 transition-colors duration-300 dark:bg-[#0B1220]">
     <HeroSection />
     <ServicesStripSection />
     <WhyTravelAISection />

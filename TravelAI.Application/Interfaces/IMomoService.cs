@@ -4,7 +4,7 @@ namespace TravelAI.Application.Interfaces;
 
 public interface IMomoService
 {
-    Task<MomoPaymentResponse> CreatePaymentRequestAsync(int bookingId, decimal amount, string? orderId = null);
+    Task<MomoPaymentResponse> CreatePaymentAsync(int bookingId, decimal amount, string? orderId = null);
 
     MomoIpnResult ValidateIPN(IReadOnlyDictionary<string, string> ipnData);
 
