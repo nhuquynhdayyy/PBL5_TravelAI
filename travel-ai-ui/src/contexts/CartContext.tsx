@@ -16,6 +16,7 @@ interface CartContextValue {
   items: CartItem[];
   addItem: (item: CartItem) => Promise<void>;
   removeItem: (serviceId: number, checkInDate: Date, checkOutDate?: Date) => Promise<void>;
+  updateQuantity: (serviceId: number, checkInDate: Date, quantity: number, checkOutDate?: Date) => Promise<void>;
   clearCart: () => void;
   syncCart: () => Promise<void>;
   totalAmount: number;
@@ -26,6 +27,7 @@ const CartContext = createContext<CartContextValue>({
   items: [],
   addItem: async () => {},
   removeItem: async () => {},
+  updateQuantity: async () => {},
   clearCart: () => {},
   syncCart: async () => {},
   totalAmount: 0,
@@ -186,6 +188,48 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [isLoggedIn, items, syncCart]);
 
+  // Cập nhật số lượng của item
+  const updateQuantity = useCallback(async (serviceId: number, checkInDate: Date, quantity: number, checkOutDate?: Date) => {
+    if (quantity <= 0) return;
+
+    // Nếu chưa đăng nhập, cập nhật trong localStorage
+    if (!isLoggedIn()) {
+      setItems((current) => {
+        const itemKey = getCartItemKey({ serviceId, checkInDate, checkOutDate });
+        return current.map((cartItem) =>
+          getCartItemKey(cartItem) === itemKey
+            ? { ...cartItem, quantity }
+            : cartItem
+        );
+      });
+      return;
+    }
+
+    // Nếu đã đăng nhập, tìm cartItemId và gọi API
+    try {
+      setIsLoading(true);
+      const itemKey = getCartItemKey({ serviceId, checkInDate, checkOutDate });
+      const itemToUpdate = items.find((item) => getCartItemKey(item) === itemKey);
+
+      if (!itemToUpdate?.cartItemId) {
+        console.error('Cart item ID not found');
+        return;
+      }
+
+      await axiosClient.put(`/cart/${itemToUpdate.cartItemId}`, {
+        quantity
+      });
+
+      // Sau khi cập nhật thành công, sync lại từ database
+      await syncCart();
+    } catch (error: any) {
+      console.error('Error updating quantity:', error);
+      alert(error.response?.data?.message || 'Không thể cập nhật số lượng');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isLoggedIn, items, syncCart]);
+
   // Xóa toàn bộ cart (chỉ xóa trong memory, không xóa database)
   const clearCart = useCallback(() => {
     setItems([]);
@@ -202,12 +246,13 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       items,
       addItem,
       removeItem,
+      updateQuantity,
       clearCart,
       syncCart,
       totalAmount,
       isLoading
     }),
-    [items, addItem, removeItem, clearCart, syncCart, totalAmount, isLoading]
+    [items, addItem, removeItem, updateQuantity, clearCart, syncCart, totalAmount, isLoading]
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

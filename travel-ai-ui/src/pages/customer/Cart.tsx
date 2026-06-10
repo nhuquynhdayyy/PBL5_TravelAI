@@ -15,7 +15,7 @@ const formatDateForApi = (date: Date) => {
 
 const Cart = () => {
   const navigate = useNavigate();
-  const { items, removeItem, clearCart, totalAmount, isLoading } = useCart();
+  const { items, removeItem, clearCart, totalAmount, isLoading, updateQuantity } = useCart();
   const [checkingOut, setCheckingOut] = useState(false);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [removingItem, setRemovingItem] = useState<string | null>(null);
@@ -202,7 +202,30 @@ const Cart = () => {
                             ? `${item.checkInDate.toLocaleDateString('vi-VN')} - ${item.checkOutDate.toLocaleDateString('vi-VN')}`
                             : item.checkInDate.toLocaleDateString('vi-VN')}
                         </span>
-                        <span>{item.quantity} mục</span>
+                        <span className="flex items-center gap-2">
+                          <span>Số lượng:</span>
+                          <div className="inline-flex items-center gap-1 rounded-xl bg-slate-100 p-0.5 border border-slate-200">
+                            <button
+                              type="button"
+                              disabled={item.quantity <= 1 || isLoading}
+                              onClick={() => updateQuantity(item.serviceId, item.checkInDate, item.quantity - 1, item.checkOutDate)}
+                              className="flex h-6 w-6 items-center justify-center rounded-lg bg-white text-xs font-black text-slate-600 transition hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm border border-slate-100"
+                            >
+                              -
+                            </button>
+                            <span className="w-6 text-center text-xs font-black text-slate-800">
+                              {item.quantity}
+                            </span>
+                            <button
+                              type="button"
+                              disabled={isLoading}
+                              onClick={() => updateQuantity(item.serviceId, item.checkInDate, item.quantity + 1, item.checkOutDate)}
+                              className="flex h-6 w-6 items-center justify-center rounded-lg bg-white text-xs font-black text-slate-600 transition hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm border border-slate-100"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </span>
                         <span>{currencyFormatter.format(item.price)} VND / mục</span>
                       </div>
                     </div>
