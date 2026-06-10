@@ -10,17 +10,26 @@ public class GmailEmailService : IEmailService
     private readonly string _fromEmail;
     private readonly string _password;
     private readonly string _displayName;
+    private readonly bool _isConfigured;
 
     public GmailEmailService(IConfiguration config)
     {
-        _fromEmail   = config["Email:From"]        ?? throw new InvalidOperationException("Email:From not configured");
-        _password    = config["Email:Password"]    ?? throw new InvalidOperationException("Email:Password not configured");
+        _fromEmail   = config["Email:From"]        ?? string.Empty;
+        _password    = config["Email:Password"]    ?? string.Empty;
         _displayName = config["Email:DisplayName"] ?? "TravelAI";
+        _isConfigured = !string.IsNullOrWhiteSpace(_fromEmail)
+            && !string.IsNullOrWhiteSpace(_password);
     }
 
     // ─── Core sender ─────────────────────────────────────────────────────────
     public async Task SendEmailAsync(string toEmail, string subject, string htmlBody)
     {
+        if (!_isConfigured)
+        {
+            Console.WriteLine($"[EMAIL SKIPPED] Email:From/Email:Password not configured. To: {toEmail}; Subject: {subject}");
+            return;
+        }
+
         using var client = CreateSmtpClient();
         using var message = new MailMessage
         {
