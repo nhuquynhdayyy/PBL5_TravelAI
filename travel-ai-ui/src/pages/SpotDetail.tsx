@@ -2,6 +2,36 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { MapPin, Clock, ArrowLeft, Loader2, Info, Calendar } from 'lucide-react';
 import axiosClient from '../api/axiosClient';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+const customIcon = L.divIcon({
+    className: 'custom-pin-icon',
+    html: `<div style="
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        background-color: #ef4444;
+        border-radius: 50% 50% 50% 0;
+        transform: rotate(-45deg);
+        border: 3px solid white;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    ">
+        <div style="
+            width: 14px;
+            height: 14px;
+            background-color: white;
+            border-radius: 50%;
+            transform: rotate(45deg);
+        "></div>
+    </div>`,
+    iconSize: [36, 36],
+    iconAnchor: [18, 36],
+    popupAnchor: [0, -36]
+});
 
 const SpotDetail: React.FC = () => {
     const { id } = useParams();
@@ -72,7 +102,7 @@ const SpotDetail: React.FC = () => {
                     </p>
                 </div>
 
-                {/* Phần Map mô phỏng */}
+                {/* Phần Bản đồ */}
                 <div className="bg-slate-50 p-6 rounded-[32px] border border-slate-200">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="font-bold text-slate-700 flex items-center gap-2">
@@ -80,8 +110,28 @@ const SpotDetail: React.FC = () => {
                         </h3>
                         <span className="text-xs text-slate-400 font-mono">{spot.latitude}, {spot.longitude}</span>
                     </div>
-                    <div className="h-48 bg-slate-200 rounded-2xl flex items-center justify-center text-slate-400 font-bold italic">
-                        [ Google Maps API Placeholder ]
+                    <div className="h-80 rounded-2xl overflow-hidden border border-slate-200 relative z-0">
+                        <MapContainer
+                            center={[Number(spot.latitude) || 21.0285, Number(spot.longitude) || 105.8542]}
+                            zoom={15}
+                            scrollWheelZoom={true}
+                            style={{ height: '100%', width: '100%' }}
+                        >
+                            <TileLayer
+                                url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+                                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                                maxZoom={19}
+                            />
+                            <Marker
+                                position={[Number(spot.latitude) || 21.0285, Number(spot.longitude) || 105.8542]}
+                                icon={customIcon}
+                            >
+                                <Popup>
+                                    <div className="text-sm font-bold text-slate-900">{spot.name}</div>
+                                    <div className="text-xs text-slate-500 mt-1">📍 {spot.location || spot.address || 'Hà Nội'}</div>
+                                </Popup>
+                            </Marker>
+                        </MapContainer>
                     </div>
                 </div>
             </div>

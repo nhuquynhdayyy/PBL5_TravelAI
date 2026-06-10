@@ -425,6 +425,30 @@ using (var scope = app.Services.CreateScope())
         END
         """);
 
+    // Patch: Add Categories column to Destinations if not exists and update seeded destination records
+    dbContext.Database.ExecuteSqlRaw(
+        """
+        IF COL_LENGTH('Destinations', 'Categories') IS NULL
+        BEGIN
+            ALTER TABLE [Destinations]
+            ADD [Categories] NVARCHAR(500) NULL;
+        END
+        """);
+
+    dbContext.Database.ExecuteSqlRaw(
+        """
+        UPDATE Destinations SET Categories = N'Biển,Ẩm thực' WHERE Name LIKE N'%Đà Nẵng%' AND (Categories IS NULL OR Categories = '');
+        UPDATE Destinations SET Categories = N'Lịch sử,Ẩm thực' WHERE Name LIKE N'%Hà Nội%' AND (Categories IS NULL OR Categories = '');
+        UPDATE Destinations SET Categories = N'Lịch sử,Trải nghiệm' WHERE Name LIKE N'%Hồ Chí Minh%' AND (Categories IS NULL OR Categories = '');
+        UPDATE Destinations SET Categories = N'Núi rừng,Trải nghiệm' WHERE Name LIKE N'%Đà Lạt%' AND (Categories IS NULL OR Categories = '');
+        UPDATE Destinations SET Categories = N'Biển,Trải nghiệm' WHERE Name LIKE N'%Hạ Long%' AND (Categories IS NULL OR Categories = '');
+        UPDATE Destinations SET Categories = N'Biển,Trải nghiệm' WHERE Name LIKE N'%Phú Quốc%' AND (Categories IS NULL OR Categories = '');
+        UPDATE Destinations SET Categories = N'Lịch sử,Văn hóa' WHERE Name LIKE N'%Huế%' AND (Categories IS NULL OR Categories = '');
+        UPDATE Destinations SET Categories = N'Lịch sử,Văn hóa' WHERE Name LIKE N'%Hội An%' AND (Categories IS NULL OR Categories = '');
+        UPDATE Destinations SET Categories = N'Núi rừng,Văn hóa' WHERE Name LIKE N'%Sapa%' AND (Categories IS NULL OR Categories = '');
+        UPDATE Destinations SET Categories = N'Biển,Trải nghiệm' WHERE Name LIKE N'%Nha Trang%' AND (Categories IS NULL OR Categories = '');
+        """);
+
     // Seed dữ liệu mẫu (chỉ chạy khi DB còn trống)
     try
     {
@@ -434,6 +458,28 @@ using (var scope = app.Services.CreateScope())
     catch (Exception ex)
     {
         logger.LogError(ex, "❌ DbInitializer: Lỗi khi seed dữ liệu.");
+    }
+
+    // Sync RatingAvg column with actual reviews avg
+    try
+    {
+        dbContext.Database.ExecuteSqlRaw(
+            """
+            UPDATE Services
+            SET RatingAvg = COALESCE(
+                (
+                    SELECT ROUND(AVG(CAST(Rating AS float)), 1)
+                    FROM Reviews
+                    WHERE Reviews.ServiceId = Services.ServiceId
+                ),
+                0.0
+            );
+            """);
+        logger.LogInformation("✅ Recalculated and synced RatingAvg columns for all services.");
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "❌ Failed to sync RatingAvg columns.");
     }
 }
 

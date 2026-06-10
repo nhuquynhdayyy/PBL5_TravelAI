@@ -1,7 +1,7 @@
 ﻿// src/components/layout/Header.tsx
 
 import React, { useState, useEffect } from 'react';
-import { Menu, X, Plane, LogOut, LayoutDashboard, Store, User, ChevronDown, Hotel, Compass, ClipboardList, MessageSquare, BarChart3, Building2, Landmark, Sparkles } from 'lucide-react';
+import { Menu, X, Plane, LogOut, LayoutDashboard, Store, User, ChevronDown, Hotel, Compass, ClipboardList, MessageSquare, BarChart3, Building2, ShoppingCart, Landmark, Sparkles } from 'lucide-react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useCart } from '../../contexts/CartContext';
 import { NotificationBell } from '../notifications';
@@ -15,6 +15,7 @@ const Header: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { items } = useCart();
+  const location = useLocation();
 
   const role = userState?.roleName?.toLowerCase(); 
 
@@ -40,7 +41,6 @@ const Header: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    // Láº¯ng nghe event userUpdated Ä‘á»ƒ cáº­p nháº­t state
     const handleUserUpdated = () => {
       setUserState(getUser());
     };
@@ -48,6 +48,10 @@ const Header: React.FC = () => {
     window.addEventListener('userUpdated', handleUserUpdated);
     return () => window.removeEventListener('userUpdated', handleUserUpdated);
   }, []);
+
+  const isActive = (path: string) => {
+    return location.pathname === path || location.pathname.startsWith(path + '/');
+  };
 
   return (
     <header className={`fixed w-full z-50 border-b transition-all duration-300 ${
@@ -84,19 +88,19 @@ const Header: React.FC = () => {
                     onMouseEnter={() => setIsServicesOpen(true)}
                     onMouseLeave={() => setIsServicesOpen(false)}
                 >
-                    <button className="flex items-center gap-1 text-slate-600 hover:text-blue-500 font-medium text-sm transition-all outline-none">
-                        Dá»‹ch vá»¥ <ChevronDown size={14} className={`transition-transform duration-300 ${isServicesOpen ? 'rotate-180' : ''}`} />
+                    <button className="flex items-center gap-1 text-slate-600 hover:text-blue-500 font-medium text-sm transition-all outline-none dark:text-slate-300">
+                        Dịch vụ <ChevronDown size={14} className={`transition-transform duration-300 ${isServicesOpen ? 'rotate-180' : ''}`} />
                     </button>
 
                     {isServicesOpen && (
-<div className="absolute top-full left-0 w-60 bg-white rounded-3xl shadow-2xl border border-slate-100 p-3 animate-in fade-in slide-in-from-top-2 duration-300 dark:border-slate-800 dark:bg-slate-900">
+                        <div className="absolute top-full left-0 w-60 bg-white rounded-3xl shadow-2xl border border-slate-100 p-3 animate-in fade-in slide-in-from-top-2 duration-300 dark:border-slate-800 dark:bg-slate-900">
                             <Link to="/hotels" className="flex items-center gap-3 p-3 hover:bg-blue-50 rounded-2xl transition-all group/item dark:hover:bg-slate-800">
                                 <div className="p-2 bg-blue-100 text-blue-600 rounded-xl group-hover/item:bg-blue-600 group-hover/item:text-white transition-colors">
                                     <Hotel size={20} />
                                 </div>
                                 <div className="text-left">
-                                    <p className="text-sm font-black text-slate-800">KhÃ¡ch sáº¡n</p>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">TÃ¬m chá»— á»Ÿ Æ°ng Ã½</p>
+                                    <p className="text-sm font-black text-slate-800 dark:text-slate-100">Khách sạn</p>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Tìm chỗ ở ưng ý</p>
                                 </div>
                             </Link>
                             <Link to="/tours" className="flex items-center gap-3 p-3 hover:bg-emerald-50 rounded-2xl transition-all group/item mt-1 dark:hover:bg-slate-800">
@@ -104,8 +108,8 @@ const Header: React.FC = () => {
                                     <Compass size={20} />
                                 </div>
                                 <div className="text-left">
-                                    <p className="text-sm font-black text-slate-800">Tour du lá»‹ch</p>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Tráº£i nghiá»‡m thÃº vá»‹</p>
+                                    <p className="text-sm font-black text-slate-800 dark:text-slate-100">Tour du lịch</p>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Trải nghiệm thú vị</p>
                                 </div>
                             </Link>
                             <Link to="/transportation" className="flex items-center gap-3 p-3 hover:bg-purple-50 rounded-2xl transition-all group/item mt-1 dark:hover:bg-slate-800">
@@ -113,22 +117,22 @@ const Header: React.FC = () => {
                                     <Plane size={20} />
                                 </div>
                                 <div className="text-left">
-                                    <p className="text-sm font-black text-slate-800">Di chuyá»ƒn</p>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Tiá»‡n lá»£i, dá»… dÃ ng</p>
+                                    <p className="text-sm font-black text-slate-800 dark:text-slate-100">Di chuyển</p>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Tiện lợi, dễ dàng</p>
                                 </div>
                             </Link>
                         </div>
                     )}
                 </div>
 
-                <Link to="/ai-suggestions" className="flex items-center gap-1.5 text-slate-600 hover:text-blue-500 font-medium text-sm transition-all group">
+                <Link to="/ai-suggestions" className="flex items-center gap-1.5 text-slate-600 hover:text-blue-500 font-medium text-sm transition-all group dark:text-slate-300">
                   <Sparkles size={16} className="text-blue-400 group-hover:text-blue-500 transition-colors" />
                   <span>Gá»£i Ã½ AI</span>
                 </Link>
 
-                <Link to="/planner" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all">Lá»‹ch trÃ¬nh</Link>
-                <Link to="/cart" className="relative text-slate-600 hover:text-blue-500 font-medium text-sm transition-all">
-                  Giá» hÃ ng
+                <Link to="/planner" className="text-slate-600 hover:text-blue-500 font-medium text-sm transition-all dark:text-slate-300">Lịch trình</Link>
+                <Link to="/cart" className="relative text-slate-600 hover:text-blue-500 font-medium text-sm transition-all dark:text-slate-300">
+                  Giỏ hàng
                   {items.length > 0 && (
                     <span className="absolute -right-3 -top-3 flex size-5 items-center justify-center rounded-full bg-blue-600 text-[10px] font-black text-white">
                       {items.length}
@@ -141,20 +145,20 @@ const Header: React.FC = () => {
             {/* PARTNER MENU */}
             {role === 'partner' && (
               <>
-                <Link to="/partner/dashboard" className="flex items-center gap-2 px-6 py-2 bg-slate-900 text-white rounded-full font-black text-xs hover:bg-slate-700 transition-all shadow-lg shadow-slate-100 uppercase tracking-widest">
-                  <BarChart3 size={14} /> Báº¢NG ÄIá»€U KHIá»‚N
+                <Link to="/partner/dashboard" className={`flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-sm transition-all duration-200 ${isActive('/partner/dashboard') ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
+                  <BarChart3 size={16} /> <span>Báo cáo</span>
                 </Link>
-                <Link to="/partner/profile" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
-                  <Building2 size={14} /> DOANH NGHIá»†P
+                <Link to="/partner/profile" className={`flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-sm transition-all duration-200 ${isActive('/partner/profile') ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/30' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
+                  <Building2 size={16} /> <span>Doanh nghiệp</span>
                 </Link>
-                <Link to="/partner/services" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
-                  <Store size={14} /> Dá»ŠCH Vá»¤ Cá»¦A TÃ”I
+                <Link to="/partner/services" className={`flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-sm transition-all duration-200 ${isActive('/partner/services') ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/30' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
+                  <Store size={16} /> <span>Dịch vụ</span>
                 </Link>
-                <Link to="/partner/orders" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
-                  <ClipboardList size={14} /> ÄÆ N HÃ€NG Cá»¦A TÃ”I
+                <Link to="/partner/orders" className={`flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-sm transition-all duration-200 ${isActive('/partner/orders') ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/30' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
+                  <ClipboardList size={16} /> <span>Đơn hàng</span>
                 </Link>
-                <Link to="/partner/reviews" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">
-                  <MessageSquare size={14} /> ÄÃNH GIÃ Cá»¦A TÃ”I
+                <Link to="/partner/reviews" className={`flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-sm transition-all duration-200 ${isActive('/partner/reviews') ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/30' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
+                  <MessageSquare size={16} /> <span>Đánh giá</span>
                 </Link>
               </>
             )}
@@ -186,19 +190,17 @@ const Header: React.FC = () => {
             {userState ? (
                 <div className="flex items-center gap-4">
                     <NotificationBell />
-                    <div className="flex flex-col items-end">
-                      <Link to="/profile" className="text-sm font-black text-slate-900 hover:text-blue-600 transition-all flex items-center gap-1 dark:text-white dark:hover:text-blue-400">
-                        {userState.fullName} <User size={14} className="text-blue-500" />
-                      </Link>
-                    </div>
+                    <Link to="/profile" className="text-sm font-black text-slate-900 hover:text-blue-600 transition-all flex items-center gap-1 dark:text-white dark:hover:text-blue-400">
+                      {userState.fullName} <User size={14} className="text-blue-500" />
+                    </Link>
                     <button onClick={handleLogout} className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors dark:hover:bg-red-950/40">
                       <LogOut size={20} />
                     </button>
                 </div>
             ) : (
               <div className="flex items-center gap-2">
-                <button onClick={() => navigate('/login')} className="px-5 py-2 text-slate-700 font-bold text-sm hover:text-blue-500">ÄÄƒng nháº­p</button>
-                <button onClick={() => navigate('/register')} className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-200 transition-all active:scale-95">ÄÄƒng kÃ½</button>
+                <button onClick={() => navigate('/login')} className="px-5 py-2 text-slate-700 font-bold text-sm hover:text-blue-500 dark:text-slate-300">Đăng nhập</button>
+                <button onClick={() => navigate('/register')} className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-200 transition-all active:scale-95">Đăng ký</button>
               </div>
             )}
           </div>
@@ -212,50 +214,55 @@ const Header: React.FC = () => {
         </div>
       </div>
 
+      {/* MOBILE MENU */}
       {isOpen && (
-        <div className="border-t border-slate-100 bg-white px-4 py-4 shadow-lg md:hidden dark:border-slate-800 dark:bg-slate-950">
-          <nav className="mx-auto flex max-w-7xl flex-col gap-2">
+        <div className="border-t border-slate-100 bg-white px-4 py-4 shadow-lg md:hidden dark:border-slate-800 dark:bg-slate-950 overflow-y-auto max-h-[80vh]">
+          <nav className="flex flex-col gap-2">
+            {/* User thông thường */}
             {role !== 'partner' && role !== 'admin' && (
               <>
-                <Link onClick={() => setIsOpen(false)} to="/" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">Home</Link>
-                <Link onClick={() => setIsOpen(false)} to="/destinations" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">Destinations</Link>
-                <Link onClick={() => setIsOpen(false)} to="/hotels" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">Hotels</Link>
-                <Link onClick={() => setIsOpen(false)} to="/tours" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">Tours</Link>
-                <Link onClick={() => setIsOpen(false)} to="/transportation" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">Transportation</Link>
-                <Link onClick={() => setIsOpen(false)} to="/planner" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">Itinerary</Link>
-                <Link onClick={() => setIsOpen(false)} to="/cart" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">Cart</Link>
+                <Link onClick={() => setIsOpen(false)} to="/" className="rounded-xl px-3 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-900">Trang chủ</Link>
+                <Link onClick={() => setIsOpen(false)} to="/destinations" className="rounded-xl px-3 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-900">Điểm đến</Link>
+                <Link onClick={() => setIsOpen(false)} to="/hotels" className="rounded-xl px-3 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-900">Khách sạn</Link>
+                <Link onClick={() => setIsOpen(false)} to="/tours" className="rounded-xl px-3 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-900">Tour du lịch</Link>
+                <Link onClick={() => setIsOpen(false)} to="/transportation" className="rounded-xl px-3 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-900">Di chuyển</Link>
+                <Link onClick={() => setIsOpen(false)} to="/planner" className="rounded-xl px-3 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-900">Lịch trình</Link>
+                <Link onClick={() => setIsOpen(false)} to="/cart" className="rounded-xl px-3 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-900">Giỏ hàng</Link>
               </>
             )}
 
+            {/* Partner Mobile */}
             {role === 'partner' && (
               <>
-                <Link onClick={() => setIsOpen(false)} to="/partner/dashboard" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">Dashboard</Link>
-                <Link onClick={() => setIsOpen(false)} to="/partner/profile" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">Business</Link>
-                <Link onClick={() => setIsOpen(false)} to="/partner/services" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">My Services</Link>
-                <Link onClick={() => setIsOpen(false)} to="/partner/orders" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">My Orders</Link>
-                <Link onClick={() => setIsOpen(false)} to="/partner/reviews" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">My Reviews</Link>
+                <Link onClick={() => setIsOpen(false)} to="/partner/dashboard" className="px-4 py-2.5 rounded-xl text-slate-700 font-bold text-sm hover:bg-slate-50 dark:text-slate-200">Báo cáo</Link>
+                <Link onClick={() => setIsOpen(false)} to="/partner/profile" className="px-4 py-2.5 rounded-xl text-slate-700 font-bold text-sm hover:bg-slate-50 dark:text-slate-200">Doanh nghiệp</Link>
+                <Link onClick={() => setIsOpen(false)} to="/partner/services" className="px-4 py-2.5 rounded-xl text-slate-700 font-bold text-sm hover:bg-slate-50 dark:text-slate-200">Dịch vụ</Link>
+                <Link onClick={() => setIsOpen(false)} to="/partner/orders" className="px-4 py-2.5 rounded-xl text-slate-700 font-bold text-sm hover:bg-slate-50 dark:text-slate-200">Đơn hàng</Link>
+                <Link onClick={() => setIsOpen(false)} to="/partner/reviews" className="px-4 py-2.5 rounded-xl text-slate-700 font-bold text-sm hover:bg-slate-50 dark:text-slate-200">Đánh giá</Link>
               </>
             )}
 
+            {/* Admin Mobile */}
             {role === 'admin' && (
               <>
-                <Link onClick={() => setIsOpen(false)} to="/admin/stats" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">Stats</Link>
-                <Link onClick={() => setIsOpen(false)} to="/admin/partners" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">Partners</Link>
-                <Link onClick={() => setIsOpen(false)} to="/admin/services" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">Services</Link>
-                <Link onClick={() => setIsOpen(false)} to="/admin/vietqr-payments" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">VietQR</Link>
-                <Link onClick={() => setIsOpen(false)} to="/admin/users" className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">Users</Link>
+                <Link onClick={() => setIsOpen(false)} to="/admin/stats" className="px-4 py-2.5 rounded-xl text-slate-700 font-bold text-sm hover:bg-slate-50 dark:text-slate-200">Thống kê</Link>
+                <Link onClick={() => setIsOpen(false)} to="/admin/partners" className="px-4 py-2.5 rounded-xl text-slate-700 font-bold text-sm hover:bg-slate-50 dark:text-slate-200">Quản lý Partner</Link>
+                <Link onClick={() => setIsOpen(false)} to="/admin/services" className="px-4 py-2.5 rounded-xl text-slate-700 font-bold text-sm hover:bg-slate-50 dark:text-slate-200">Quản lý Dịch vụ</Link>
+                <Link onClick={() => setIsOpen(false)} to="/admin/vietqr-payments" className="px-4 py-2.5 rounded-xl text-slate-700 font-bold text-sm hover:bg-slate-50 dark:text-slate-200">VietQR</Link>
+                <Link onClick={() => setIsOpen(false)} to="/admin/users" className="px-4 py-2.5 rounded-xl text-slate-700 font-bold text-sm hover:bg-slate-50 dark:text-slate-200">Quản lý User</Link>
               </>
             )}
 
+            {/* Auth Section Mobile */}
             <div className="mt-3 border-t border-slate-100 pt-3 dark:border-slate-800">
               {userState ? (
                 <button onClick={handleLogout} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-black text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40">
-                  <LogOut size={18} /> Logout
+                  <LogOut size={18} /> Đăng xuất
                 </button>
               ) : (
                 <div className="grid grid-cols-2 gap-2">
-                  <button onClick={() => { setIsOpen(false); navigate('/login'); }} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-black text-slate-700 dark:border-slate-800 dark:text-slate-200">Login</button>
-                  <button onClick={() => { setIsOpen(false); navigate('/register'); }} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white">Register</button>
+                  <button onClick={() => { setIsOpen(false); navigate('/login'); }} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-black text-slate-700 dark:border-slate-700 dark:text-slate-200">Đăng nhập</button>
+                  <button onClick={() => { setIsOpen(false); navigate('/register'); }} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white">Đăng ký</button>
                 </div>
               )}
             </div>
@@ -267,4 +274,3 @@ const Header: React.FC = () => {
 };
 
 export default Header;
-

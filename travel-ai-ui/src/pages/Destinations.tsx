@@ -12,16 +12,16 @@ import {
   Trash2,
   Umbrella,
   X,
+  Waves,
+  History,
+  Landmark,
+  UtensilsCrossed,
+  Compass,
 } from 'lucide-react';
 import axiosClient from '../api/axiosClient';
 
 type FilterRegion = 'all' | 'north' | 'central' | 'south';
 type FilterTravelType = 'all' | 'beach' | 'mountain' | 'culture';
-
-type DestinationStats = {
-  hotels: number;
-  tours: number;
-};
 
 const ITEMS_PER_PAGE = 8;
 
@@ -51,6 +51,21 @@ const travelTypeKeywords: Record<Exclude<FilterTravelType, 'all'>, string[]> = {
   culture: ['văn hóa', 'culture', 'di sản', 'phố cổ', 'lịch sử', 'heritage', 'hà nội', 'huế', 'hội an', 'ninh bình'],
 };
 
+const tagMeta: Record<string, { icon: React.ComponentType<any>; bgClass: string; textClass: string }> = {
+  'Biển': { icon: Waves, bgClass: 'bg-blue-50', textClass: 'text-blue-600' },
+  'Núi rừng': { icon: Mountain, bgClass: 'bg-emerald-50', textClass: 'text-emerald-700' },
+  'Lịch sử': { icon: History, bgClass: 'bg-amber-50', textClass: 'text-amber-700' },
+  'Văn hóa': { icon: Landmark, bgClass: 'bg-indigo-50', textClass: 'text-indigo-700' },
+  'Ẩm thực': { icon: UtensilsCrossed, bgClass: 'bg-orange-50', textClass: 'text-orange-700' },
+  'Trải nghiệm': { icon: Compass, bgClass: 'bg-purple-50', textClass: 'text-purple-700' },
+  'Nghỉ dưỡng': { icon: Umbrella, bgClass: 'bg-cyan-50', textClass: 'text-cyan-700' },
+};
+
+const getTagMeta = (tag: string) => {
+  const normalized = tag.trim();
+  return tagMeta[normalized] || { icon: Compass, bgClass: 'bg-slate-50', textClass: 'text-slate-700' };
+};
+
 const getDestinationId = (destination: any) => destination.id || destination.destinationId;
 
 const normalizeText = (value: string) =>
@@ -67,40 +82,6 @@ const matchesKeywords = (destination: any, keywords: string[]) => {
 const getImageUrl = (url?: string) => {
   if (!url) return 'https://images.unsplash.com/photo-1528127269322-539801943592?q=80&w=900';
   return url.startsWith('http') ? url : `http://localhost:5134${url}`;
-};
-
-const getServiceType = (service: any) => String(service.serviceType ?? '').toLowerCase();
-
-const buildDestinationStats = (services: any[]) => {
-  const stats: Record<string, DestinationStats> = {};
-
-  services.forEach((service) => {
-    const destinationKeys = [
-      service.destinationId,
-      service.destination?.id,
-      service.destinationName,
-      service.destination?.name,
-    ].filter(Boolean);
-
-    destinationKeys.forEach((key) => {
-      const statKey = String(key).toLowerCase();
-      const current = stats[statKey] || { hotels: 0, tours: 0 };
-      const serviceType = getServiceType(service);
-
-      if (serviceType === 'hotel' || serviceType === '0') current.hotels += 1;
-      if (serviceType === 'tour' || serviceType === '1') current.tours += 1;
-
-      stats[statKey] = current;
-    });
-  });
-
-  return stats;
-};
-
-const getStatsForDestination = (destination: any, stats: Record<string, DestinationStats>) => {
-  const id = String(getDestinationId(destination) || '').toLowerCase();
-  const name = String(destination.name || '').toLowerCase();
-  return stats[id] || stats[name] || { hotels: destination.hotelCount || 0, tours: destination.tourCount || 0 };
 };
 
 const FilterBar = ({
@@ -176,13 +157,11 @@ const FilterBar = ({
 const DestinationGridCard = ({
   destination,
   isAdmin,
-  stats,
   onDelete,
   onEdit,
 }: {
   destination: any;
   isAdmin: boolean;
-  stats: DestinationStats;
   onDelete: () => void;
   onEdit: () => void;
 }) => (
@@ -227,11 +206,11 @@ const DestinationGridCard = ({
           <p className="mb-3 text-xs font-bold uppercase tracking-widest text-blue-100">Dịch vụ đang có</p>
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-xl bg-white/15 p-3">
-              <p className="text-2xl font-black">{stats.hotels}</p>
+              <p className="text-2xl font-black">{destination.hotels_count ?? 0}</p>
               <p className="text-xs font-semibold text-blue-50">Khách sạn</p>
             </div>
             <div className="rounded-xl bg-white/15 p-3">
-              <p className="text-2xl font-black">{stats.tours}</p>
+              <p className="text-2xl font-black">{destination.tours_count ?? 0}</p>
               <p className="text-xs font-semibold text-blue-50">Tour</p>
             </div>
           </div>
@@ -243,14 +222,24 @@ const DestinationGridCard = ({
           {destination.description || 'Thông tin điểm đến đang được cập nhật.'}
         </p>
         <div className="mt-5 flex flex-wrap gap-2">
-          <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-[#0061ff]">
-            <Umbrella size={13} />
-            Biển
-          </span>
-          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
-            <Mountain size={13} />
-            Trải nghiệm
-          </span>
+          {(destination.categories || '')
+            .split(',')
+            .map((t: string) => t.trim())
+            .filter((t: string) => t.length > 0)
+            .slice(0, 2)
+            .map((tag: string) => {
+              const meta = getTagMeta(tag);
+              const IconComponent = meta.icon;
+              return (
+                <span
+                  key={tag}
+                  className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-black ${meta.bgClass} ${meta.textClass}`}
+                >
+                  <IconComponent size={13} />
+                  {tag}
+                </span>
+              );
+            })}
         </div>
       </div>
     </Link>
@@ -311,7 +300,6 @@ const Destinations: React.FC = () => {
   const searchQuery = searchParams.get('search');
   
   const [destinations, setDestinations] = useState<any[]>([]);
-  const [serviceStats, setServiceStats] = useState<Record<string, DestinationStats>>({});
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [searchKeyword, setSearchKeyword] = useState(searchQuery || '');
@@ -345,23 +333,6 @@ const Destinations: React.FC = () => {
 
   useEffect(() => {
     fetchDestinations();
-  }, []);
-
-  useEffect(() => {
-    const fetchServiceStats = async () => {
-      try {
-        const response = await axiosClient.post('/services/filter', {
-          pageNumber: 1,
-          pageSize: 200,
-        });
-        setServiceStats(buildDestinationStats(response.data?.services || []));
-      } catch (err) {
-        console.error('Lỗi tải thống kê dịch vụ theo điểm đến:', err);
-        setServiceStats({});
-      }
-    };
-
-    fetchServiceStats();
   }, []);
 
   const filteredDestinations = useMemo(() => {
@@ -508,7 +479,6 @@ const Destinations: React.FC = () => {
                   key={destinationId}
                   destination={destination}
                   isAdmin={isAdmin}
-                  stats={getStatsForDestination(destination, serviceStats)}
                   onEdit={() => navigate(`/admin/destinations/edit/${destinationId}`)}
                   onDelete={() => handleDelete(destinationId)}
                 />

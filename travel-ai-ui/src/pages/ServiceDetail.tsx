@@ -144,6 +144,10 @@ const ServiceDetail = () => {
   const user = userStr ? JSON.parse(userStr) : null;
   const isLoggedIn = Boolean(localStorage.getItem('token'));
 
+  const calculatedRatingAvg = reviews.length > 0
+    ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+    : 0;
+
   // Check if service is Hotel or Transport (multi-day booking)
   const isMultiDayService = service?.serviceType === 'Hotel' || service?.serviceType === 'Transport';
   const isHotel = service?.serviceType === 'Hotel';
@@ -483,10 +487,14 @@ const ServiceDetail = () => {
               <span className="flex items-center gap-1.5">
                 <MapPin size={20} className="text-red-500" /> {service.spotName || 'Đang cập nhật địa điểm'}
               </span>
-              <span className="flex items-center gap-1.5">
-                <Star size={20} className="fill-orange-400 text-orange-400" />{' '}
-                {service.ratingAvg.toFixed(1)} đánh giá
-              </span>
+              {reviews.length > 0 ? (
+                <span className="flex items-center gap-1.5">
+                  <Star size={20} className="fill-orange-400 text-orange-400" />{' '}
+                  {calculatedRatingAvg.toFixed(1)} ({reviews.length} đánh giá)
+                </span>
+              ) : (
+                <span className="text-slate-400 font-medium">Chưa có đánh giá</span>
+              )}
             </div>
             <div className="rounded-[3rem] border border-slate-100 bg-white p-10 text-lg leading-relaxed text-slate-600 shadow-sm">
               <h3 className="mb-4 text-xl font-black text-slate-800">Mô tả dịch vụ</h3>
@@ -654,10 +662,12 @@ const ServiceDetail = () => {
             <p className="text-sm font-black uppercase tracking-[0.25em] text-blue-500">Đánh giá từ khách hàng</p>
             <h2 className="mt-2 text-3xl font-black text-slate-900">Trải nghiệm thực tế sau khi sử dụng</h2>
           </div>
-          <div className="rounded-3xl bg-amber-50 px-5 py-4 text-right">
-            <div className="text-3xl font-black text-amber-500">{service.ratingAvg.toFixed(1)}</div>
-            <div className="text-sm font-bold text-amber-700">{reviews.length} đánh giá</div>
-          </div>
+          {reviews.length > 0 && (
+            <div className="rounded-3xl bg-amber-50 px-5 py-4 text-right">
+              <div className="text-3xl font-black text-amber-500">{calculatedRatingAvg.toFixed(1)}</div>
+              <div className="text-sm font-bold text-amber-700">{reviews.length} đánh giá</div>
+            </div>
+          )}
         </div>
 
         {/* AI Review Summary */}

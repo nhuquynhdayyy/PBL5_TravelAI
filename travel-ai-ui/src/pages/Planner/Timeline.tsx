@@ -463,8 +463,8 @@ const Timeline: React.FC = () => {
           startDate: formattedStartDate,
           userFeedback: feedback,
           priorItinerary: itinerary?.raw || undefined,
-          adults: itinerary?.raw?.adults || pref?.adults || 1,
-          children: itinerary?.raw?.children || pref?.children || 0
+          adults: itinerary?.raw?.adults || (pref as any).adults || 1,
+          children: itinerary?.raw?.children || (pref as any).children || 0
         });
 
         const newItinerary = response.data?.data || response.data;

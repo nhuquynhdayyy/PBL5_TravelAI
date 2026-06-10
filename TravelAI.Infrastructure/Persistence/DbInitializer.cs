@@ -230,24 +230,28 @@ public static class DbInitializer
                 Name        = "Đà Nẵng",
                 Description = "Thành phố đáng sống nhất Việt Nam với bãi biển Mỹ Khê và Cầu Rồng nổi tiếng.",
                 ImageUrl    = "https://images.unsplash.com/photo-1559592442-9e54238a2e07?w=800",
+                Categories  = "Biển,Ẩm thực"
             },
             new Destination
             {
                 Name        = "Hà Nội",
                 Description = "Thủ đô ngàn năm văn hiến với kiến trúc cổ kính và ẩm thực phong phú.",
                 ImageUrl    = "https://images.unsplash.com/photo-1509030464150-1b921633003c?w=800",
+                Categories  = "Lịch sử,Ẩm thực"
             },
             new Destination
             {
                 Name        = "TP. Hồ Chí Minh",
                 Description = "Thành phố năng động nhất Việt Nam, trung tâm kinh tế và văn hóa phía Nam.",
                 ImageUrl    = "https://images.unsplash.com/photo-1555944191-23d8819360e7?w=800",
+                Categories  = "Lịch sử,Trải nghiệm"
             },
             new Destination
             {
                 Name        = "Lâm Đồng (Đà Lạt)",
                 Description = "Thành phố ngàn hoa với khí hậu ôn đới mát mẻ quanh năm.",
                 ImageUrl    = "https://images.unsplash.com/photo-1621240215701-b0e6878f830d?w=800",
+                Categories  = "Núi rừng,Trải nghiệm"
             },
         };
         await context.Destinations.AddRangeAsync(destinations);
@@ -295,7 +299,6 @@ public static class DbInitializer
             Name        = "Khách sạn Mỹ Khê Sunrise",
             Description = "Khách sạn 4 sao view biển Mỹ Khê, cách trung tâm 5 phút. Bao gồm bữa sáng buffet và hồ bơi vô cực.",
             BasePrice   = 1_200_000m,
-            RatingAvg   = 4.6,
             Latitude    = 16.0544,
             Longitude   = 108.2022,
             IsActive    = true,
@@ -308,7 +311,6 @@ public static class DbInitializer
             Name        = "Tour Bà Nà Hills – Cầu Vàng 1 ngày",
             Description = "Trọn gói cáp treo + vé vào cửa Bà Nà Hills, tham quan Cầu Vàng, Làng Pháp và Fantasy Park. Khởi hành 7:30 sáng.",
             BasePrice   = 850_000m,
-            RatingAvg   = 4.8,
             Latitude    = 15.9967,
             Longitude   = 107.9874,
             IsActive    = true,
@@ -321,7 +323,6 @@ public static class DbInitializer
             Name        = "Tour Ngũ Hành Sơn – Làng đá Non Nước",
             Description = "Khám phá 5 ngọn núi đá vôi huyền bí, tham quan các hang động và làng nghề điêu khắc đá truyền thống.",
             BasePrice   = 350_000m,
-            RatingAvg   = 4.4,
             Latitude    = 15.9906,
             Longitude   = 108.2635,
             IsActive    = true,
@@ -336,7 +337,6 @@ public static class DbInitializer
             Name        = "Khách sạn Hồ Gươm Boutique",
             Description = "Khách sạn boutique 3 sao ngay cạnh Hồ Hoàn Kiếm, thiết kế hiện đại kết hợp nét cổ kính Hà Nội.",
             BasePrice   = 950_000m,
-            RatingAvg   = 4.3,
             Latitude    = 21.0285,
             Longitude   = 105.8522,
             IsActive    = true,
@@ -349,7 +349,6 @@ public static class DbInitializer
             Name        = "Vé xe limousine Hà Nội – Đà Nẵng (Giường nằm VIP)",
             Description = "Xe giường nằm VIP 34 chỗ, điều hòa, wifi, khởi hành 19:00 hàng ngày từ bến xe Giáp Bát.",
             BasePrice   = 450_000m,
-            RatingAvg   = 4.2,
             Latitude    = 20.9800,
             Longitude   = 105.8400,
             IsActive    = true,
@@ -362,7 +361,6 @@ public static class DbInitializer
             Name        = "Tour Sài Gòn về đêm – Ẩm thực đường phố",
             Description = "Khám phá Sài Gòn về đêm bằng xe máy, thưởng thức các món ăn đường phố nổi tiếng tại quận 1 và quận 3.",
             BasePrice   = 550_000m,
-            RatingAvg   = 4.7,
             Latitude    = 10.7741,
             Longitude   = 106.7020,
             IsActive    = true,
@@ -377,7 +375,6 @@ public static class DbInitializer
             Name        = "Xe khách Sài Gòn – Đà Lạt (Giường nằm)",
             Description = "Xe giường nằm cao cấp 40 chỗ, khởi hành từ bến xe Miền Đông mới. Thời gian di chuyển 7-8 tiếng, có điểm dừng nghỉ giữa đường.",
             BasePrice   = 280_000m,
-            RatingAvg   = 4.5,
             Latitude    = 10.8142,
             Longitude   = 106.7317,
             IsActive    = true,
@@ -390,7 +387,6 @@ public static class DbInitializer
             Name        = "Xe khách Đà Nẵng – Hội An (Ghế ngồi)",
             Description = "Xe ghế ngồi 29 chỗ, khởi hành mỗi 30 phút từ bến xe Đà Nẵng. Thời gian di chuyển 45 phút, điều hòa, wifi miễn phí.",
             BasePrice   = 50_000m,
-            RatingAvg   = 4.3,
             Latitude    = 16.0544,
             Longitude   = 108.2022,
             IsActive    = true,
@@ -403,7 +399,6 @@ public static class DbInitializer
             Name        = "Xe khách Hà Nội – Hạ Long (Limousine)",
             Description = "Xe limousine 16 chỗ cao cấp, ghế massage, wifi, nước uống miễn phí. Đón tận nơi trong nội thành Hà Nội.",
             BasePrice   = 180_000m,
-            RatingAvg   = 4.7,
             Latitude    = 21.0285,
             Longitude   = 105.8522,
             IsActive    = true,
@@ -418,7 +413,6 @@ public static class DbInitializer
             Name        = "Vé máy bay TP.HCM – Hà Nội (Eco)",
             Description = "Chuyến bay thẳng 2 tiếng, hành lý xách tay 7kg miễn phí. Hành lý ký gửi mua thêm 200k/15kg. Khởi hành nhiều khung giờ trong ngày.",
             BasePrice   = 1_200_000m,
-            RatingAvg   = 4.4,
             Latitude    = 10.8188,
             Longitude   = 106.6519,
             IsActive    = true,
@@ -431,7 +425,6 @@ public static class DbInitializer
             Name        = "Vé máy bay Hà Nội – Đà Nẵng (Eco)",
             Description = "Chuyến bay thẳng 1 tiếng 20 phút, hành lý xách tay 7kg. Khởi hành từ sân bay Nội Bài, hạ cánh sân bay Đà Nẵng.",
             BasePrice   = 800_000m,
-            RatingAvg   = 4.5,
             Latitude    = 21.2212,
             Longitude   = 105.8072,
             IsActive    = true,
@@ -444,7 +437,6 @@ public static class DbInitializer
             Name        = "Vé máy bay Đà Nẵng – TP.HCM (Eco)",
             Description = "Chuyến bay thẳng 1 tiếng 30 phút, phục vụ suất ăn nhẹ trên máy bay. Hành lý xách tay 7kg miễn phí.",
             BasePrice   = 950_000m,
-            RatingAvg   = 4.6,
             Latitude    = 16.0544,
             Longitude   = 108.2022,
             IsActive    = true,
