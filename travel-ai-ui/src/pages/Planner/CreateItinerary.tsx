@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ChevronRight,
   Loader2,
@@ -546,6 +546,7 @@ const SummaryCard: React.FC<{ data: PlanData; onConfirm: () => void; onReset: ()
 
 const CreateItinerary: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const bottomRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const isFirstMount = useRef(true);
@@ -642,11 +643,53 @@ const CreateItinerary: React.FC = () => {
         greetingText = 'Xin chào! Tôi là AI Planner của TravelAI 🌏\nTôi thấy bạn thích đi phượt và lịch trình dày đặc, tôi sẽ ưu tiên các điểm đến mạo hiểm nhé?\n\nBạn muốn đến đâu lần này?';
       }
 
-      pushAiMessage(greetingText, buildDestinationReplies(destinations));
-      setStep('destination');
+      const destIdParam = searchParams.get('destinationId');
+      const matchingDest = destIdParam
+        ? destinations.find((d) => d.id === parseInt(destIdParam, 10))
+        : null;
+
+      if (matchingDest) {
+        // Auto-select the destination
+        const gId = genId();
+        const uId = genId();
+        const aId = genId();
+
+        setMessages([
+          {
+            id: gId,
+            role: 'ai',
+            text: greetingText,
+            timestamp: Date.now() - 2000,
+          },
+          {
+            id: uId,
+            role: 'user',
+            text: `📍 ${matchingDest.name}`,
+            timestamp: Date.now() - 1000,
+          },
+          {
+            id: aId,
+            role: 'ai',
+            text: `Tuyệt vời! ${matchingDest.name} là lựa chọn tuyệt vời 🎉\n\nBạn muốn đi trong bao nhiêu ngày?`,
+            quickReplies: DURATION_OPTIONS,
+            timestamp: Date.now(),
+          },
+        ]);
+
+        markSelected('destination', String(matchingDest.id));
+        setPlanData((prev) => ({
+          ...prev,
+          destinationId: matchingDest.id,
+          destinationName: matchingDest.name,
+        }));
+        setStep('duration');
+      } else {
+        pushAiMessage(greetingText, buildDestinationReplies(destinations));
+        setStep('destination');
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [destinations, loadingPref, pref]);
+  }, [destinations, loadingPref, pref, searchParams]);
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
 

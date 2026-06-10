@@ -14,15 +14,10 @@ const SpotList: React.FC = () => {
 
     const [dest, setDest] = useState<any>(null);
     const [spots, setSpots] = useState<any[]>([]);
-    const [allDestinations, setAllDestinations] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     // Search & Filter state
     const [searchQuery, setSearchQuery] = useState('');
-    const [filterDestId, setFilterDestId] = useState<string>('id || all');
-    const [isFilterOpen, setIsFilterOpen] = useState(false);
-    const SPOTS_PER_PAGE = 2;
-    const [currentPage, setCurrentPage] = useState(1);
 
     const getImageUrl = (url: string) => {
         if (!url) return 'https://via.placeholder.com/800x400';
@@ -32,14 +27,12 @@ const SpotList: React.FC = () => {
     const fetchData = async () => {
         try {
             setLoading(true);
-            const [destRes, spotsRes, allDestsRes] = await Promise.all([
+            const [destRes, spotsRes] = await Promise.all([
                 axiosClient.get(`/destinations/${id}`),
-                axiosClient.get(`/spots/by-destination/${id}`),
-                axiosClient.get(`/destinations`)
+                axiosClient.get(`/spots/by-destination/${id}`)
             ]);
             setDest(destRes.data.data);
             setSpots(spotsRes.data.data);
-            setAllDestinations(allDestsRes.data.data || []);
         } catch (error) {
             console.error('Error fetching data:', error);
         } finally {
@@ -51,38 +44,6 @@ const SpotList: React.FC = () => {
         fetchData();
     }, [id]);
 
-    
-    useEffect(() => {
-      setCurrentPage(1);
-      if (filterDestId !== "all" && filterDestId !== id) {
-        axiosClient
-          .get(`/spots/by-destination/${filterDestId}`)
-          .then((res) => setSpots(res.data.data))
-          .catch(console.error);
-      } else if (filterDestId === "all") {
-        Promise.all(
-          allDestinations.map((d) =>
-            axiosClient
-              .get(`/spots/by-destination/${d.id || d.destinationId}`)
-              .then((res) => res.data.data)
-              .catch(() => []),
-          ),
-        ).then((results) => {
-          const allSpots = results.flat();
-          setSpots(allSpots);
-        });
-      } else {
-        axiosClient
-          .get(`/spots/by-destination/${id}`)
-          .then((res) => setSpots(res.data.data))
-          .catch(console.error);
-      }
-    }, [filterDestId, allDestinations]);
-
-    useEffect(() => {
-    setCurrentPage(1);
-    }, [searchQuery]);
-
     // Filter spots theo search query
     const filteredSpots = useMemo(() => {
         if (!searchQuery.trim()) return spots;
@@ -93,11 +54,7 @@ const SpotList: React.FC = () => {
         );
     }, [spots, searchQuery]);
 
-    const totalPages = Math.ceil(filteredSpots.length / SPOTS_PER_PAGE);
-    const paginatedSpots = filteredSpots.slice(
-    (currentPage - 1) * SPOTS_PER_PAGE,
-    currentPage * SPOTS_PER_PAGE
-    );
+
 
     const handleDeleteSpot = async (spotId: number) => {
         if (window.confirm('Bạn có chắc muốn xóa địa danh này không?')) {
@@ -111,9 +68,7 @@ const SpotList: React.FC = () => {
         }
     };
 
-    const selectedDestName = filterDestId === 'all'
-    ? 'Tất cả tỉnh/thành'
-    : allDestinations.find(d => String(d.id || d.destinationId) === filterDestId)?.name || dest?.name || 'Chọn tỉnh/thành';
+
 
     if (loading) return (
         <div className="flex h-[60vh] items-center justify-center">
@@ -127,10 +82,10 @@ const SpotList: React.FC = () => {
       <div className="max-w-6xl mx-auto p-6 mb-20">
         {/* Back button */}
         <button
-          onClick={() => navigate("/destinations")}
+          onClick={() => navigate(`/destinations/${id}`)}
           className="flex items-center gap-2 text-slate-500 hover:text-blue-600 mb-6 font-bold transition-colors"
         >
-          <ArrowLeft size={20} /> Quay lại danh sách tỉnh
+          <ArrowLeft size={20} /> Quay lại chi tiết {dest?.name || 'tỉnh/thành'}
         </button>
 
         {/* Hero Image */}
@@ -177,7 +132,7 @@ const SpotList: React.FC = () => {
                 )}
               </div>
 
-              {/* ====== SEARCH & FILTER BAR ====== */}
+              {/* ====== SEARCH BAR ====== */}
               <div className="flex flex-col sm:flex-row gap-3 mb-8">
                 {/* Search Input */}
                 <div className="relative flex-1">
@@ -201,152 +156,41 @@ const SpotList: React.FC = () => {
                     </button>
                   )}
                 </div>
-
-                {/* Destination Filter Dropdown */}
-                <div className="relative">
-                  <button
-                    onClick={() => setIsFilterOpen(!isFilterOpen)}
-                    className="flex items-center gap-2 px-4 py-3 rounded-2xl border-2 border-slate-200 bg-white text-slate-700 font-semibold text-sm hover:border-blue-400 hover:bg-blue-50 focus:outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-50 transition-all shadow-sm whitespace-nowrap min-w-[180px] justify-between"
-                  >
-                    <span className="flex items-center gap-2">
-                      <Filter size={16} className="text-blue-500" />
-                      <span className="truncate max-w-[130px]">
-                        {selectedDestName}
-                      </span>
-                    </span>
-                    <ChevronDown
-                      size={16}
-                      className={`text-slate-400 transition-transform ${isFilterOpen ? "rotate-180" : ""}`}
-                    />
-                  </button>
-
-                  {isFilterOpen && (
-                    <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl border border-slate-200 shadow-2xl z-50 overflow-hidden">
-                      <div className="p-2 max-h-72 overflow-y-auto custom-scrollbar">
-                        {/* Option: Tất cả */}
-                        <button
-                          onClick={() => {
-                            setFilterDestId("all");
-                            setIsFilterOpen(false);
-                          }}
-                          className={`w-full text-left px-4 py-3 rounded-xl font-semibold text-sm transition-colors ${filterDestId === "all" ? "bg-blue-500 text-white" : "hover:bg-slate-50 text-slate-700"}`}
-                        >
-                          🗺️ Tất cả tỉnh/thành
-                        </button>
-
-                        {/* Option: Tỉnh hiện tại */}
-                        <button
-                          onClick={() => {
-                            setFilterDestId(String(id));
-                            setIsFilterOpen(false);
-                          }}
-                          className={`w-full text-left px-4 py-3 rounded-xl font-semibold text-sm transition-colors ${filterDestId === String(id) || filterDestId === id ? "bg-blue-500 text-white" : "hover:bg-slate-50 text-slate-700"}`}
-                        >
-                          📍 {dest.name} (hiện tại)
-                        </button>
-
-                        {allDestinations.length > 0 && (
-                          <div className="my-1 border-t border-slate-100" />
-                        )}
-
-                        {/* Các tỉnh khác */}
-                        {allDestinations
-                          .filter(
-                            (d) =>
-                              String(d.id || d.destinationId) !== String(id),
-                          )
-                          .map((d) => {
-                            const dId = String(d.id || d.destinationId);
-                            return (
-                              <button
-                                key={dId}
-                                onClick={() => {
-                                  setFilterDestId(dId);
-                                  setIsFilterOpen(false);
-                                }}
-                                className={`w-full text-left px-4 py-2.5 rounded-xl font-medium text-sm transition-colors ${filterDestId === dId ? "bg-blue-500 text-white" : "hover:bg-slate-50 text-slate-600"}`}
-                              >
-                                {d.name}
-                              </button>
-                            );
-                          })}
-                      </div>
-                    </div>
-                  )}
-                </div>
               </div>
 
               {/* Result info */}
-              <div className="flex items-center gap-2 mb-4 text-sm text-slate-500">
-                <span>
-                  Tìm thấy{" "}
-                  <span className="font-bold text-slate-800">
-                    {filteredSpots.length}
-                  </span>{" "}
-                  địa danh
-                </span>
-                {searchQuery && (
+              {searchQuery && (
+                <div className="flex items-center gap-2 mb-4 text-sm text-slate-500">
+                  <span>
+                    Tìm thấy{" "}
+                    <span className="font-bold text-slate-800">
+                      {filteredSpots.length}
+                    </span>{" "}
+                    địa danh
+                  </span>
                   <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-lg font-medium">
                     "{searchQuery}"
                   </span>
-                )}
-                {filterDestId !== "all" && filterDestId !== String(id) && (
-                  <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-lg font-medium">
-                    {selectedDestName}
-                  </span>
-                )}
-                {(searchQuery || filterDestId !== String(id)) && (
                   <button
-                    onClick={() => {
-                      setSearchQuery("");
-                      setFilterDestId(String(id));
-                    }}
+                    onClick={() => setSearchQuery("")}
                     className="ml-auto text-blue-500 hover:text-blue-700 font-semibold underline underline-offset-2"
                   >
                     Xóa bộ lọc
                   </button>
-                )}
-              </div>
+                </div>
+              )}
 
-              {/* Spots Carousel */}
+              {/* Spots Grid */}
               {filteredSpots.length > 0 ? (
-                <div className="relative">
-                  {/* Nút trái */}
-                  <button
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                    className="absolute -left-5 top-1/2 -translate-y-1/2 z-10 w-10 h-10 flex items-center justify-center rounded-full border border-slate-200 bg-white shadow-md text-slate-600 text-xl font-bold hover:border-blue-400 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                  >
-                    ‹
-                  </button>
-
-                  {/* Grid 4 cards */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 px-6">
-                    {filteredSpots
-                      .slice(
-                        (currentPage - 1) * SPOTS_PER_PAGE,
-                        currentPage * SPOTS_PER_PAGE,
-                      )
-                      .map((spot) => (
-                        <SpotCard
-                          key={spot.id || spot.spotId}
-                          spot={spot}
-                          isAdmin={isAdmin}
-                          onDelete={handleDeleteSpot}
-                        />
-                      ))}
-                  </div>
-
-                  {/* Nút phải */}
-                  <button
-                    onClick={() =>
-                      setCurrentPage((p) => Math.min(totalPages, p + 1))
-                    }
-                    disabled={currentPage === totalPages}
-                    className="absolute -right-5 top-1/2 -translate-y-1/2 z-10 w-10 h-10 flex items-center justify-center rounded-full border border-slate-200 bg-white shadow-md text-slate-600 text-xl font-bold hover:border-blue-400 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                  >
-                    ›
-                  </button>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {filteredSpots.map((spot) => (
+                    <SpotCard
+                      key={spot.id || spot.spotId}
+                      spot={spot}
+                      isAdmin={isAdmin}
+                      onDelete={handleDeleteSpot}
+                    />
+                  ))}
                 </div>
               ) : (
                 <div className="p-10 bg-slate-50 rounded-[40px] text-center text-slate-400 italic border-2 border-dashed border-slate-200">
@@ -374,39 +218,11 @@ const SpotList: React.FC = () => {
               </button>
             </div>
 
-            {/* Quick filter card */}
-            <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-              <h4 className="font-black text-slate-800 mb-4 flex items-center gap-2">
-                <MapPin size={16} className="text-red-400" /> Khám phá
-                tỉnh/thành khác
-              </h4>
-              <div className="flex flex-col gap-2 max-h-64 overflow-y-auto custom-scrollbar pr-1">
-                {allDestinations
-                  .filter((d) => String(d.id || d.destinationId) !== String(id))
-                  .slice(0, 8)
-                  .map((d) => (
-                    <button
-                      key={d.id || d.destinationId}
-                      onClick={() =>
-                        navigate(`/destinations/${d.id || d.destinationId}`)
-                      }
-                      className="text-left text-sm text-slate-600 hover:text-blue-600 hover:bg-blue-50 px-3 py-2 rounded-xl font-medium transition-colors"
-                    >
-                      → {d.name}
-                    </button>
-                  ))}
-              </div>
-            </div>
+
           </div>
         </div>
 
-        {/* Click outside to close dropdown */}
-        {isFilterOpen && (
-          <div
-            className="fixed inset-0 z-40"
-            onClick={() => setIsFilterOpen(false)}
-          />
-        )}
+
       </div>
     );
 };
