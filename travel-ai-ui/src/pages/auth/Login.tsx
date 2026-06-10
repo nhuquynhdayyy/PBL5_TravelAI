@@ -38,11 +38,34 @@ const Login = () => {
       // Bước 2: Sync cart từ database về client
       await syncCart();
 
-      const nextPath = data.roleName?.toLowerCase() === 'partner'
-        ? '/partner/profile'
-        : data.roleName?.toLowerCase() === 'admin'
-          ? '/admin/stats'
-          : '/';
+      let nextPath = '/';
+      if (data.roleName?.toLowerCase() === 'partner') {
+        try {
+          const profileRes = await axiosClient.get('/partner/profile');
+          const profile = profileRes.data || {};
+          
+          // Merge verification info into user object in localStorage
+          const updatedUser = {
+            ...data,
+            canCreateServices: profile.canCreateServices || false,
+            verificationStatus: profile.verificationStatus || 'Pending'
+          };
+          localStorage.setItem('user', JSON.stringify(updatedUser));
+          
+          if (profile.canCreateServices) {
+            nextPath = '/partner/dashboard';
+          } else {
+            nextPath = '/partner/profile';
+          }
+        } catch {
+          nextPath = '/partner/profile';
+        }
+      } else if (data.roleName?.toLowerCase() === 'admin') {
+        nextPath = '/admin/stats';
+      } else {
+        nextPath = '/';
+      }
+
       navigate(nextPath);
       window.location.reload();
     } catch (err: any) {
@@ -62,7 +85,10 @@ const Login = () => {
               onChange={e => setFormData({ ...formData, email: e.target.value })} required />
           </div>
           <div>
-            <label className="text-xs font-bold text-slate-700 uppercase ml-1">Mật khẩu</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-bold text-slate-700 uppercase ml-1">Mật khẩu</label>
+              <Link to="/forgot-password" className="text-xs text-blue-600 hover:underline font-medium">Quên mật khẩu?</Link>
+            </div>
             <input className="w-full p-4 mt-1 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" type="password" placeholder="••••••••"
               onChange={e => setFormData({ ...formData, password: e.target.value })} required />
           </div>

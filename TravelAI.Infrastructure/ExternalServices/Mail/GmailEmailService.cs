@@ -1,70 +1,39 @@
+using System.Net;
+using System.Net.Mail;
+using Microsoft.Extensions.Configuration;
 using TravelAI.Application.Interfaces;
 
 namespace TravelAI.Infrastructure.ExternalServices.Mail;
 
-public class SendGridEmailService : IEmailService
+public class GmailEmailService : IEmailService
 {
-    // TODO: Implement with SendGrid API
-    // For now, using console logging as placeholder
-    
-    public Task SendEmailAsync(string toEmail, string subject, string htmlBody)
+    private readonly string _fromEmail;
+    private readonly string _password;
+    private readonly string _displayName;
+
+    public GmailEmailService(IConfiguration config)
     {
-        Console.WriteLine($"[EMAIL] To: {toEmail}");
-        Console.WriteLine($"[EMAIL] Subject: {subject}");
-        Console.WriteLine($"[EMAIL] Body: {htmlBody}");
-        return Task.CompletedTask;
+        _fromEmail   = config["Email:From"]        ?? throw new InvalidOperationException("Email:From not configured");
+        _password    = config["Email:Password"]    ?? throw new InvalidOperationException("Email:Password not configured");
+        _displayName = config["Email:DisplayName"] ?? "TravelAI";
     }
 
-    public Task SendBookingConfirmationAsync(string toEmail, string customerName, int bookingId, decimal totalAmount)
+    // ─── Core sender ─────────────────────────────────────────────────────────
+    public async Task SendEmailAsync(string toEmail, string subject, string htmlBody)
     {
-        var subject = $"Xac nhan dat hang #{bookingId}";
-        var body = $@"
-            <h2>Xin chao {customerName},</h2>
-            <p>Don hang #{bookingId} cua ban da duoc xac nhan thanh cong!</p>
-            <p><strong>Tong tien:</strong> {totalAmount:N0} VND</p>
-            <p>Cam on ban da su dung dich vu cua chung toi.</p>
-        ";
-        return SendEmailAsync(toEmail, subject, body);
+        using var client = CreateSmtpClient();
+        using var message = new MailMessage
+        {
+            From       = new MailAddress(_fromEmail, _displayName),
+            Subject    = subject,
+            Body       = htmlBody,
+            IsBodyHtml = true
+        };
+        message.To.Add(toEmail);
+        await client.SendMailAsync(message);
     }
 
-    public Task SendBookingCancellationAsync(string toEmail, string customerName, int bookingId, decimal refundAmount)
-    {
-        var subject = $"Đơn hàng #{bookingId} đã bị hủy - Hoàn tiền {refundAmount:N0}đ";
-        var body = $@"
-            <h2>Xin chào {customerName},</h2>
-            <p>Đơn hàng <strong>#{bookingId}</strong> của bạn đã bị hủy do <strong>quá hạn duyệt</strong>.</p>
-            <p><strong>Số tiền hoàn lại:</strong> {refundAmount:N0} VND (trong vòng 3-5 ngày làm việc)</p>
-            <p>Bạn có thể tìm kiếm và đặt dịch vụ khác trên hệ thống.</p>
-            <p>Trân trọng,<br/>TravelAI Team</p>
-        ";
-        return SendEmailAsync(toEmail, subject, body);
-    }
-
-    public Task SendOrderApprovedAsync(string toEmail, string customerName, int bookingId, string serviceName)
-    {
-        var subject = $"Don hang #{bookingId} da duoc duyet";
-        var body = $@"
-            <h2>Xin chao {customerName},</h2>
-            <p>Don hang #{bookingId} cho dich vu <strong>{serviceName}</strong> da duoc doi tac phe duyet!</p>
-            <p>Ban co the su dung dich vu theo thong tin da dat.</p>
-            <p>Chuc ban co mot chuyen di vui ve!</p>
-        ";
-        return SendEmailAsync(toEmail, subject, body);
-    }
-
-    public Task SendOrderRejectedAsync(string toEmail, string customerName, int bookingId, string serviceName, string reason)
-    {
-        var subject = $"Don hang #{bookingId} bi tu choi";
-        var body = $@"
-            <h2>Xin chao {customerName},</h2>
-            <p>Rat tiec, don hang #{bookingId} cho dich vu <strong>{serviceName}</strong> da bi doi tac tu choi.</p>
-            <p><strong>Ly do:</strong> {reason}</p>
-            <p>So tien se duoc hoan lai vao tai khoan cua ban trong vong 3-5 ngay lam viec.</p>
-            <p>Neu co thac mac, vui long lien he voi chung toi.</p>
-        ";
-        return SendEmailAsync(toEmail, subject, body);
-    }
-
+    // ─── Verification Email ───────────────────────────────────────────────────
     public Task SendVerificationEmailAsync(string toEmail, string fullName, string verifyLink)
     {
         var subject = "✈️ TravelAI – Xác thực tài khoản của bạn";
@@ -130,6 +99,7 @@ public class SendGridEmailService : IEmailService
         return SendEmailAsync(toEmail, subject, body);
     }
 
+    // ─── Password Reset Email ─────────────────────────────────────────────────
     public Task SendPasswordResetEmailAsync(string toEmail, string fullName, string resetLink)
     {
         var subject = "🔐 TravelAI – Đặt lại mật khẩu";
@@ -196,4 +166,69 @@ public class SendGridEmailService : IEmailService
 </html>";
         return SendEmailAsync(toEmail, subject, body);
     }
+
+    // ─── Booking Emails ───────────────────────────────────────────────────────
+    public Task SendBookingConfirmationAsync(string toEmail, string customerName, int bookingId, decimal totalAmount)
+    {
+        var subject = $"Xác nhận đặt hàng #{bookingId} – TravelAI";
+        var body = $@"
+<div style=""font-family:'Segoe UI',Arial,sans-serif;max-width:560px;margin:0 auto;"">
+  <h2 style=""color:#2563eb;"">Xin chào {customerName},</h2>
+  <p>Đơn hàng <strong>#{bookingId}</strong> của bạn đã được xác nhận thành công!</p>
+  <p><strong>Tổng tiền:</strong> {totalAmount:N0} VND</p>
+  <p>Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi.</p>
+  <p style=""color:#64748b;"">— TravelAI Team</p>
+</div>";
+        return SendEmailAsync(toEmail, subject, body);
+    }
+
+    public Task SendBookingCancellationAsync(string toEmail, string customerName, int bookingId, decimal refundAmount)
+    {
+        var subject = $"Đơn hàng #{bookingId} đã bị hủy – TravelAI";
+        var body = $@"
+<div style=""font-family:'Segoe UI',Arial,sans-serif;max-width:560px;margin:0 auto;"">
+  <h2 style=""color:#dc2626;"">Xin chào {customerName},</h2>
+  <p>Đơn hàng <strong>#{bookingId}</strong> của bạn đã bị hủy do quá hạn duyệt.</p>
+  <p><strong>Số tiền hoàn lại:</strong> {refundAmount:N0} VND (trong vòng 3–5 ngày làm việc)</p>
+  <p>Bạn có thể tìm kiếm và đặt dịch vụ khác trên hệ thống.</p>
+  <p style=""color:#64748b;"">Trân trọng,<br/>TravelAI Team</p>
+</div>";
+        return SendEmailAsync(toEmail, subject, body);
+    }
+
+    public Task SendOrderApprovedAsync(string toEmail, string customerName, int bookingId, string serviceName)
+    {
+        var subject = $"Đơn hàng #{bookingId} đã được duyệt – TravelAI";
+        var body = $@"
+<div style=""font-family:'Segoe UI',Arial,sans-serif;max-width:560px;margin:0 auto;"">
+  <h2 style=""color:#16a34a;"">Xin chào {customerName},</h2>
+  <p>Đơn hàng <strong>#{bookingId}</strong> cho dịch vụ <strong>{serviceName}</strong> đã được đối tác phê duyệt!</p>
+  <p>Bạn có thể sử dụng dịch vụ theo thông tin đã đặt.</p>
+  <p>Chúc bạn có một chuyến đi vui vẻ! ✈️</p>
+  <p style=""color:#64748b;"">— TravelAI Team</p>
+</div>";
+        return SendEmailAsync(toEmail, subject, body);
+    }
+
+    public Task SendOrderRejectedAsync(string toEmail, string customerName, int bookingId, string serviceName, string reason)
+    {
+        var subject = $"Đơn hàng #{bookingId} bị từ chối – TravelAI";
+        var body = $@"
+<div style=""font-family:'Segoe UI',Arial,sans-serif;max-width:560px;margin:0 auto;"">
+  <h2 style=""color:#dc2626;"">Xin chào {customerName},</h2>
+  <p>Rất tiếc, đơn hàng <strong>#{bookingId}</strong> cho dịch vụ <strong>{serviceName}</strong> đã bị đối tác từ chối.</p>
+  <p><strong>Lý do:</strong> {reason}</p>
+  <p>Số tiền sẽ được hoàn lại vào tài khoản của bạn trong vòng 3–5 ngày làm việc.</p>
+  <p>Nếu có thắc mắc, vui lòng liên hệ với chúng tôi.</p>
+  <p style=""color:#64748b;"">— TravelAI Team</p>
+</div>";
+        return SendEmailAsync(toEmail, subject, body);
+    }
+
+    // ─── Private helpers ──────────────────────────────────────────────────────
+    private SmtpClient CreateSmtpClient() => new SmtpClient("smtp.gmail.com", 587)
+    {
+        Credentials = new NetworkCredential(_fromEmail, _password),
+        EnableSsl   = true
+    };
 }

@@ -30,9 +30,17 @@ public class BookingService : IBookingService
             return null;
         }
 
-        if (service.ServiceType == ServiceType.Transport && request.CheckOutDate.HasValue)
+        // Handle multi-day bookings for Transport and Hotel
+        if (request.CheckOutDate.HasValue)
         {
-            return await CreateTransportBookingAsync(userId, request, service);
+            if (service.ServiceType == ServiceType.Transport)
+            {
+                return await CreateTransportBookingAsync(userId, request, service);
+            }
+            else if (service.ServiceType == ServiceType.Hotel)
+            {
+                return await CreateHotelBookingAsync(userId, request, service);
+            }
         }
 
         return await CreateStandardBookingAsync(userId, request);
@@ -145,6 +153,86 @@ public class BookingService : IBookingService
             if (RemainingStock(availability) < requestedQuantity)
             {
                 throw new InvalidOperationException($"Xe da het cho trong ngay {date:dd/MM/yyyy}");
+            }
+        }
+    }
+
+    private async Task<int?> CreateHotelBookingAsync(int userId, CreateBookingRequest request, Service service)
+    {
+        var checkInDate = request.CheckInDate.Date;
+        var checkOutDate = request.CheckOutDate!.Value.Date;
+
+        if (checkOutDate <= checkInDate)
+        {
+            throw new InvalidOperationException("Ngay tra phong phai lon hon ngay nhan phong.");
+        }
+
+        var nights = (checkOutDate - checkInDate).Days;
+        
+        // Check availability for all nights (not including checkout day)
+        var availabilities = await _context.ServiceAvailabilities
+            .Where(a => a.ServiceId == request.ServiceId
+                && a.Date >= checkInDate
+                && a.Date < checkOutDate)  // Not including checkout date
+            .OrderBy(a => a.Date)
+            .ToListAsync();
+
+        EnsureHotelAvailability(availabilities, checkInDate, checkOutDate, request.Quantity);
+
+        // Calculate total amount (sum of all night prices)
+        var totalAmount = availabilities.Sum(a => a.Price) * request.Quantity;
+        
+        var booking = new Booking
+        {
+            UserId = userId,
+            TotalAmount = totalAmount,
+            Status = BookingStatus.Pending,
+            CreatedAt = DateTimeHelper.Now
+        };
+
+        _context.Bookings.Add(booking);
+        await _context.SaveChangesAsync();
+
+        _context.BookingItems.Add(new BookingItem
+        {
+            BookingId = booking.BookingId,
+            ServiceId = request.ServiceId,
+            Quantity = request.Quantity,
+            PriceAtBooking = totalAmount / request.Quantity, // Price per room for total stay
+            CheckInDate = checkInDate,
+            CheckOutDate = checkOutDate,
+            Notes = $"Dat phong {nights} dem"
+        });
+
+        // Hold inventory for each night
+        foreach (var availability in availabilities)
+        {
+            availability.HeldCount += request.Quantity;
+        }
+
+        await _context.SaveChangesAsync();
+        return booking.BookingId;
+    }
+
+    private static void EnsureHotelAvailability(
+        IReadOnlyCollection<ServiceAvailability> availabilities,
+        DateTime checkInDate,
+        DateTime checkOutDate,
+        int requestedQuantity)
+    {
+        var availabilityByDate = availabilities.ToDictionary(a => a.Date.Date);
+
+        // Check each night (not including checkout day)
+        for (var date = checkInDate.Date; date < checkOutDate.Date; date = date.AddDays(1))
+        {
+            if (!availabilityByDate.TryGetValue(date, out var availability))
+            {
+                throw new InvalidOperationException($"Khach san het phong trong ngay {date:dd/MM/yyyy}");
+            }
+
+            if (RemainingStock(availability) < requestedQuantity)
+            {
+                throw new InvalidOperationException($"Khach san het phong trong ngay {date:dd/MM/yyyy}");
             }
         }
     }

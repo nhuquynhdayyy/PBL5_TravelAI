@@ -439,7 +439,10 @@ const AdminUsers = () => {
               <div className="flex items-center gap-1">
                 <button
                   type="button"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  onClick={() => {
+                    setPage((p) => Math.max(1, p - 1));
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
                   disabled={page <= 1}
                   className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30"
                 >
@@ -449,7 +452,10 @@ const AdminUsers = () => {
                   <button
                     key={p}
                     type="button"
-                    onClick={() => setPage(p)}
+                    onClick={() => {
+                      setPage(p);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
                     className={`min-w-[2.25rem] rounded-xl px-3 py-2 text-sm font-bold transition ${
                       p === page
                         ? 'bg-indigo-600 text-white shadow-sm'
@@ -461,7 +467,10 @@ const AdminUsers = () => {
                 ))}
                 <button
                   type="button"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  onClick={() => {
+                    setPage((p) => Math.min(totalPages, p + 1));
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
                   disabled={page >= totalPages}
                   className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30"
                 >

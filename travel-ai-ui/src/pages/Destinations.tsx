@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ChevronLeft,
   ChevronRight,
@@ -307,15 +307,25 @@ const Pagination = ({
 };
 
 const Destinations: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const searchQuery = searchParams.get('search');
+  
   const [destinations, setDestinations] = useState<any[]>([]);
   const [serviceStats, setServiceStats] = useState<Record<string, DestinationStats>>({});
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchKeyword, setSearchKeyword] = useState('');
+  const [searchKeyword, setSearchKeyword] = useState(searchQuery || '');
   const [region, setRegion] = useState<FilterRegion>('all');
   const [travelType, setTravelType] = useState<FilterTravelType>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const navigate = useNavigate();
+
+  // Update searchKeyword when URL search param changes
+  useEffect(() => {
+    if (searchQuery) {
+      setSearchKeyword(searchQuery);
+    }
+  }, [searchQuery]);
 
   const userStr = localStorage.getItem('user');
   const user = userStr ? JSON.parse(userStr) : null;
@@ -418,10 +428,15 @@ const Destinations: React.FC = () => {
     <div className="py-10">
       <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
-          <p className="mb-2 text-xs font-black uppercase tracking-[0.24em] text-[#0061ff]">Khám phá Việt Nam</p>
+          <p className="mb-2 text-xs font-black uppercase tracking-[0.24em] text-[#0061ff]">
+            {searchQuery ? `Kết quả tìm kiếm: "${searchQuery}"` : 'Khám phá Việt Nam'}
+          </p>
           <h1 className="text-4xl font-black tracking-tight text-slate-900 md:text-5xl">Điểm đến</h1>
           <p className="mt-3 max-w-2xl text-slate-500">
-            Danh sách đầy đủ các tỉnh, thành và điểm đến nổi bật, có thể lọc theo vùng miền và phong cách trải nghiệm.
+            {searchQuery 
+              ? `Tìm thấy các điểm đến liên quan đến "${searchQuery}". Bạn có thể lọc thêm theo vùng miền và phong cách.`
+              : 'Danh sách đầy đủ các tỉnh, thành và điểm đến nổi bật, có thể lọc theo vùng miền và phong cách trải nghiệm.'
+            }
           </p>
         </div>
 
@@ -434,6 +449,24 @@ const Destinations: React.FC = () => {
           </button>
         )}
       </div>
+
+      {searchQuery && (
+        <div className="mb-6 flex items-center gap-3">
+          <div className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-4 py-2 text-sm font-bold text-blue-700">
+            <span>🔍 Tìm kiếm: "{searchQuery}"</span>
+            <button
+              type="button"
+              onClick={() => {
+                setSearchKeyword('');
+                navigate('/destinations');
+              }}
+              className="rounded-full p-0.5 transition hover:bg-blue-200"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+      )}
 
       <FilterBar
         searchKeyword={searchKeyword}
@@ -471,7 +504,14 @@ const Destinations: React.FC = () => {
             })}
           </div>
 
-          <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={(page) => {
+              setCurrentPage(page);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          />
         </>
       ) : (
         <div className="rounded-3xl border-2 border-dashed border-slate-200 bg-white p-12 text-center">

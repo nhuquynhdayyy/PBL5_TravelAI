@@ -103,7 +103,7 @@ builder.Services.AddScoped<IAvailabilityService, AvailabilityService>();
 builder.Services.AddScoped<IPricingService, PricingService>();
 builder.Services.AddScoped<IBookingService, BookingService>();
 builder.Services.AddScoped<IPartnerOrderService, PartnerOrderService>();
-builder.Services.AddScoped<IEmailService, TravelAI.Infrastructure.ExternalServices.Mail.SendGridEmailService>();
+builder.Services.AddScoped<IEmailService, TravelAI.Infrastructure.ExternalServices.Mail.GmailEmailService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IAIAnalyticsService, AIAnalyticsService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
@@ -346,6 +346,54 @@ using (var scope = app.Services.CreateScope())
 
             CREATE NONCLUSTERED INDEX [IX_ElectronicTickets_BookingId]
             ON [dbo].[ElectronicTickets]([BookingId] ASC);
+        END
+        """);
+
+    // Patch: Thêm cột IsVerified, VerificationToken, VerificationTokenExpiry vào Users
+    dbContext.Database.ExecuteSqlRaw(
+        """
+        IF COL_LENGTH('Users', 'IsVerified') IS NULL
+        BEGIN
+            ALTER TABLE [Users]
+            ADD [IsVerified] BIT NOT NULL CONSTRAINT [DF_Users_IsVerified] DEFAULT 1;
+        END
+
+        IF COL_LENGTH('Users', 'VerificationToken') IS NULL
+        BEGIN
+            ALTER TABLE [Users]
+            ADD [VerificationToken] NVARCHAR(64) NULL;
+        END
+
+        IF COL_LENGTH('Users', 'VerificationTokenExpiry') IS NULL
+        BEGIN
+            ALTER TABLE [Users]
+            ADD [VerificationTokenExpiry] DATETIME2 NULL;
+        END
+        """);
+
+    // Patch: Tạo bảng PasswordResetTokens
+    dbContext.Database.ExecuteSqlRaw(
+        """
+        IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[PasswordResetTokens]') AND type in (N'U'))
+        BEGIN
+            CREATE TABLE [dbo].[PasswordResetTokens] (
+                [Id]        INT IDENTITY(1,1) NOT NULL,
+                [UserId]    INT NOT NULL,
+                [Token]     NVARCHAR(64) NOT NULL,
+                [ExpiresAt] DATETIME2 NOT NULL,
+                [IsUsed]    BIT NOT NULL DEFAULT 0,
+                [CreatedAt] DATETIME2 NOT NULL,
+                CONSTRAINT [PK_PasswordResetTokens] PRIMARY KEY CLUSTERED ([Id] ASC),
+                CONSTRAINT [FK_PasswordResetTokens_Users] FOREIGN KEY ([UserId])
+                    REFERENCES [dbo].[Users] ([UserId])
+                    ON DELETE CASCADE
+            );
+
+            CREATE NONCLUSTERED INDEX [IX_PasswordResetTokens_Token]
+            ON [dbo].[PasswordResetTokens]([Token] ASC);
+
+            CREATE NONCLUSTERED INDEX [IX_PasswordResetTokens_UserId]
+            ON [dbo].[PasswordResetTokens]([UserId] ASC);
         END
         """);
 

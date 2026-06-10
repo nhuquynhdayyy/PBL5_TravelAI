@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   Bus,
-  Clock3,
   Compass,
   Hotel,
   RotateCcw,
@@ -22,7 +21,8 @@ export interface ServiceFilterState {
   tourThemes: string[];
   tourDuration: string;
   transportType: string;
-  departureTime: string;
+  checkInDate: string;
+  checkOutDate: string;
 }
 
 interface ServiceFilterSidebarProps {
@@ -41,7 +41,8 @@ export const defaultServiceFilters = (serviceType = ''): ServiceFilterState => (
   tourThemes: [],
   tourDuration: '',
   transportType: '',
-  departureTime: '',
+  checkInDate: '',
+  checkOutDate: '',
 });
 
 const serviceTypes = [
@@ -76,12 +77,6 @@ const transportTypes = [
   { value: 'Bus', label: 'Xe khách' },
 ];
 
-const departureTimes = [
-  { value: 'morning', label: 'Sáng' },
-  { value: 'afternoon', label: 'Chiều' },
-  { value: 'evening', label: 'Tối' },
-];
-
 const ServiceFilterSidebar: React.FC<ServiceFilterSidebarProps> = ({ value, onChange, onReset }) => {
   const patch = (partial: Partial<ServiceFilterState>) => onChange({ ...value, ...partial });
 
@@ -104,7 +99,8 @@ const ServiceFilterSidebar: React.FC<ServiceFilterSidebarProps> = ({ value, onCh
     value.tourThemes.length > 0 ||
     value.tourDuration ||
     value.transportType ||
-    value.departureTime;
+    value.checkInDate ||
+    value.checkOutDate;
 
   return (
     <aside className="sticky top-24 rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -142,6 +138,47 @@ const ServiceFilterSidebar: React.FC<ServiceFilterSidebarProps> = ({ value, onCh
             ))}
           </select>
         </section>
+
+        {/* Date Range Filter - Show for Hotel and Transport */}
+        {(value.serviceType === 'Hotel' || value.serviceType === 'Transport') && (
+          <section className="space-y-3 rounded-xl border border-teal-100 bg-teal-50/50 p-4">
+            <label className="block text-xs font-black uppercase tracking-widest text-teal-700">
+              📅 Khoảng thời gian
+            </label>
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600">
+                  {value.serviceType === 'Hotel' ? 'Ngày nhận phòng' : 'Ngày nhận xe'}
+                </label>
+                <input
+                  type="date"
+                  value={value.checkInDate}
+                  onChange={(event) => patch({ checkInDate: event.target.value })}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none transition focus:border-teal-500 focus:ring-4 focus:ring-teal-50"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600">
+                  {value.serviceType === 'Hotel' ? 'Ngày trả phòng' : 'Ngày trả xe'}
+                </label>
+                <input
+                  type="date"
+                  value={value.checkOutDate}
+                  min={value.checkInDate || undefined}
+                  onChange={(event) => patch({ checkOutDate: event.target.value })}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none transition focus:border-teal-500 focus:ring-4 focus:ring-teal-50"
+                />
+              </div>
+              {value.checkInDate && value.checkOutDate && (
+                <p className="text-xs font-bold text-teal-700">
+                  {value.serviceType === 'Hotel'
+                    ? `${Math.max(0, Math.floor((new Date(value.checkOutDate).getTime() - new Date(value.checkInDate).getTime()) / (1000 * 60 * 60 * 24)))} đêm`
+                    : `${Math.max(0, Math.floor((new Date(value.checkOutDate).getTime() - new Date(value.checkInDate).getTime()) / (1000 * 60 * 60 * 24)) + 1)} ngày`}
+                </p>
+              )}
+            </div>
+          </section>
+        )}
 
         <section>
           <label className="mb-3 block text-xs font-black uppercase tracking-widest text-slate-500">

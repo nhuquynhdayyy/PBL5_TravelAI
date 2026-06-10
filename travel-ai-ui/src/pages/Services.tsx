@@ -48,12 +48,14 @@ const buildRequest = (filters: ServiceFilterState, searchKeyword: string, pageNu
   tourThemes: filters.tourThemes.length ? filters.tourThemes : undefined,
   tourDuration: filters.tourDuration || undefined,
   transportType: filters.transportType || undefined,
-  departureTime: filters.departureTime || undefined,
+  checkInDate: filters.checkInDate || undefined,
+  checkOutDate: filters.checkOutDate || undefined,
 });
 
 const Services: React.FC<ServicesProps> = ({ defaultType = '' }) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialType = typeFromRoute(searchParams.get('type') || defaultType);
+  
   const [filters, setFilters] = useState<ServiceFilterState>(defaultServiceFilters(initialType));
   const [searchKeyword, setSearchKeyword] = useState('');
   const [debouncedKeyword, setDebouncedKeyword] = useState('');
@@ -223,7 +225,10 @@ const Services: React.FC<ServicesProps> = ({ defaultType = '' }) => {
                       <button
                         key={page}
                         type="button"
-                        onClick={() => setPageNumber(page)}
+                        onClick={() => {
+                          setPageNumber(page);
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
                         className={`h-10 min-w-10 rounded-xl px-3 text-sm font-black transition ${
                           pageNumber === page
                             ? 'bg-teal-600 text-white'
