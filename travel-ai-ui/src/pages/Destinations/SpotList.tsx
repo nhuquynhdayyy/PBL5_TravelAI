@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { MapPin, Clock, Info, ArrowLeft, Settings2, Sparkles, Plus, Search, Filter, ChevronDown, Compass } from 'lucide-react';
+import { MapPin, Clock, Info, ArrowLeft, Settings2, Sparkles, Plus, Search, Filter, ChevronDown, Compass, Wallet, Users, Loader2 } from 'lucide-react';
 import axiosClient from '../../api/axiosClient';
 import SpotCard from '../../components/SpotCard';
 
@@ -18,6 +18,47 @@ const SpotList: React.FC = () => {
 
     // Search & Filter state
     const [searchQuery, setSearchQuery] = useState('');
+
+    // Budget Planner states
+    const [days, setDays] = useState<number>(3);
+    const [budgetPeople, setBudgetPeople] = useState<number>(2);
+    const [budgetStyle, setBudgetStyle] = useState<string>('Trung binh');
+    const [budgetLoading, setBudgetLoading] = useState(false);
+    const [budgetEstimate, setBudgetEstimate] = useState<any | null>(null);
+
+    const handleEstimateBudget = async () => {
+        if (!dest) return;
+        try {
+            setBudgetLoading(true);
+
+            const response = await axiosClient.post('/ai/estimate-budget', {
+                destination: dest.name,
+                destination_id: Number(id),
+                days,
+                people: budgetPeople,
+                travel_style: budgetStyle
+            });
+
+            setBudgetEstimate(response.data.data || response.data);
+        } catch (error) {
+            console.error('Lỗi khi ước tính ngân sách:', error);
+        } finally {
+            setBudgetLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (dest) {
+            handleEstimateBudget();
+        }
+    }, [dest, days, budgetPeople, budgetStyle]);
+
+    const formatCurrency = (value: number) =>
+        new Intl.NumberFormat('vi-VN', {
+            style: 'currency',
+            currency: 'VND',
+            maximumFractionDigits: 0
+        }).format(value);
 
     const getImageUrl = (url: string) => {
         if (!url) return 'https://via.placeholder.com/800x400';
@@ -87,38 +128,14 @@ const SpotList: React.FC = () => {
         >
           <ArrowLeft size={20} /> Quay lại chi tiết {dest?.name || 'tỉnh/thành'}
         </button>
-
-        {/* Hero Image */}
-        <div className="relative h-[450px] rounded-[40px] overflow-hidden shadow-2xl mb-10 border-8 border-white">
-          <img
-            src={getImageUrl(dest.imageUrl)}
-            className="w-full h-full object-cover"
-            alt={dest.name}
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex items-end p-12">
-            <h1 className="text-6xl font-black text-white tracking-tighter">
-              {dest.name}
-            </h1>
-          </div>
-        </div>
-
+ 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
           <div className="lg:col-span-2">
-            {/* Description */}
-            <section className="mb-12">
-              <h2 className="text-2xl font-black text-slate-800 mb-4 flex items-center gap-2">
-                <Info className="text-blue-500" /> Giới thiệu về {dest.name}
-              </h2>
-              <p className="text-slate-600 leading-relaxed text-lg bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-                {dest.description}
-              </p>
-            </section>
-
             {/* Spots Section */}
             <section>
               <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
                 <h2 className="text-2xl font-black text-slate-800 flex items-center gap-2">
-                  <MapPin className="text-red-500" /> Địa danh tham quan
+                  <MapPin className="text-red-500" /> Địa danh tham quan tại {dest.name} ({filteredSpots.length})
                 </h2>
                 {isAdmin && (
                   <button
@@ -131,7 +148,7 @@ const SpotList: React.FC = () => {
                   </button>
                 )}
               </div>
-
+ 
               {/* ====== SEARCH BAR ====== */}
               <div className="flex flex-col sm:flex-row gap-3 mb-8">
                 {/* Search Input */}
@@ -157,7 +174,7 @@ const SpotList: React.FC = () => {
                   )}
                 </div>
               </div>
-
+ 
               {/* Result info */}
               {searchQuery && (
                 <div className="flex items-center gap-2 mb-4 text-sm text-slate-500">
@@ -179,7 +196,7 @@ const SpotList: React.FC = () => {
                   </button>
                 </div>
               )}
-
+ 
               {/* Spots Grid */}
               {filteredSpots.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -201,28 +218,129 @@ const SpotList: React.FC = () => {
               )}
             </section>
           </div>
-
+ 
           {/* Sidebar */}
           <div className="space-y-6">
-            <div className="bg-slate-900 p-8 rounded-[40px] text-white shadow-2xl relative overflow-hidden group">
-              <Sparkles className="absolute -top-4 -right-4 size-24 text-white/10 group-hover:rotate-12 transition-transform" />
-              <h3 className="text-2xl font-black mb-4 relative z-10">
-                Lên kế hoạch thông minh?
-              </h3>
-              <p className="text-slate-400 text-sm mb-8 leading-relaxed relative z-10">
-                Để AI thiết kế lịch trình tối ưu nhất cho chuyến đi {dest.name}{" "}
-                của bạn.
-              </p>
-              <button className="w-full py-4 bg-blue-500 hover:bg-blue-600 text-white rounded-2xl font-black shadow-lg shadow-blue-500/30 transition-all flex items-center justify-center gap-2 relative z-10">
-                Bắt đầu ngay
-              </button>
+            <div className="rounded-[32px] border border-blue-100 bg-white p-6 shadow-sm relative overflow-hidden">
+                <div className="mb-5 flex items-start justify-between gap-3">
+                    <div>
+                        <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-blue-500 flex items-center gap-1">
+                            <Sparkles size={12} className="animate-pulse" /> AI Budget & Planner
+                        </p>
+                        <h3 className="text-xl font-black text-slate-900">Dự toán & Lập kế hoạch AI</h3>
+                    </div>
+                    <div className="flex size-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+                        {budgetLoading ? <Loader2 size={22} className="animate-spin" /> : <Wallet size={22} />}
+                    </div>
+                </div>
+
+                <div className="space-y-4">
+                    <div>
+                        <label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            Điểm đến
+                        </label>
+                        <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-700">
+                            <MapPin size={16} className="text-red-400" />
+                            {dest.name}
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                Số ngày
+                            </label>
+                            <input
+                                type="number"
+                                min={1}
+                                max={30}
+                                value={days}
+                                onChange={(event) => setDays(Math.max(1, Number(event.target.value) || 1))}
+                                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 outline-none transition-all focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                Số người
+                            </label>
+                            <div className="flex items-center gap-2 rounded-2xl border border-slate-200 px-3 py-3">
+                                <Users size={16} className="text-slate-400" />
+                                <input
+                                    type="number"
+                                    min={1}
+                                    max={50}
+                                    value={budgetPeople}
+                                    onChange={(event) => setBudgetPeople(Math.max(1, Number(event.target.value) || 1))}
+                                    className="w-full text-sm font-bold text-slate-700 outline-none"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            Phong cách
+                        </label>
+                        <select
+                            value={budgetStyle}
+                            onChange={(event) => setBudgetStyle(event.target.value)}
+                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 outline-none transition-all focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                        >
+                            <option value="Tiet kiem">Tiết kiệm</option>
+                            <option value="Trung binh">Trung bình</option>
+                            <option value="Cao cap">Cao cấp</option>
+                        </select>
+                    </div>
+                </div>
+
+                {budgetEstimate && (
+                    <div className="mt-6 overflow-hidden rounded-2xl border border-slate-100">
+                        <div className="bg-blue-50 px-4 py-3">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-blue-500">
+                                Tổng ngân sách dự kiến
+                            </p>
+                            <p className="text-2xl font-black text-slate-900">
+                                {formatCurrency(budgetEstimate.total)}
+                            </p>
+                        </div>
+
+                        <div className="divide-y divide-slate-100 max-h-[300px] overflow-y-auto">
+                            {budgetEstimate.breakdown.map((item: any) => (
+                                <div key={item.category} className="grid grid-cols-[1fr_auto] gap-3 px-4 py-3">
+                                    <div>
+                                        <p className="text-sm font-black text-slate-800">{item.category}</p>
+                                        <p className="mt-1 text-xs leading-relaxed text-slate-500">{item.note}</p>
+                                    </div>
+                                    <p className="whitespace-nowrap text-sm font-black text-blue-600">
+                                        {formatCurrency(item.amount)}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="p-4 bg-slate-50 border-t border-slate-100">
+                            <button
+                                onClick={() => {
+                                    const styleMap: Record<string, string> = {
+                                        'Tiet kiem': 'low',
+                                        'Trung binh': 'medium',
+                                        'Cao cap': 'high'
+                                    };
+                                    const budgetStyleKey = styleMap[budgetStyle] || 'medium';
+                                    navigate(`/planner/create?destinationId=${id}&days=${days}&people=${budgetPeople}&budgetStyle=${budgetStyleKey}&budgetTotal=${budgetEstimate.total}`);
+                                }}
+                                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-4 text-sm font-black text-white transition-all shadow-lg hover:bg-blue-700 active:scale-95"
+                            >
+                                <Sparkles size={16} />
+                                Lập lịch trình chi tiết từ ngân sách này
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
-
-
           </div>
         </div>
-
-
       </div>
     );
 };
