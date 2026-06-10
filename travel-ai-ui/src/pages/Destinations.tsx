@@ -18,11 +18,6 @@ import axiosClient from '../api/axiosClient';
 type FilterRegion = 'all' | 'north' | 'central' | 'south';
 type FilterTravelType = 'all' | 'beach' | 'mountain' | 'culture';
 
-type DestinationStats = {
-  hotels: number;
-  tours: number;
-};
-
 const ITEMS_PER_PAGE = 8;
 
 const regionOptions: { value: FilterRegion; label: string }[] = [
@@ -67,40 +62,6 @@ const matchesKeywords = (destination: any, keywords: string[]) => {
 const getImageUrl = (url?: string) => {
   if (!url) return 'https://images.unsplash.com/photo-1528127269322-539801943592?q=80&w=900';
   return url.startsWith('http') ? url : `http://localhost:5134${url}`;
-};
-
-const getServiceType = (service: any) => String(service.serviceType ?? '').toLowerCase();
-
-const buildDestinationStats = (services: any[]) => {
-  const stats: Record<string, DestinationStats> = {};
-
-  services.forEach((service) => {
-    const destinationKeys = [
-      service.destinationId,
-      service.destination?.id,
-      service.destinationName,
-      service.destination?.name,
-    ].filter(Boolean);
-
-    destinationKeys.forEach((key) => {
-      const statKey = String(key).toLowerCase();
-      const current = stats[statKey] || { hotels: 0, tours: 0 };
-      const serviceType = getServiceType(service);
-
-      if (serviceType === 'hotel' || serviceType === '0') current.hotels += 1;
-      if (serviceType === 'tour' || serviceType === '1') current.tours += 1;
-
-      stats[statKey] = current;
-    });
-  });
-
-  return stats;
-};
-
-const getStatsForDestination = (destination: any, stats: Record<string, DestinationStats>) => {
-  const id = String(getDestinationId(destination) || '').toLowerCase();
-  const name = String(destination.name || '').toLowerCase();
-  return stats[id] || stats[name] || { hotels: destination.hotelCount || 0, tours: destination.tourCount || 0 };
 };
 
 const FilterBar = ({
@@ -176,13 +137,11 @@ const FilterBar = ({
 const DestinationGridCard = ({
   destination,
   isAdmin,
-  stats,
   onDelete,
   onEdit,
 }: {
   destination: any;
   isAdmin: boolean;
-  stats: DestinationStats;
   onDelete: () => void;
   onEdit: () => void;
 }) => (
@@ -227,11 +186,11 @@ const DestinationGridCard = ({
           <p className="mb-3 text-xs font-bold uppercase tracking-widest text-blue-100">Dịch vụ đang có</p>
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-xl bg-white/15 p-3">
-              <p className="text-2xl font-black">{stats.hotels}</p>
+              <p className="text-2xl font-black">{destination.hotels_count ?? 0}</p>
               <p className="text-xs font-semibold text-blue-50">Khách sạn</p>
             </div>
             <div className="rounded-xl bg-white/15 p-3">
-              <p className="text-2xl font-black">{stats.tours}</p>
+              <p className="text-2xl font-black">{destination.tours_count ?? 0}</p>
               <p className="text-xs font-semibold text-blue-50">Tour</p>
             </div>
           </div>
@@ -311,7 +270,6 @@ const Destinations: React.FC = () => {
   const searchQuery = searchParams.get('search');
   
   const [destinations, setDestinations] = useState<any[]>([]);
-  const [serviceStats, setServiceStats] = useState<Record<string, DestinationStats>>({});
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [searchKeyword, setSearchKeyword] = useState(searchQuery || '');
@@ -345,23 +303,6 @@ const Destinations: React.FC = () => {
 
   useEffect(() => {
     fetchDestinations();
-  }, []);
-
-  useEffect(() => {
-    const fetchServiceStats = async () => {
-      try {
-        const response = await axiosClient.post('/services/filter', {
-          pageNumber: 1,
-          pageSize: 200,
-        });
-        setServiceStats(buildDestinationStats(response.data?.services || []));
-      } catch (err) {
-        console.error('Lỗi tải thống kê dịch vụ theo điểm đến:', err);
-        setServiceStats({});
-      }
-    };
-
-    fetchServiceStats();
   }, []);
 
   const filteredDestinations = useMemo(() => {
@@ -508,7 +449,6 @@ const Destinations: React.FC = () => {
                   key={destinationId}
                   destination={destination}
                   isAdmin={isAdmin}
-                  stats={getStatsForDestination(destination, serviceStats)}
                   onEdit={() => navigate(`/admin/destinations/edit/${destinationId}`)}
                   onDelete={() => handleDelete(destinationId)}
                 />

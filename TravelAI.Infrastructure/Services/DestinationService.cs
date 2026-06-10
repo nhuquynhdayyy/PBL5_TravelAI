@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using TravelAI.Application.Interfaces;
 using TravelAI.Application.DTOs.Destination;
 using TravelAI.Domain.Entities;
+using TravelAI.Domain.Enums;
 using TravelAI.Domain.Interfaces;
 using TravelAI.Infrastructure.Persistence; 
 
@@ -20,16 +21,34 @@ public class DestinationService : IDestinationService
 
     public async Task<IEnumerable<DestinationDto>> GetAllAsync()
     {
-        var data = await _repository.GetAllAsync();
-        return data.Select(x => new DestinationDto(x.DestinationId, x.Name, x.Description, x.ImageUrl));
+        var data = await _context.Destinations
+            .Select(x => new DestinationDto(
+                x.DestinationId,
+                x.Name,
+                x.Description,
+                x.ImageUrl,
+                _context.Services.Count(s => s.IsActive && s.ServiceType == ServiceType.Hotel && s.TouristSpot != null && s.TouristSpot.DestinationId == x.DestinationId),
+                _context.Services.Count(s => s.IsActive && s.ServiceType == ServiceType.Tour && s.TouristSpot != null && s.TouristSpot.DestinationId == x.DestinationId)
+            ))
+            .ToListAsync();
+        return data;
     }
 
     public async Task<DestinationDto?> GetByIdAsync(int id)
     {
-        var x = await _repository.GetByIdAsync(id);
-        if (x == null) return null;
+        var x = await _context.Destinations
+            .Where(d => d.DestinationId == id)
+            .Select(x => new DestinationDto(
+                x.DestinationId,
+                x.Name,
+                x.Description,
+                x.ImageUrl,
+                _context.Services.Count(s => s.IsActive && s.ServiceType == ServiceType.Hotel && s.TouristSpot != null && s.TouristSpot.DestinationId == x.DestinationId),
+                _context.Services.Count(s => s.IsActive && s.ServiceType == ServiceType.Tour && s.TouristSpot != null && s.TouristSpot.DestinationId == x.DestinationId)
+            ))
+            .FirstOrDefaultAsync();
         
-        return new DestinationDto(x.DestinationId, x.Name, x.Description, x.ImageUrl);
+        return x;
     }
 
     public async Task<DestinationDto> CreateAsync(CreateDestinationRequest request, string webRootPath)
