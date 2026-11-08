@@ -29,6 +29,15 @@ public class ServiceService : IServiceService
         "image/gif"
     };
 
+    private static readonly IReadOnlyDictionary<string, string[]> TransportTypeKeywords =
+        new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Motorbike"] = ["motorbike", "motorcycle", "xe máy", "xe may", "scooter"],
+            ["Car"] = ["car", "ô tô", "oto", "xe hơi", "sedan", "suv"],
+            ["Limousine"] = ["limousine"],
+            ["Bus"] = ["bus", "xe buýt", "xe khách", "giường nằm", "ghế ngồi", "coach"]
+        };
+
     private readonly ApplicationDbContext _context;
     private readonly TravelAI.Infrastructure.ExternalServices.GeminiService _geminiService;
     private readonly INotificationService _notificationService;
@@ -703,9 +712,14 @@ await _context.SaveChangesAsync();
         if (!string.IsNullOrWhiteSpace(request.TransportType))
         {
             var transportType = request.TransportType.Trim().ToLower();
+            var transportKeywords = TransportTypeKeywords.TryGetValue(transportType, out var keywords)
+                ? keywords
+                : [transportType];
+
             query = query.Where(s => s.Attributes.Any(a =>
                 (a.AttrKey == "TransportType" || a.AttrKey == "Loại xe" || a.AttrKey == "Phương tiện")
-                && a.AttrValue.ToLower().Contains(transportType)));
+                && transportKeywords.Any(keyword => a.AttrValue.ToLower().Contains(keyword)))
+                || transportKeywords.Any(keyword => s.Name.ToLower().Contains(keyword)));
         }
         if (!string.IsNullOrWhiteSpace(request.DepartureTime))
         {

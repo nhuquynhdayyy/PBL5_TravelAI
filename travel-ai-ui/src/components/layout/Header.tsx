@@ -24,6 +24,7 @@ const Header: React.FC = () => {
     window.location.reload();
   };
 
+
   const getAdminLinkClass = (path: string) => {
     const isActive = location.pathname.startsWith(path);
     return `flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-extrabold transition-all ${isActive

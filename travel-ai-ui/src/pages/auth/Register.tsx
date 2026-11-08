@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
 import MainLayout from '../../layouts/MainLayout';
 import { UserPlus, Mail, Lock, User } from 'lucide-react';
+import { isValidPassword, passwordPolicyError } from '../../utils/passwordPolicy';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -24,9 +25,18 @@ const Register = () => {
   const [loading, setLoading] = useState(false);
   const [registered, setRegistered] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [formError, setFormError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError('');
+    if (!isValidPassword(formData.password)) {
+      setPasswordError(passwordPolicyError);
+      return;
+    }
+
+    setPasswordError('');
     setLoading(true);
     try {
       await axiosClient.post('/auth/register', {
@@ -36,7 +46,12 @@ const Register = () => {
       setRegisteredEmail(formData.email);
       setRegistered(true);
     } catch (err: any) {
-      alert(err.response?.data?.message || err.response?.data || 'Đăng ký thất bại. Vui lòng thử lại.');
+      const message = err.response?.data?.message || 'Đăng ký thất bại. Vui lòng thử lại.';
+      if (message === passwordPolicyError) {
+        setPasswordError(message);
+      } else {
+        setFormError(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -85,7 +100,7 @@ const Register = () => {
               <div className="relative mt-1">
                 <User className="absolute left-4 top-4 size-5 text-slate-400" />
                 <input 
-                  className="w-full pl-12 pr-4 py-4 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all placeholder:text-slate-300" 
+                  className="w-full pl-12 pr-4 py-4 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all placeholder:text-slate-300"
                   type="text" 
                   placeholder="Nhập họ và tên của bạn" 
                   onChange={e => setFormData({...formData, fullName: e.target.value})} 
@@ -100,7 +115,7 @@ const Register = () => {
               <div className="relative mt-1">
                 <Mail className="absolute left-4 top-4 size-5 text-slate-400" />
                 <input 
-                  className="w-full pl-12 pr-4 py-4 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all placeholder:text-slate-300" 
+                  className="w-full pl-12 pr-4 py-4 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all placeholder:text-slate-300"
                   type="email" 
                   placeholder="name@example.com" 
                   onChange={e => setFormData({...formData, email: e.target.value})} 
@@ -115,13 +130,18 @@ const Register = () => {
               <div className="relative mt-1">
                 <Lock className="absolute left-4 top-4 size-5 text-slate-400" />
                 <input 
-                  className="w-full pl-12 pr-4 py-4 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all placeholder:text-slate-300" 
+                  className={`w-full pl-12 pr-4 py-4 border rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all placeholder:text-slate-300 ${passwordError ? 'border-red-400' : 'border-slate-200'}`}
                   type="password" 
                   placeholder="••••••••" 
-                  onChange={e => setFormData({...formData, password: e.target.value})} 
+                  onChange={e => {
+                    const password = e.target.value;
+                    setFormData({ ...formData, password });
+                    setPasswordError(password && !isValidPassword(password) ? passwordPolicyError : '');
+                  }}
                   required 
                 />
               </div>
+              {passwordError && <p className="mt-2 text-sm text-red-600">{passwordError}</p>}
             </div>
 
             {/* Partner Checkbox */}
@@ -136,6 +156,12 @@ const Register = () => {
                 Đăng ký với tư cách Đối tác cung cấp dịch vụ
               </span>
             </label>
+
+            {formError && (
+              <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl px-4 py-3">
+                {formError}
+              </div>
+            )}
 
             {/* Submit Button */}
             <button 

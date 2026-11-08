@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace TravelAI.WebAPI.Hubs;
 
+
 public sealed class NotificationHub : Hub
 {
     public override async Task OnConnectedAsync()

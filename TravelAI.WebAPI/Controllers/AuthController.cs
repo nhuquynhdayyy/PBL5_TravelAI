@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using TravelAI.Application.DTOs.Auth;
+using TravelAI.Application.Helpers;
 using TravelAI.Infrastructure.Services;
 
 namespace TravelAI.WebAPI.Controllers;
@@ -15,6 +16,9 @@ public class AuthController : ControllerBase
     [HttpPost("register")]
     public async Task<IActionResult> Register(RegisterRequest request)
     {
+        if (!PasswordPolicy.IsValid(request.Password))
+            return BadRequest(new { message = PasswordPolicy.ErrorMessage });
+
         var result = await _authService.RegisterAsync(request);
         if (result == null)
             return BadRequest(new { message = "Email đã tồn tại trong hệ thống." });
@@ -79,8 +83,8 @@ public class AuthController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.Token) || string.IsNullOrWhiteSpace(request.NewPassword))
             return BadRequest(new { message = "Thông tin không hợp lệ." });
 
-        if (request.NewPassword.Length < 6)
-            return BadRequest(new { message = "Mật khẩu phải có ít nhất 6 ký tự." });
+        if (!PasswordPolicy.IsValid(request.NewPassword))
+            return BadRequest(new { message = PasswordPolicy.ErrorMessage });
 
         var success = await _authService.ResetPasswordAsync(request.Token, request.NewPassword);
         if (!success)

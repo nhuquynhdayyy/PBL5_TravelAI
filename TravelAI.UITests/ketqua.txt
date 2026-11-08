@@ -1,0 +1,251 @@
+﻿  Determining projects to restore...
+  All projects are up-to-date for restore.
+  TravelAI.UITests -> D:\PASS\HK6\PBL5\TravelAI\TravelAI.UITests\bin\Debug\net10.0\TravelAI.UITests.dll
+Test run for D:\PASS\HK6\PBL5\TravelAI\TravelAI.UITests\bin\Debug\net10.0\TravelAI.UITests.dll (.NETCoreApp,Version=v10.0)
+VSTest version 18.0.1 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+D:\PASS\HK6\PBL5\TravelAI\TravelAI.UITests\bin\Debug\net10.0\TravelAI.UITests.dll
+NUnit Adapter 5.0.0.0: Test execution started
+Running selected tests in D:\PASS\HK6\PBL5\TravelAI\TravelAI.UITests\bin\Debug\net10.0\TravelAI.UITests.dll
+   NUnit3TestExecutor discovered 10 of 10 NUnit test cases using Current Discovery mode, Non-Explicit run
+  Passed WEB_REG_01_DangKyThanhCong [7 s]
+Phß║ún hß╗ôi cß╗ºa web: Email ─æ├ú tß╗ôn tß║íi trong hß╗ç thß╗æng.
+
+  Failed WEB_REG_03_DangKyEmailDaTonTai [1 s]
+  Error Message:
+     Assert.That(message, Does.Contain("Email n├áy ─æ├ú ─æ╞░ß╗úc sß╗¡ dß╗Ñng"))
+  Expected: String containing "Email n├áy ─æ├ú ─æ╞░ß╗úc sß╗¡ dß╗Ñng"
+  But was:  "Email ─æ├ú tß╗ôn tß║íi trong hß╗ç thß╗æng."
+
+  Stack Trace:
+     at TravelAI.UITests.RegisterTests.WEB_REG_03_DangKyEmailDaTonTai() in D:\PASS\HK6\PBL5\TravelAI\TravelAI.UITests\RegisterTests.cs:line 92
+   at NUnit.Framework.Internal.TaskAwaitAdapter.GenericAdapter`1.BlockUntilCompleted()
+   at NUnit.Framework.Internal.MessagePumpStrategy.NoMessagePumpStrategy.WaitForCompletion(AwaitAdapter awaiter)
+   at NUnit.Framework.Internal.AsyncToSyncAdapter.Await[TResult](TestExecutionContext context, Func`1 invoke)
+   at NUnit.Framework.Internal.AsyncToSyncAdapter.Await(TestExecutionContext context, Func`1 invoke)
+   at NUnit.Framework.Internal.Commands.TestMethodCommand.RunTestMethod(TestExecutionContext context)
+   at NUnit.Framework.Internal.Commands.TestMethodCommand.Execute(TestExecutionContext context)
+   at NUnit.Framework.Internal.Commands.BeforeAndAfterTestCommand.<>c__DisplayClass1_0.<Execute>b__0()
+   at NUnit.Framework.Internal.Commands.DelegatingTestCommand.RunTestMethodInThreadAbortSafeZone(TestExecutionContext context, Action action)
+
+1)    at TravelAI.UITests.RegisterTests.WEB_REG_03_DangKyEmailDaTonTai() in D:\PASS\HK6\PBL5\TravelAI\TravelAI.UITests\RegisterTests.cs:line 92
+
+
+  Standard Output Messages:
+ Phß║ún hß╗ôi cß╗ºa web: Email ─æ├ú tß╗ôn tß║íi trong hß╗ç thß╗æng.
+
+
+Phß║ún hß╗ôi cß╗ºa web: Tß║ío t├ái khoß║ún  Tham gia TravelAI v├á bß║»t ─æß║ºu h├ánh tr├¼nh th├┤ng minh cß╗ºa bß║ín.  Hß╗î V├Ç T├èN ─Éß╗èA CHß╗ê EMAIL Mß║¼T KHß║¿U ─É─âng k├╜ vß╗¢i t╞░ c├ích ─Éß╗æi t├íc cung cß║Ñp dß╗ïch vß╗Ñ Tß║ío t├ái khoß║ún  ─É├ú c├│ t├ái khoß║ún? ─É─âng nhß║¡p tß║íi ...
+Th├┤ng b├ío mß║╖c ─æß╗ïnh cß╗ºa tr├¼nh duyß╗çt: Please include an '@' in the email address. 'an.test' is missing an '@'.
+
+  Failed WEB_REG_04_DangKyEmailSaiDinhDang("an.test") [5 s]
+  Error Message:
+     Assert.That(message, Does.Contain("Email kh├┤ng ─æ├║ng ─æß╗ïnh dß║íng"))
+  Expected: String containing "Email kh├┤ng ─æ├║ng ─æß╗ïnh dß║íng"
+  But was:  "Tß║ío t├ái khoß║ún
+
+Tham gia TravelAI v├á bß║»t ─æß║ºu h├ánh tr├¼nh th├┤ng minh cß╗ºa bß║ín.
+
+Hß╗î V├Ç T├èN
+─Éß╗èA CHß╗ê EMAIL
+Mß║¼T KHß║¿U
+─É─âng k├╜ vß╗¢i t╞░ c├ích ─Éß╗æi t├íc cung cß║Ñp dß╗ïch vß╗Ñ
+Tß║ío t├ái khoß║ún
+
+─É├ú c├│ t├ái khoß║ún? ─É─âng nhß║¡p tß║íi ─æ├óy"
+
+  Stack Trace:
+     at TravelAI.UITests.RegisterTests.WEB_REG_04_DangKyEmailSaiDinhDang(String badEmail) in D:\PASS\HK6\PBL5\TravelAI\TravelAI.UITests\RegisterTests.cs:line 106
+   at NUnit.Framework.Internal.TaskAwaitAdapter.GenericAdapter`1.BlockUntilCompleted()
+   at NUnit.Framework.Internal.MessagePumpStrategy.NoMessagePumpStrategy.WaitForCompletion(AwaitAdapter awaiter)
+   at NUnit.Framework.Internal.AsyncToSyncAdapter.Await[TResult](TestExecutionContext context, Func`1 invoke)
+   at NUnit.Framework.Internal.AsyncToSyncAdapter.Await(TestExecutionContext context, Func`1 invoke)
+   at NUnit.Framework.Internal.Commands.TestMethodCommand.RunTestMethod(TestExecutionContext context)
+   at NUnit.Framework.Internal.Commands.TestMethodCommand.Execute(TestExecutionContext context)
+   at NUnit.Framework.Internal.Commands.BeforeAndAfterTestCommand.<>c__DisplayClass1_0.<Execute>b__0()
+   at NUnit.Framework.Internal.Commands.DelegatingTestCommand.RunTestMethodInThreadAbortSafeZone(TestExecutionContext context, Action action)
+
+1)    at TravelAI.UITests.RegisterTests.WEB_REG_04_DangKyEmailSaiDinhDang(String badEmail) in D:\PASS\HK6\PBL5\TravelAI\TravelAI.UITests\RegisterTests.cs:line 106
+
+
+  Standard Output Messages:
+ Phß║ún hß╗ôi cß╗ºa web: Tß║ío t├ái khoß║ún  Tham gia TravelAI v├á bß║»t ─æß║ºu h├ánh tr├¼nh th├┤ng minh cß╗ºa bß║ín.  Hß╗î V├Ç T├èN ─Éß╗èA CHß╗ê EMAIL Mß║¼T KHß║¿U ─É─âng k├╜ vß╗¢i t╞░ c├ích ─Éß╗æi t├íc cung cß║Ñp dß╗ïch vß╗Ñ Tß║ío t├ái khoß║ún  ─É├ú c├│ t├ái khoß║ún? ─É─âng nhß║¡p tß║íi ...
+ Th├┤ng b├ío mß║╖c ─æß╗ïnh cß╗ºa tr├¼nh duyß╗çt: Please include an '@' in the email address. 'an.test' is missing an '@'.
+
+
+Phß║ún hß╗ôi cß╗ºa web: Tß║ío t├ái khoß║ún  Tham gia TravelAI v├á bß║»t ─æß║ºu h├ánh tr├¼nh th├┤ng minh cß╗ºa bß║ín.  Hß╗î V├Ç T├èN ─Éß╗èA CHß╗ê EMAIL Mß║¼T KHß║¿U ─É─âng k├╜ vß╗¢i t╞░ c├ích ─Éß╗æi t├íc cung cß║Ñp dß╗ïch vß╗Ñ Tß║ío t├ái khoß║ún  ─É├ú c├│ t├ái khoß║ún? ─É─âng nhß║¡p tß║íi ...
+Th├┤ng b├ío mß║╖c ─æß╗ïnh cß╗ºa tr├¼nh duyß╗çt: Please enter a part following '@'. 'an.test@' is incomplete.
+
+  Failed WEB_REG_04_DangKyEmailSaiDinhDang("an.test@") [4 s]
+  Error Message:
+     Assert.That(message, Does.Contain("Email kh├┤ng ─æ├║ng ─æß╗ïnh dß║íng"))
+  Expected: String containing "Email kh├┤ng ─æ├║ng ─æß╗ïnh dß║íng"
+  But was:  "Tß║ío t├ái khoß║ún
+
+Tham gia TravelAI v├á bß║»t ─æß║ºu h├ánh tr├¼nh th├┤ng minh cß╗ºa bß║ín.
+
+Hß╗î V├Ç T├èN
+─Éß╗èA CHß╗ê EMAIL
+Mß║¼T KHß║¿U
+─É─âng k├╜ vß╗¢i t╞░ c├ích ─Éß╗æi t├íc cung cß║Ñp dß╗ïch vß╗Ñ
+Tß║ío t├ái khoß║ún
+
+─É├ú c├│ t├ái khoß║ún? ─É─âng nhß║¡p tß║íi ─æ├óy"
+
+  Stack Trace:
+     at TravelAI.UITests.RegisterTests.WEB_REG_04_DangKyEmailSaiDinhDang(String badEmail) in D:\PASS\HK6\PBL5\TravelAI\TravelAI.UITests\RegisterTests.cs:line 106
+   at NUnit.Framework.Internal.TaskAwaitAdapter.GenericAdapter`1.BlockUntilCompleted()
+   at NUnit.Framework.Internal.MessagePumpStrategy.NoMessagePumpStrategy.WaitForCompletion(AwaitAdapter awaiter)
+   at NUnit.Framework.Internal.AsyncToSyncAdapter.Await[TResult](TestExecutionContext context, Func`1 invoke)
+   at NUnit.Framework.Internal.AsyncToSyncAdapter.Await(TestExecutionContext context, Func`1 invoke)
+   at NUnit.Framework.Internal.Commands.TestMethodCommand.RunTestMethod(TestExecutionContext context)
+   at NUnit.Framework.Internal.Commands.TestMethodCommand.Execute(TestExecutionContext context)
+   at NUnit.Framework.Internal.Commands.BeforeAndAfterTestCommand.<>c__DisplayClass1_0.<Execute>b__0()
+   at NUnit.Framework.Internal.Commands.DelegatingTestCommand.RunTestMethodInThreadAbortSafeZone(TestExecutionContext context, Action action)
+
+1)    at TravelAI.UITests.RegisterTests.WEB_REG_04_DangKyEmailSaiDinhDang(String badEmail) in D:\PASS\HK6\PBL5\TravelAI\TravelAI.UITests\RegisterTests.cs:line 106
+
+
+  Standard Output Messages:
+ Phß║ún hß╗ôi cß╗ºa web: Tß║ío t├ái khoß║ún  Tham gia TravelAI v├á bß║»t ─æß║ºu h├ánh tr├¼nh th├┤ng minh cß╗ºa bß║ín.  Hß╗î V├Ç T├èN ─Éß╗èA CHß╗ê EMAIL Mß║¼T KHß║¿U ─É─âng k├╜ vß╗¢i t╞░ c├ích ─Éß╗æi t├íc cung cß║Ñp dß╗ïch vß╗Ñ Tß║ío t├ái khoß║ún  ─É├ú c├│ t├ái khoß║ún? ─É─âng nhß║¡p tß║íi ...
+ Th├┤ng b├ío mß║╖c ─æß╗ïnh cß╗ºa tr├¼nh duyß╗çt: Please enter a part following '@'. 'an.test@' is incomplete.
+
+
+Phß║ún hß╗ôi cß╗ºa web: Tß║ío t├ái khoß║ún  Tham gia TravelAI v├á bß║»t ─æß║ºu h├ánh tr├¼nh th├┤ng minh cß╗ºa bß║ín.  Hß╗î V├Ç T├èN ─Éß╗èA CHß╗ê EMAIL Mß║¼T KHß║¿U ─É─âng k├╜ vß╗¢i t╞░ c├ích ─Éß╗æi t├íc cung cß║Ñp dß╗ïch vß╗Ñ  ─É├ú c├│ t├ái khoß║ún? ─É─âng nhß║¡p tß║íi ─æ├óy
+
+  Failed WEB_REG_05_MatKhau7KyTu [6 s]
+  Error Message:
+     Web vß║½n cho ─æ─âng k├╜ vß╗¢i mß║¡t khß║⌐u 7 k├╜ tß╗▒ (SRS y├¬u cß║ºu tß╗æi thiß╗âu 8 k├╜ tß╗▒)
+Assert.That(await RegisteredAsync(), Is.False)
+  Expected: False
+  But was:  True
+
+  Stack Trace:
+     at TravelAI.UITests.RegisterTests.WEB_REG_05_MatKhau7KyTu() in D:\PASS\HK6\PBL5\TravelAI\TravelAI.UITests\RegisterTests.cs:line 116
+   at NUnit.Framework.Internal.TaskAwaitAdapter.GenericAdapter`1.BlockUntilCompleted()
+   at NUnit.Framework.Internal.MessagePumpStrategy.NoMessagePumpStrategy.WaitForCompletion(AwaitAdapter awaiter)
+   at NUnit.Framework.Internal.AsyncToSyncAdapter.Await[TResult](TestExecutionContext context, Func`1 invoke)
+   at NUnit.Framework.Internal.AsyncToSyncAdapter.Await(TestExecutionContext context, Func`1 invoke)
+   at NUnit.Framework.Internal.Commands.TestMethodCommand.RunTestMethod(TestExecutionContext context)
+   at NUnit.Framework.Internal.Commands.TestMethodCommand.Execute(TestExecutionContext context)
+   at NUnit.Framework.Internal.Commands.BeforeAndAfterTestCommand.<>c__DisplayClass1_0.<Execute>b__0()
+   at NUnit.Framework.Internal.Commands.DelegatingTestCommand.RunTestMethodInThreadAbortSafeZone(TestExecutionContext context, Action action)
+
+1)    at TravelAI.UITests.RegisterTests.WEB_REG_05_MatKhau7KyTu() in D:\PASS\HK6\PBL5\TravelAI\TravelAI.UITests\RegisterTests.cs:line 116
+
+
+  Standard Output Messages:
+ Phß║ún hß╗ôi cß╗ºa web: Tß║ío t├ái khoß║ún  Tham gia TravelAI v├á bß║»t ─æß║ºu h├ánh tr├¼nh th├┤ng minh cß╗ºa bß║ín.  Hß╗î V├Ç T├èN ─Éß╗èA CHß╗ê EMAIL Mß║¼T KHß║¿U ─É─âng k├╜ vß╗¢i t╞░ c├ích ─Éß╗æi t├íc cung cß║Ñp dß╗ïch vß╗Ñ  ─É├ú c├│ t├ái khoß║ún? ─É─âng nhß║¡p tß║íi ─æ├óy
+
+
+  Passed WEB_REG_06_MatKhauDung8KyTu [6 s]
+Phß║ún hß╗ôi cß╗ºa web: Tß║ío t├ái khoß║ún  Tham gia TravelAI v├á bß║»t ─æß║ºu h├ánh tr├¼nh th├┤ng minh cß╗ºa bß║ín.  Hß╗î V├Ç T├èN ─Éß╗èA CHß╗ê EMAIL Mß║¼T KHß║¿U ─É─âng k├╜ vß╗¢i t╞░ c├ích ─Éß╗æi t├íc cung cß║Ñp dß╗ïch vß╗Ñ  ─É├ú c├│ t├ái khoß║ún? ─É─âng nhß║¡p tß║íi ─æ├óy
+
+  Failed WEB_REG_07_MatKhauThieuThanhPhan("test@1234") [6 s]
+  Error Message:
+     Web vß║½n cho ─æ─âng k├╜ vß╗¢i mß║¡t khß║⌐u 'test@1234' (thiß║┐u th├ánh phß║ºn theo SRS)
+Assert.That(await RegisteredAsync(), Is.False)
+  Expected: False
+  But was:  True
+
+  Stack Trace:
+     at TravelAI.UITests.RegisterTests.WEB_REG_07_MatKhauThieuThanhPhan(String password) in D:\PASS\HK6\PBL5\TravelAI\TravelAI.UITests\RegisterTests.cs:line 140
+   at NUnit.Framework.Internal.TaskAwaitAdapter.GenericAdapter`1.BlockUntilCompleted()
+   at NUnit.Framework.Internal.MessagePumpStrategy.NoMessagePumpStrategy.WaitForCompletion(AwaitAdapter awaiter)
+   at NUnit.Framework.Internal.AsyncToSyncAdapter.Await[TResult](TestExecutionContext context, Func`1 invoke)
+   at NUnit.Framework.Internal.AsyncToSyncAdapter.Await(TestExecutionContext context, Func`1 invoke)
+   at NUnit.Framework.Internal.Commands.TestMethodCommand.RunTestMethod(TestExecutionContext context)
+   at NUnit.Framework.Internal.Commands.TestMethodCommand.Execute(TestExecutionContext context)
+   at NUnit.Framework.Internal.Commands.BeforeAndAfterTestCommand.<>c__DisplayClass1_0.<Execute>b__0()
+   at NUnit.Framework.Internal.Commands.DelegatingTestCommand.RunTestMethodInThreadAbortSafeZone(TestExecutionContext context, Action action)
+
+1)    at TravelAI.UITests.RegisterTests.WEB_REG_07_MatKhauThieuThanhPhan(String password) in D:\PASS\HK6\PBL5\TravelAI\TravelAI.UITests\RegisterTests.cs:line 140
+
+
+  Standard Output Messages:
+ Phß║ún hß╗ôi cß╗ºa web: Tß║ío t├ái khoß║ún  Tham gia TravelAI v├á bß║»t ─æß║ºu h├ánh tr├¼nh th├┤ng minh cß╗ºa bß║ín.  Hß╗î V├Ç T├èN ─Éß╗èA CHß╗ê EMAIL Mß║¼T KHß║¿U ─É─âng k├╜ vß╗¢i t╞░ c├ích ─Éß╗æi t├íc cung cß║Ñp dß╗ïch vß╗Ñ  ─É├ú c├│ t├ái khoß║ún? ─É─âng nhß║¡p tß║íi ─æ├óy
+
+
+Phß║ún hß╗ôi cß╗ºa web: Tß║ío t├ái khoß║ún  Tham gia TravelAI v├á bß║»t ─æß║ºu h├ánh tr├¼nh th├┤ng minh cß╗ºa bß║ín.  Hß╗î V├Ç T├èN ─Éß╗èA CHß╗ê EMAIL Mß║¼T KHß║¿U ─É─âng k├╜ vß╗¢i t╞░ c├ích ─Éß╗æi t├íc cung cß║Ñp dß╗ïch vß╗Ñ  ─É├ú c├│ t├ái khoß║ún? ─É─âng nhß║¡p tß║íi ─æ├óy
+
+  Failed WEB_REG_07_MatKhauThieuThanhPhan("TEST@1234") [7 s]
+  Error Message:
+     Web vß║½n cho ─æ─âng k├╜ vß╗¢i mß║¡t khß║⌐u 'TEST@1234' (thiß║┐u th├ánh phß║ºn theo SRS)
+Assert.That(await RegisteredAsync(), Is.False)
+  Expected: False
+  But was:  True
+
+  Stack Trace:
+     at TravelAI.UITests.RegisterTests.WEB_REG_07_MatKhauThieuThanhPhan(String password) in D:\PASS\HK6\PBL5\TravelAI\TravelAI.UITests\RegisterTests.cs:line 140
+   at NUnit.Framework.Internal.TaskAwaitAdapter.GenericAdapter`1.BlockUntilCompleted()
+   at NUnit.Framework.Internal.MessagePumpStrategy.NoMessagePumpStrategy.WaitForCompletion(AwaitAdapter awaiter)
+   at NUnit.Framework.Internal.AsyncToSyncAdapter.Await[TResult](TestExecutionContext context, Func`1 invoke)
+   at NUnit.Framework.Internal.AsyncToSyncAdapter.Await(TestExecutionContext context, Func`1 invoke)
+   at NUnit.Framework.Internal.Commands.TestMethodCommand.RunTestMethod(TestExecutionContext context)
+   at NUnit.Framework.Internal.Commands.TestMethodCommand.Execute(TestExecutionContext context)
+   at NUnit.Framework.Internal.Commands.DelegatingTestCommand.RunTestMethodInThreadAbortSafeZone(TestExecutionContext context, Action action)
+
+1)    at TravelAI.UITests.RegisterTests.WEB_REG_07_MatKhauThieuThanhPhan(String password) in D:\PASS\HK6\PBL5\TravelAI\TravelAI.UITests\RegisterTests.cs:line 140
+
+
+  Standard Output Messages:
+ Phß║ún hß╗ôi cß╗ºa web: Tß║ío t├ái khoß║ún  Tham gia TravelAI v├á bß║»t ─æß║ºu h├ánh tr├¼nh th├┤ng minh cß╗ºa bß║ín.  Hß╗î V├Ç T├èN ─Éß╗èA CHß╗ê EMAIL Mß║¼T KHß║¿U ─É─âng k├╜ vß╗¢i t╞░ c├ích ─Éß╗æi t├íc cung cß║Ñp dß╗ïch vß╗Ñ  ─É├ú c├│ t├ái khoß║ún? ─É─âng nhß║¡p tß║íi ─æ├óy
+
+
+Phß║ún hß╗ôi cß╗ºa web: Tß║ío t├ái khoß║ún  Tham gia TravelAI v├á bß║»t ─æß║ºu h├ánh tr├¼nh th├┤ng minh cß╗ºa bß║ín.  Hß╗î V├Ç T├èN ─Éß╗èA CHß╗ê EMAIL Mß║¼T KHß║¿U ─É─âng k├╜ vß╗¢i t╞░ c├ích ─Éß╗æi t├íc cung cß║Ñp dß╗ïch vß╗Ñ  ─É├ú c├│ t├ái khoß║ún? ─É─âng nhß║¡p tß║íi ─æ├óy
+
+  Failed WEB_REG_07_MatKhauThieuThanhPhan("Test@abcd") [8 s]
+  Error Message:
+     Web vß║½n cho ─æ─âng k├╜ vß╗¢i mß║¡t khß║⌐u 'Test@abcd' (thiß║┐u th├ánh phß║ºn theo SRS)
+Assert.That(await RegisteredAsync(), Is.False)
+  Expected: False
+  But was:  True
+
+  Stack Trace:
+     at TravelAI.UITests.RegisterTests.WEB_REG_07_MatKhauThieuThanhPhan(String password) in D:\PASS\HK6\PBL5\TravelAI\TravelAI.UITests\RegisterTests.cs:line 140
+   at NUnit.Framework.Internal.TaskAwaitAdapter.GenericAdapter`1.BlockUntilCompleted()
+   at NUnit.Framework.Internal.MessagePumpStrategy.NoMessagePumpStrategy.WaitForCompletion(AwaitAdapter awaiter)
+   at NUnit.Framework.Internal.AsyncToSyncAdapter.Await[TResult](TestExecutionContext context, Func`1 invoke)
+   at NUnit.Framework.Internal.AsyncToSyncAdapter.Await(TestExecutionContext context, Func`1 invoke)
+   at NUnit.Framework.Internal.Commands.TestMethodCommand.RunTestMethod(TestExecutionContext context)
+   at NUnit.Framework.Internal.Commands.TestMethodCommand.Execute(TestExecutionContext context)
+   at NUnit.Framework.Internal.Commands.DelegatingTestCommand.RunTestMethodInThreadAbortSafeZone(TestExecutionContext context, Action action)
+
+1)    at TravelAI.UITests.RegisterTests.WEB_REG_07_MatKhauThieuThanhPhan(String password) in D:\PASS\HK6\PBL5\TravelAI\TravelAI.UITests\RegisterTests.cs:line 140
+
+
+  Standard Output Messages:
+ Phß║ún hß╗ôi cß╗ºa web: Tß║ío t├ái khoß║ún  Tham gia TravelAI v├á bß║»t ─æß║ºu h├ánh tr├¼nh th├┤ng minh cß╗ºa bß║ín.  Hß╗î V├Ç T├èN ─Éß╗èA CHß╗ê EMAIL Mß║¼T KHß║¿U ─É─âng k├╜ vß╗¢i t╞░ c├ích ─Éß╗æi t├íc cung cß║Ñp dß╗ïch vß╗Ñ  ─É├ú c├│ t├ái khoß║ún? ─É─âng nhß║¡p tß║íi ─æ├óy
+
+
+Phß║ún hß╗ôi cß╗ºa web: Tß║ío t├ái khoß║ún  Tham gia TravelAI v├á bß║»t ─æß║ºu h├ánh tr├¼nh th├┤ng minh cß╗ºa bß║ín.  Hß╗î V├Ç T├èN ─Éß╗èA CHß╗ê EMAIL Mß║¼T KHß║¿U ─É─âng k├╜ vß╗¢i t╞░ c├ích ─Éß╗æi t├íc cung cß║Ñp dß╗ïch vß╗Ñ  ─É├ú c├│ t├ái khoß║ún? ─É─âng nhß║¡p tß║íi ─æ├óy
+
+NUnit Adapter 5.0.0.0: Test execution complete
+  Failed WEB_REG_07_MatKhauThieuThanhPhan("Test12345") [6 s]
+  Error Message:
+     Web vß║½n cho ─æ─âng k├╜ vß╗¢i mß║¡t khß║⌐u 'Test12345' (thiß║┐u th├ánh phß║ºn theo SRS)
+Assert.That(await RegisteredAsync(), Is.False)
+  Expected: False
+  But was:  True
+
+  Stack Trace:
+     at TravelAI.UITests.RegisterTests.WEB_REG_07_MatKhauThieuThanhPhan(String password) in D:\PASS\HK6\PBL5\TravelAI\TravelAI.UITests\RegisterTests.cs:line 140
+   at NUnit.Framework.Internal.AsyncToSyncAdapter.Await(TestExecutionContext context, Func`1 invoke)
+   at NUnit.Framework.Internal.Commands.TestMethodCommand.RunTestMethod(TestExecutionContext context)
+   at NUnit.Framework.Internal.Commands.TestMethodCommand.Execute(TestExecutionContext context)
+   at NUnit.Framework.Internal.Commands.DelegatingTestCommand.RunTestMethodInThreadAbortSafeZone(TestExecutionContext context, Action action)
+
+1)    at TravelAI.UITests.RegisterTests.WEB_REG_07_MatKhauThieuThanhPhan(String password) in D:\PASS\HK6\PBL5\TravelAI\TravelAI.UITests\RegisterTests.cs:line 140
+
+
+  Standard Output Messages:
+ Phß║ún hß╗ôi cß╗ºa web: Tß║ío t├ái khoß║ún  Tham gia TravelAI v├á bß║»t ─æß║ºu h├ánh tr├¼nh th├┤ng minh cß╗ºa bß║ín.  Hß╗î V├Ç T├èN ─Éß╗èA CHß╗ê EMAIL Mß║¼T KHß║¿U ─É─âng k├╜ vß╗¢i t╞░ c├ích ─Éß╗æi t├íc cung cß║Ñp dß╗ïch vß╗Ñ  ─É├ú c├│ t├ái khoß║ún? ─É─âng nhß║¡p tß║íi ─æ├óy
+
+
+
+Total tests: 10
+     Passed: 2
+     Failed: 8
+ Total time: 1.0072 Minutes

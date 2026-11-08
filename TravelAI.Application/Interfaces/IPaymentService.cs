@@ -10,3 +10,4 @@ public interface IPaymentService
 
     Task<VnPayQueryResult> QueryTransactionAsync(string transactionRef, DateTime? transactionDate = null, string? clientIpAddress = null);
 }
+

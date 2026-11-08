@@ -35,6 +35,9 @@ public class AuthService
     // ─── ĐĂNG KÝ ─────────────────────────────────────────────────────────────
     public async Task<object?> RegisterAsync(RegisterRequest request)
     {
+        if (!PasswordPolicy.IsValid(request.Password))
+            throw new ArgumentException(PasswordPolicy.ErrorMessage, nameof(request.Password));
+
         if (await _context.Users.AnyAsync(u => u.Email == request.Email))
             return null;
 
@@ -121,7 +124,7 @@ public class AuthService
             throw new InvalidOperationException("Tài khoản chưa được xác thực. Vui lòng kiểm tra email và xác thực tài khoản.");
 
         if (!user.IsActive)
-            throw new UnauthorizedAccessException("Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên.");
+            throw new UnauthorizedAccessException("Tài khoản của bạn đã bị vô hiệu hóa, vui lòng liên hệ Admin.");
 
         var token = GenerateJwtToken(user);
 
@@ -209,6 +212,9 @@ public class AuthService
     // ─── ĐẶT LẠI MẬT KHẨU ───────────────────────────────────────────────────
     public async Task<bool> ResetPasswordAsync(string token, string newPassword)
     {
+        if (!PasswordPolicy.IsValid(newPassword))
+            throw new ArgumentException(PasswordPolicy.ErrorMessage, nameof(newPassword));
+
         var resetToken = await _context.PasswordResetTokens
             .Include(t => t.User)
             .FirstOrDefaultAsync(t =>

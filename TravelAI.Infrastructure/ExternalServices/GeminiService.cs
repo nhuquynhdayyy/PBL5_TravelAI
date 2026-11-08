@@ -70,24 +70,24 @@ public class GeminiService
                 }
                 ]
             }";
-        if (isDevMode)
-        {
-            if (requireJsonResponse && string.Equals(systemPrompt, AIPrompts.IntentClassifierSystemPrompt, StringComparison.Ordinal))
-            {
-                return """
-                {
-                  "intent": "general_question",
-                  "destination": null,
-                  "days": null,
-                  "budget": null
-                }
-                """;
-            }
+        // if (isDevMode)
+        // {
+        //     if (requireJsonResponse && string.Equals(systemPrompt, AIPrompts.IntentClassifierSystemPrompt, StringComparison.Ordinal))
+        //     {
+        //         return """
+        //         {
+        //           "intent": "general_question",
+        //           "destination": null,
+        //           "days": null,
+        //           "budget": null
+        //         }
+        //         """;
+        //     }
 
-            return requireJsonResponse
-                ? jsonMockResponse
-                : "TravelAI dev mode: please configure Groq:ApiKey to enable chat responses.";
-        }
+        //     return requireJsonResponse
+        //         ? jsonMockResponse
+        //         : "TravelAI dev mode: please configure Groq:ApiKey to enable chat responses.";
+        // }
 
         var messages = BuildMessages(prompt, history, systemPrompt);
         _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
@@ -256,9 +256,7 @@ public class GeminiService
     private static string SerializeError(HttpStatusCode statusCode, string rawResponse)
     {
         var responseBody = JsonSerializer.Serialize(rawResponse);
-        return $$"""
-        {"error":"Groq API Error: {{statusCode}}","details":{{responseBody}}}
-        """;
+        return $"{{\"error\":\"Groq API Error: {statusCode}\",\"details\":{responseBody}}}";
     }
 
     private static List<object> BuildMessages(

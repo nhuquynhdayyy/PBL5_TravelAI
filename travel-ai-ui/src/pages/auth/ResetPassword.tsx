@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
 import MainLayout from '../../layouts/MainLayout';
 import { Lock, Eye, EyeOff } from 'lucide-react';
+import { isValidPassword, passwordPolicyError } from '../../utils/passwordPolicy';
 
 const ResetPassword = () => {
   const [searchParams] = useSearchParams();
@@ -21,8 +22,8 @@ const ResetPassword = () => {
     e.preventDefault();
     setError('');
 
-    if (newPassword.length < 6) {
-      setError('Mật khẩu phải có ít nhất 6 ký tự.');
+    if (!isValidPassword(newPassword)) {
+      setError(passwordPolicyError);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -95,8 +96,14 @@ const ResetPassword = () => {
                       type={showPw ? 'text' : 'password'}
                       required
                       value={newPassword}
-                      onChange={e => setNewPassword(e.target.value)}
-                      placeholder="Ít nhất 6 ký tự"
+                      onChange={e => {
+                        const password = e.target.value;
+                        setNewPassword(password);
+                        if (error === passwordPolicyError) {
+                          setError(password && !isValidPassword(password) ? passwordPolicyError : '');
+                        }
+                      }}
+                      placeholder="Tối thiểu 8 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt"
                       className="w-full pl-12 pr-12 py-4 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all placeholder:text-slate-300"
                     />
                     <button
@@ -186,7 +193,7 @@ const ResetPassword = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <h2 className="text-2xl font-bold text-slate-800 mb-2">Đặt lại thành công! 🎉</h2>
+              <h2 className="text-2xl font-bold text-slate-800 mb-2">Đặt lại mật khẩu thành công! 🎉</h2>
               <p className="text-slate-500 mb-6">
                 Mật khẩu của bạn đã được cập nhật. Đang chuyển hướng đến trang đăng nhập...
               </p>

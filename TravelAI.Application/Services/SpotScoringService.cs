@@ -53,6 +53,7 @@ public class SpotScoringService : ISpotScoringService
         return await Task.FromResult(scores);
     }
 
+
     public Task<double> CalculateScoreAsync(
         TouristSpot spot,
         UserPreference preference,
