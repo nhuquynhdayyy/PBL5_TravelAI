@@ -35,22 +35,58 @@ const typeFromRoute = (value: string) => {
   return routeMap[value] || '';
 };
 
-const buildRequest = (filters: ServiceFilterState, searchKeyword: string, pageNumber: number) => ({
-  pageNumber,
-  pageSize: 12,
-  searchKeyword: searchKeyword.trim() || undefined,
-  serviceType: filters.serviceType || undefined,
-  minPrice: filters.minPrice === '' ? undefined : filters.minPrice,
-  maxPrice: filters.maxPrice === '' ? undefined : filters.maxPrice,
-  rating: filters.rating === '' ? undefined : filters.rating,
-  hotelStars: filters.hotelStars === '' ? undefined : filters.hotelStars,
-  hotelAmenities: filters.hotelAmenities.length ? filters.hotelAmenities : undefined,
-  tourThemes: filters.tourThemes.length ? filters.tourThemes : undefined,
-  tourDuration: filters.tourDuration || undefined,
-  transportType: filters.transportType || undefined,
-  checkInDate: filters.checkInDate || undefined,
-  checkOutDate: filters.checkOutDate || undefined,
-});
+const buildRequest = (filters: ServiceFilterState, searchKeyword: string, pageNumber: number) => {
+  // Helper: Lấy ngày hôm nay theo giờ địa phương
+  const getTodayLocalDateString = (): string => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const todayString = getTodayLocalDateString();
+  
+  // Validate date range - không gửi khoảng ngày không hợp lệ
+  let checkInDate = filters.checkInDate || undefined;
+  let checkOutDate = filters.checkOutDate || undefined;
+  
+  // Kiểm tra ngày quá khứ
+  if (checkInDate && checkInDate < todayString) {
+    checkInDate = undefined;
+    checkOutDate = undefined; // Nếu checkIn không hợp lệ, bỏ cả checkOut
+  } else if (checkOutDate && checkOutDate < todayString) {
+    checkOutDate = undefined;
+  }
+  
+  // Kiểm tra khoảng ngày (checkOut < checkIn)
+  if (checkInDate && checkOutDate) {
+    const checkIn = new Date(checkInDate);
+    const checkOut = new Date(checkOutDate);
+    
+    if (checkOut < checkIn) {
+      checkInDate = undefined;
+      checkOutDate = undefined;
+    }
+  }
+
+  return {
+    pageNumber,
+    pageSize: 12,
+    searchKeyword: searchKeyword.trim() || undefined,
+    serviceType: filters.serviceType || undefined,
+    minPrice: filters.minPrice === '' ? undefined : filters.minPrice,
+    maxPrice: filters.maxPrice === '' ? undefined : filters.maxPrice,
+    rating: filters.rating === '' ? undefined : filters.rating,
+    hotelStars: filters.hotelStars === '' ? undefined : filters.hotelStars,
+    hotelAmenities: filters.hotelAmenities.length ? filters.hotelAmenities : undefined,
+    tourThemes: filters.tourThemes.length ? filters.tourThemes : undefined,
+    tourDuration: filters.tourDuration || undefined,
+    transportType: filters.transportType || undefined,
+    checkInDate,
+    checkOutDate,
+  };
+};
 
 const Services: React.FC<ServicesProps> = ({ defaultType = '' }) => {
   const [searchParams, setSearchParams] = useSearchParams();

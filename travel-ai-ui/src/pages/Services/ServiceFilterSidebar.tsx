@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Bus,
   Compass,
@@ -78,7 +78,56 @@ const transportTypes = [
 ];
 
 const ServiceFilterSidebar: React.FC<ServiceFilterSidebarProps> = ({ value, onChange, onReset }) => {
-  const patch = (partial: Partial<ServiceFilterState>) => onChange({ ...value, ...partial });
+  const [dateRangeError, setDateRangeError] = useState<string>('');
+  const [pastDateError, setPastDateError] = useState<string>('');
+
+  // Helper: Lấy ngày hôm nay theo giờ địa phương (không dùng UTC)
+  const getTodayLocalDateString = (): string => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0'); // tháng từ 0-11
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const todayString = getTodayLocalDateString();
+
+  // Validate date range and past dates whenever checkInDate or checkOutDate changes
+  useEffect(() => {
+    let rangeError = '';
+    let pastError = '';
+
+    // Kiểm tra ngày trong quá khứ (ưu tiên cao hơn)
+    if (value.checkInDate && value.checkInDate < todayString) {
+      pastError = value.serviceType === 'Hotel'
+        ? 'Ngày nhận phòng không được ở quá khứ'
+        : 'Ngày nhận xe không được ở quá khứ';
+    } else if (value.checkOutDate && value.checkOutDate < todayString) {
+      pastError = value.serviceType === 'Hotel'
+        ? 'Ngày trả phòng không được ở quá khứ'
+        : 'Ngày trả xe không được ở quá khứ';
+    }
+
+    // Kiểm tra khoảng ngày (chỉ khi không có lỗi quá khứ)
+    if (!pastError && value.checkInDate && value.checkOutDate) {
+      const checkIn = new Date(value.checkInDate);
+      const checkOut = new Date(value.checkOutDate);
+      
+      if (checkOut < checkIn) {
+        rangeError = value.serviceType === 'Hotel' 
+          ? 'Ngày trả phòng phải sau ngày nhận phòng'
+          : 'Ngày trả xe phải sau ngày nhận xe';
+      }
+    }
+
+    setPastDateError(pastError);
+    setDateRangeError(rangeError);
+  }, [value.checkInDate, value.checkOutDate, value.serviceType, todayString]);
+
+  const patch = (partial: Partial<ServiceFilterState>) => {
+    // Cho phép thay đổi để validation có thể chạy
+    onChange({ ...value, ...partial });
+  };
 
   const toggleListValue = (field: 'hotelAmenities' | 'tourThemes', item: string) => {
     const current = value[field];
@@ -102,6 +151,17 @@ const ServiceFilterSidebar: React.FC<ServiceFilterSidebarProps> = ({ value, onCh
     value.checkInDate ||
     value.checkOutDate;
 
+  const handleReset = () => {
+    setDateRangeError('');
+    setPastDateError('');
+    onReset();
+  };
+
+  // Xác định lỗi nào sẽ hiển thị (ưu tiên lỗi quá khứ)
+  const displayError = pastDateError || dateRangeError;
+  const hasCheckInError = pastDateError.includes('nhận');
+  const hasCheckOutError = (pastDateError.includes('trả') || dateRangeError) && !hasCheckInError;
+
   return (
     <aside className="sticky top-24 rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
@@ -112,7 +172,7 @@ const ServiceFilterSidebar: React.FC<ServiceFilterSidebarProps> = ({ value, onCh
         {hasActiveFilter && (
           <button
             type="button"
-            onClick={onReset}
+            onClick={handleReset}
             className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-slate-500 transition hover:bg-slate-100 hover:text-teal-700"
           >
             <RotateCcw size={13} />
@@ -153,8 +213,14 @@ const ServiceFilterSidebar: React.FC<ServiceFilterSidebarProps> = ({ value, onCh
                 <input
                   type="date"
                   value={value.checkInDate}
+                  min={todayString}
                   onChange={(event) => patch({ checkInDate: event.target.value })}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none transition focus:border-teal-500 focus:ring-4 focus:ring-teal-50"
+                  aria-invalid={hasCheckInError ? 'true' : 'false'}
+                  className={`w-full rounded-xl border px-3 py-2.5 text-sm font-semibold outline-none transition focus:ring-4 ${
+                    hasCheckInError
+                      ? 'border-red-500 bg-red-50 focus:border-red-500 focus:ring-red-50'
+                      : 'border-slate-200 bg-white focus:border-teal-500 focus:ring-teal-50'
+                  }`}
                 />
               </div>
               <div>
@@ -164,12 +230,23 @@ const ServiceFilterSidebar: React.FC<ServiceFilterSidebarProps> = ({ value, onCh
                 <input
                   type="date"
                   value={value.checkOutDate}
-                  min={value.checkInDate || undefined}
+                  min={value.checkInDate ? (value.checkInDate >= todayString ? value.checkInDate : todayString) : todayString}
                   onChange={(event) => patch({ checkOutDate: event.target.value })}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none transition focus:border-teal-500 focus:ring-4 focus:ring-teal-50"
+                  aria-invalid={hasCheckOutError ? 'true' : 'false'}
+                  className={`w-full rounded-xl border px-3 py-2.5 text-sm font-semibold outline-none transition focus:ring-4 ${
+                    hasCheckOutError
+                      ? 'border-red-500 bg-red-50 focus:border-red-500 focus:ring-red-50'
+                      : 'border-slate-200 bg-white focus:border-teal-500 focus:ring-teal-50'
+                  }`}
                 />
               </div>
-              {value.checkInDate && value.checkOutDate && (
+              {displayError && (
+                <div className="flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">
+                  <span className="text-red-500">⚠️</span>
+                  <span>{displayError}</span>
+                </div>
+              )}
+              {value.checkInDate && value.checkOutDate && !displayError && (
                 <p className="text-xs font-bold text-teal-700">
                   {value.serviceType === 'Hotel'
                     ? `${Math.max(0, Math.floor((new Date(value.checkOutDate).getTime() - new Date(value.checkInDate).getTime()) / (1000 * 60 * 60 * 24)))} đêm`
