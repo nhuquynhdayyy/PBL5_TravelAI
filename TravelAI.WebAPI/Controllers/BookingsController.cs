@@ -180,7 +180,7 @@ public class BookingsController : ControllerBase
 
         if (request.Items.Count == 0)
         {
-            return BadRequest(new { message = "Gio hang dang trong." });
+            return BadRequest(new { message = "Giỏ hàng đang trống." });
         }
 
         if (request.Items.Any(item => item.ServiceId <= 0 || item.Quantity <= 0))

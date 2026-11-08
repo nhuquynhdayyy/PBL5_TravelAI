@@ -142,7 +142,7 @@ const Cart = () => {
       {items.length === 0 ? (
         <div className="flex min-h-[360px] flex-col items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-white p-10 text-center">
           <ShoppingCart className="mb-4 text-slate-300" size={56} />
-          <h2 className="text-2xl font-black text-slate-900">Gio hang dang trong</h2>
+          <h2 className="text-2xl font-black text-slate-900">Giỏ hàng đang trống</h2>
           <p className="mt-2 max-w-md font-medium text-slate-500">
             Hay chon dich vu, ngay su dung va so luong truoc khi tien hanh thanh toan.
           </p>
