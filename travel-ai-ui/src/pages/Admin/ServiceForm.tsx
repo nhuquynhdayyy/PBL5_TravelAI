@@ -53,6 +53,8 @@ const ServiceForm = () => {
   });
   const [images, setImages] = useState<FileList | null>(null);
   const [previews, setPreviews] = useState<string[]>([]);
+  const [descriptionError, setDescriptionError] = useState<string>('');
+  const [nameError, setNameError] = useState<string>('');
 
   useEffect(() => {
     const user = getUser();
@@ -187,6 +189,26 @@ const ServiceForm = () => {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+
+    // Validate Name
+    const trimmedName = formData.name.trim();
+    if (trimmedName.length > 255) {
+      setNameError('Tên dịch vụ không được vượt quá 255 ký tự');
+      return;
+    }
+    setNameError('');
+
+    // Validate Description
+    const trimmedDescription = formData.description.trim();
+    if (!trimmedDescription) {
+      setDescriptionError('Mô tả là bắt buộc');
+      return;
+    }
+    if (trimmedDescription.length < 50) {
+      setDescriptionError('Mô tả phải có ít nhất 50 ký tự');
+      return;
+    }
+    setDescriptionError('');
 
     if (!formData.spotId) {
       setErrorMessage('Vui lòng chọn địa điểm danh thắng cụ thể cho dịch vụ.');
@@ -329,12 +351,19 @@ const ServiceForm = () => {
               Tên dịch vụ (Khách sạn / Tour du lịch)
             </label>
             <input
-              className="w-full rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4 font-bold text-slate-800 dark:text-white outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-slate-900/80 transition-colors"
+              className={`w-full rounded-2xl border-2 ${nameError ? 'border-rose-500' : 'border-slate-200 dark:border-slate-700'} bg-slate-50 dark:bg-slate-900 p-4 font-bold text-slate-800 dark:text-white outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-slate-900/80 transition-colors`}
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              onChange={(e) => {
+                setFormData({ ...formData, name: e.target.value });
+                if (nameError) setNameError('');
+              }}
               placeholder="Nhập tên khách sạn, homestay hoặc tiêu đề tour du lịch..."
               required
+              maxLength={255}
             />
+            {nameError && (
+              <p className="mt-2 text-sm font-semibold text-rose-600 dark:text-rose-400">{nameError}</p>
+            )}
           </div>
 
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -430,11 +459,19 @@ const ServiceForm = () => {
               Mô tả chi tiết dịch vụ
             </label>
             <textarea
-              className="h-40 w-full rounded-[2rem] border-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4 font-medium text-slate-700 dark:text-white outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-slate-900/80 transition-colors"
+              className={`h-40 w-full rounded-[2rem] border-2 ${descriptionError ? 'border-rose-500' : 'border-slate-200 dark:border-slate-700'} bg-slate-50 dark:bg-slate-900 p-4 font-medium text-slate-700 dark:text-white outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-slate-900/80 transition-colors`}
               value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              onChange={(e) => {
+                setFormData({ ...formData, description: e.target.value });
+                if (descriptionError) setDescriptionError('');
+              }}
               placeholder="Nhập mô tả chi tiết, lịch trình tour, tiện ích phòng, giờ nhận/trả phòng..."
+              required
+              minLength={50}
             />
+            {descriptionError && (
+              <p className="mt-2 text-sm font-semibold text-rose-600 dark:text-rose-400">{descriptionError}</p>
+            )}
           </div>
 
           <div>

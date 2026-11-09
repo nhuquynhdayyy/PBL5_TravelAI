@@ -147,12 +147,12 @@ public class BookingService : IBookingService
         {
             if (!availabilityByDate.TryGetValue(date, out var availability))
             {
-                throw new InvalidOperationException($"Xe da het cho trong ngay {date:dd/MM/yyyy}");
+                throw new InvalidOperationException("Dịch vụ đã hết chỗ");
             }
 
             if (RemainingStock(availability) < requestedQuantity)
             {
-                throw new InvalidOperationException($"Xe da het cho trong ngay {date:dd/MM/yyyy}");
+                throw new InvalidOperationException("Dịch vụ đã hết chỗ");
             }
         }
     }

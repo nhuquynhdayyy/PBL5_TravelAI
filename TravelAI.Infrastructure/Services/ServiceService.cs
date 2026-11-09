@@ -169,13 +169,32 @@ RecordId = service.ServiceId,
 public async Task<ServiceDto> CreateAsync(int partnerId, CreateServiceRequest request, string webRootPath)
     {
         await EnsurePartnerApprovedAsync(partnerId);
+        
+        // Validate Name
+        var trimmedName = request.Name?.Trim() ?? string.Empty;
+        if (trimmedName.Length > 255)
+        {
+            throw new InvalidOperationException("Tên dịch vụ không được vượt quá 255 ký tự");
+        }
+        
+        // Validate Description
+        var trimmedDescription = request.Description?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(trimmedDescription))
+        {
+            throw new InvalidOperationException("Mô tả là bắt buộc");
+        }
+        if (trimmedDescription.Length < 50)
+        {
+            throw new InvalidOperationException("Mô tả phải có ít nhất 50 ký tự");
+        }
+        
         var validatedSpotId = await GetValidatedSpotIdAsync(request.SpotId);
 
         var service = new Service
         {
             PartnerId = partnerId,
-            Name = request.Name,
-            Description = request.Description ?? string.Empty,
+            Name = trimmedName,
+            Description = trimmedDescription,
             BasePrice = request.BasePrice,
             ServiceType = (ServiceType)request.ServiceType,
             SpotId = validatedSpotId,
@@ -242,11 +261,30 @@ public async Task<ServiceDto> CreateAsync(int partnerId, CreateServiceRequest re
         {
             return false;
         }
+        
+        // Validate Name
+        var trimmedName = request.Name?.Trim() ?? string.Empty;
+        if (trimmedName.Length > 255)
+        {
+            throw new InvalidOperationException("Tên dịch vụ không được vượt quá 255 ký tự");
+        }
+        
+        // Validate Description
+        var trimmedDescription = request.Description?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(trimmedDescription))
+        {
+            throw new InvalidOperationException("Mô tả là bắt buộc");
+        }
+        if (trimmedDescription.Length < 50)
+        {
+            throw new InvalidOperationException("Mô tả phải có ít nhất 50 ký tự");
+        }
+        
 await EnsurePartnerApprovedAsync(service.PartnerId);
         var validatedSpotId = await GetValidatedSpotIdAsync(request.SpotId);
 
-        service.Name = request.Name;
-        service.Description = request.Description ?? string.Empty;
+        service.Name = trimmedName;
+        service.Description = trimmedDescription;
         service.BasePrice = request.BasePrice;
         service.ServiceType = (ServiceType)request.ServiceType;
         service.SpotId = validatedSpotId;

@@ -236,7 +236,7 @@ public class BookingsController : ControllerBase
                 {
                     return BadRequest(new
                     {
-                        message = $"Xe da het cho trong ngay {bookingDate:dd/MM/yyyy}"
+                        message = "Dịch vụ đã hết chỗ"
                     });
                 }
             }

@@ -38,7 +38,14 @@ const ManagePartnerServices = () => {
         profile: profileResponse.data ?? null,
       };
     },
+    staleTime: 0, // Dữ liệu luôn được coi là cũ, cần fetch lại mỗi lần mount
+    refetchOnMount: 'always', // Luôn fetch lại khi component mount
   });
+
+  // Invalidate query khi component mount để đảm bảo tải dữ liệu mới nhất
+  useEffect(() => {
+    void queryClient.invalidateQueries({ queryKey: ['partner-services-page'] });
+  }, [queryClient]);
 
   const myServices: any[] = data?.services ?? [];
   const profile: PartnerProfileGate | null = data?.profile ?? null;

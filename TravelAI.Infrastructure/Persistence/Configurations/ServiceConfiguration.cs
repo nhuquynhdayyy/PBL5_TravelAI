@@ -9,7 +9,7 @@ public class ServiceConfiguration : IEntityTypeConfiguration<Service>
     public void Configure(EntityTypeBuilder<Service> builder)
     {
         builder.HasKey(s => s.ServiceId);
-        builder.Property(s => s.Name).IsRequired().HasMaxLength(200);
+        builder.Property(s => s.Name).IsRequired().HasMaxLength(255);
         builder.Property(s => s.BasePrice).HasColumnType("decimal(18,2)");
         builder.Property(s => s.ServiceType).HasConversion<int>();
 
