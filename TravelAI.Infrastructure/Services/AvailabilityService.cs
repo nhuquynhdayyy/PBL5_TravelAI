@@ -148,10 +148,11 @@ Price = price,
         ValidateOptionalPriceAndStock(price, stock);
 
         var avail = await _context.ServiceAvailabilities
-            .Include(a => a.Service)
-            .FirstOrDefaultAsync(a => a.AvailId == availId);
+            .Where(a => a.AvailId == availId
+                    && (isAdmin || a.Service.PartnerId == requestingUserId))
+            .FirstOrDefaultAsync();
 
-        if (avail == null || (!isAdmin && avail.Service.PartnerId != requestingUserId))
+        if (avail == null)
         {
             return false;
         }

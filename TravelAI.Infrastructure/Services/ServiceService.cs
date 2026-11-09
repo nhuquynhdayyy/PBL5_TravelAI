@@ -61,11 +61,59 @@ public class ServiceService : IServiceService
 
     public async Task<IEnumerable<ServiceDto>> GetPartnerServicesAsync(int partnerId)
     {
-        var data = await BuildServiceListQuery()
+        var rows = await _context.Services
+            .AsNoTracking()
             .Where(s => s.PartnerId == partnerId)
+            .Select(s => new
+            {
+                s.ServiceId,
+                s.PartnerId,
+                BusinessName = s.Partner.PartnerProfile != null ? s.Partner.PartnerProfile.BusinessName : null,
+                PartnerFullName = s.Partner.FullName,
+                s.Name,
+                s.Description,
+                s.BasePrice,
+                s.ServiceType,
+                s.IsActive,
+                s.SpotId,
+                SpotName = s.TouristSpot != null ? s.TouristSpot.Name : null,
+                s.Latitude,
+                s.Longitude,
+                ImageUrls = s.Images.Select(i => i.ImageUrl).ToList(),
+                Attrs = s.Attributes.Select(a => new { a.AttrKey, a.AttrValue }).ToList(),
+                ReviewCount = s.Reviews.Count(),
+                RatingAvg = s.Reviews.Average(r => (double?)r.Rating),
+                HasAvailability = s.Availabilities.Any()
+            })
+            .AsSplitQuery()
             .ToListAsync();
 
-        return await MapListAsync(data);
+        return rows.Select(r => new ServiceDto
+        {
+            ServiceId = r.ServiceId,
+            PartnerId = r.PartnerId,
+            PartnerName = !string.IsNullOrWhiteSpace(r.BusinessName)
+                ? r.BusinessName
+                : r.PartnerFullName ?? "N/A",
+            Name = r.Name,
+            Description = r.Description ?? string.Empty,
+            BasePrice = r.BasePrice,
+            ServiceType = r.ServiceType.ToString(),
+            RatingAvg = r.ReviewCount > 0 ? Math.Round(r.RatingAvg ?? 0, 1) : 0.0,
+            ReviewCount = r.ReviewCount,
+            IsActive = r.IsActive,
+            SpotId = r.SpotId,
+            SpotName = r.SpotName,
+            Latitude = r.Latitude,
+            Longitude = r.Longitude,
+            ImageUrls = r.ImageUrls,
+            Attributes = r.Attrs
+                .GroupBy(a => a.AttrKey)
+                .ToDictionary(
+                    g => g.Key,
+                    g => string.Join(", ", g.Select(a => a.AttrValue).Distinct())),
+            HasAvailability = r.HasAvailability
+        }).ToList();
     }
 
     public async Task<IEnumerable<ServiceDto>> AdminGetAllServicesAsync()
