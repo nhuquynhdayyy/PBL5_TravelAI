@@ -29,6 +29,8 @@ public class ServiceService : IServiceService
         "image/gif"
     };
 
+    private const int MaxPageSize = 200;
+
     private readonly ApplicationDbContext _context;
     private readonly TravelAI.Infrastructure.ExternalServices.GeminiService _geminiService;
     private readonly INotificationService _notificationService;
@@ -45,7 +47,7 @@ public class ServiceService : IServiceService
 
     public async Task<IEnumerable<ServiceDto>> GetAllAsync(int? type)
     {
-        var query = BuildServiceQuery()
+        var query = BuildServiceListQuery()
             .Where(s => s.IsActive);
 
         if (type.HasValue)
@@ -54,32 +56,32 @@ public class ServiceService : IServiceService
         }
 
         var data = await query.ToListAsync();
-        return data.Select(MapToDto);
+        return await MapListAsync(data);
     }
 
     public async Task<IEnumerable<ServiceDto>> GetPartnerServicesAsync(int partnerId)
     {
-        var data = await BuildServiceQuery()
+        var data = await BuildServiceListQuery()
             .Where(s => s.PartnerId == partnerId)
             .ToListAsync();
 
-        return data.Select(MapToDto);
+        return await MapListAsync(data);
     }
 
     public async Task<IEnumerable<ServiceDto>> AdminGetAllServicesAsync()
     {
-        var data = await BuildServiceQuery().ToListAsync();
-        return data.Select(MapToDto);
+        var data = await BuildServiceListQuery().ToListAsync();
+        return await MapListAsync(data);
     }
 
     public async Task<IEnumerable<ServiceDto>> GetPendingServicesAsync()
     {
-        var data = await BuildServiceQuery()
+        var data = await BuildServiceListQuery()
             .Where(s => !s.IsActive)
             .OrderByDescending(s => s.ServiceId)
             .ToListAsync();
 
-        return data.Select(MapToDto);
+        return await MapListAsync(data);
     }
 
     public async Task<bool> ApproveAsync(int id)
@@ -383,7 +385,72 @@ header[1] == 0xD8 &&
             .Include(s => s.Attributes)
             .Include(s => s.Availabilities)
             .Include(s => s.Reviews)
-            .AsNoTracking();
+            .AsNoTracking()
+            .AsSplitQuery();
+    }
+
+    // Query nhe cho cac API danh sach: khong Include Reviews/Availabilities/Destination
+    // (chi can dem danh gia va "co lich ban hay khong", tinh bang truy van gom nhom o MapListAsync).
+    // AsSplitQuery tranh 1 cau SQL nhieu LEFT JOIN gay no to hop dong.
+    private IQueryable<Service> BuildServiceListQuery()
+    {
+        return _context.Services
+            .Include(s => s.Partner)
+                .ThenInclude(p => p.PartnerProfile)
+            .Include(s => s.TouristSpot)
+            .Include(s => s.Images)
+            .Include(s => s.Attributes)
+            .AsNoTracking()
+            .AsSplitQuery();
+    }
+
+    private async Task<List<ServiceDto>> MapListAsync(List<Service> services)
+    {
+        if (services.Count == 0)
+        {
+            return new List<ServiceDto>();
+        }
+
+        var ids = services.Select(s => s.ServiceId).ToList();
+        var reviewStats = new Dictionary<int, (int Count, double Avg)>();
+        var withAvailability = new HashSet<int>();
+
+        foreach (var chunk in ids.Chunk(500))
+        {
+            var chunkIds = chunk.ToList();
+
+            var stats = await _context.Reviews
+                .AsNoTracking()
+                .Where(r => chunkIds.Contains(r.ServiceId))
+                .GroupBy(r => r.ServiceId)
+                .Select(g => new { ServiceId = g.Key, Count = g.Count(), Avg = g.Average(r => (double)r.Rating) })
+                .ToListAsync();
+            foreach (var stat in stats)
+            {
+                reviewStats[stat.ServiceId] = (stat.Count, stat.Avg);
+            }
+
+            var availableIds = await _context.ServiceAvailabilities
+                .AsNoTracking()
+                .Where(a => chunkIds.Contains(a.ServiceId))
+                .Select(a => a.ServiceId)
+                .Distinct()
+                .ToListAsync();
+            foreach (var id in availableIds)
+            {
+                withAvailability.Add(id);
+            }
+        }
+
+        return services.Select(service =>
+        {
+            var hasStats = reviewStats.TryGetValue(service.ServiceId, out var stat);
+            return BuildDto(
+                service,
+                hasStats ? stat.Count : 0,
+                hasStats && stat.Count > 0 ? Math.Round(stat.Avg, 1) : 0.0,
+                withAvailability.Contains(service.ServiceId));
+        }).ToList();
     }
 
     private static string BuildRejectAuditMessage(string reason)
@@ -395,12 +462,16 @@ header[1] == 0xD8 &&
 
     private static ServiceDto MapToDto(Service service)
     {
+        var reviewCount = service.Reviews?.Count ?? 0;
+        var ratingAvg = reviewCount > 0 ? Math.Round(service.Reviews!.Average(r => r.Rating), 1) : 0.0;
+        return BuildDto(service, reviewCount, ratingAvg, service.Availabilities?.Any() ?? false);
+    }
+
+    private static ServiceDto BuildDto(Service service, int reviewCount, double ratingAvg, bool hasAvailability)
+    {
         var partnerName = !string.IsNullOrWhiteSpace(service.Partner?.PartnerProfile?.BusinessName)
             ? service.Partner.PartnerProfile.BusinessName
             : service.Partner?.FullName ?? "N/A";
-
-        var reviewCount = service.Reviews?.Count ?? 0;
-        var ratingAvg = reviewCount > 0 ? Math.Round(service.Reviews!.Average(r => r.Rating), 1) : 0.0;
 
         return new ServiceDto
         {
@@ -420,7 +491,7 @@ header[1] == 0xD8 &&
             Longitude = service.Longitude,
             ImageUrls = service.Images.Select(img => img.ImageUrl).ToList(),
             Attributes = ToAttributeDictionary(service.Attributes),
-            HasAvailability = service.Availabilities?.Any() ?? false
+            HasAvailability = hasAvailability
         };
     }
 
@@ -518,8 +589,12 @@ await _context.SaveChangesAsync();
     
     public async Task<ServiceFilterResponse> FilterServicesAsync(ServiceFilterRequest request)
     {
-        // Start with base query
-        var query = BuildServiceQuery()
+        // Gioi han phan trang de tranh tai ve qua nhieu dong mot lan
+        var pageNumber = request.PageNumber < 1 ? 1 : request.PageNumber;
+        var pageSize = request.PageSize < 1 ? 20 : Math.Min(request.PageSize, MaxPageSize);
+
+        // Start with base query (nhe, khong Include Reviews/Availabilities)
+        var query = BuildServiceListQuery()
             .Where(s => s.IsActive)
             .AsQueryable();
 
@@ -529,24 +604,24 @@ await _context.SaveChangesAsync();
         // Get total count before pagination
         var totalCount = await query.CountAsync();
 
-        // Apply sorting
+        // Apply sorting (co ThenBy ServiceId de phan trang on dinh)
         query = ApplySorting(query, request.SortBy, request.SortDescending);
 
         // Apply pagination
         var services = await query
-            .Skip((request.PageNumber - 1) * request.PageSize)
-            .Take(request.PageSize)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
 
         // Map to DTOs
-        var serviceDtos = services.Select(MapToDtoWithAttributes).ToList();
+        var serviceDtos = await MapListAsync(services);
 
         return new ServiceFilterResponse
         {
             Services = serviceDtos,
             TotalCount = totalCount,
-            PageNumber = request.PageNumber,
-            PageSize = request.PageSize
+            PageNumber = pageNumber,
+            PageSize = pageSize
         };
     }
 
@@ -773,51 +848,20 @@ await _context.SaveChangesAsync();
         return query;
     }
 
-    private IQueryable<Service> ApplySorting(IQueryable<Service> query, string? sortBy, bool descending)
+    private IOrderedQueryable<Service> ApplySorting(IQueryable<Service> query, string? sortBy, bool descending)
     {
         return sortBy?.ToLower() switch
         {
             "price" => descending 
-                ? query.OrderByDescending(s => s.BasePrice) 
-                : query.OrderBy(s => s.BasePrice),
+                ? query.OrderByDescending(s => s.BasePrice).ThenByDescending(s => s.ServiceId)
+                : query.OrderBy(s => s.BasePrice).ThenBy(s => s.ServiceId),
             "rating" => descending 
-                ? query.OrderByDescending(s => s.RatingAvg) 
-                : query.OrderBy(s => s.RatingAvg),
+                ? query.OrderByDescending(s => s.RatingAvg).ThenByDescending(s => s.ServiceId)
+                : query.OrderBy(s => s.RatingAvg).ThenBy(s => s.ServiceId),
             "name" => descending 
-                ? query.OrderByDescending(s => s.Name) 
-                : query.OrderBy(s => s.Name),
+                ? query.OrderByDescending(s => s.Name).ThenByDescending(s => s.ServiceId)
+                : query.OrderBy(s => s.Name).ThenBy(s => s.ServiceId),
             _ => query.OrderByDescending(s => s.ServiceId) // Default: newest first
-        };
-    }
-
-    private static ServiceDto MapToDtoWithAttributes(Service service)
-    {
-        var partnerName = !string.IsNullOrWhiteSpace(service.Partner?.PartnerProfile?.BusinessName)
-            ? service.Partner.PartnerProfile.BusinessName
-            : service.Partner?.FullName ?? "N/A";
-
-        var reviewCount = service.Reviews?.Count ?? 0;
-        var ratingAvg = reviewCount > 0 ? Math.Round(service.Reviews!.Average(r => r.Rating), 1) : 0.0;
-
-        return new ServiceDto
-        {
-            ServiceId = service.ServiceId,
-            PartnerId = service.PartnerId,
-            PartnerName = partnerName,
-            Name = service.Name,
-            Description = service.Description ?? string.Empty,
-            BasePrice = service.BasePrice,
-            ServiceType = service.ServiceType.ToString(),
-            RatingAvg = ratingAvg,
-            ReviewCount = reviewCount,
-            IsActive = service.IsActive,
-            SpotId = service.SpotId,
-            SpotName = service.TouristSpot?.Name,
-            Latitude = service.Latitude,
-            Longitude = service.Longitude,
-            ImageUrls = service.Images.Select(img => img.ImageUrl).ToList(),
-            Attributes = ToAttributeDictionary(service.Attributes),
-            HasAvailability = service.Availabilities?.Any() ?? false
         };
     }
 

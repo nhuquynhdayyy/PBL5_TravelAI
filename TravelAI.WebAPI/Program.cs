@@ -25,7 +25,8 @@ var builder = WebApplication.CreateBuilder(args);
 Console.WriteLine("Environment: " + builder.Environment.EnvironmentName);
 
 var cs = builder.Configuration.GetConnectionString("DefaultConnection");
-Console.WriteLine("ConnectionString = " + (cs ?? "NULL"));
+// Khong in chuoi ket noi ra console (chua mat khau)
+Console.WriteLine("ConnectionString = " + (string.IsNullOrWhiteSpace(cs) ? "NULL" : "(da cau hinh)"));
 
 // --- 1. Cấu hình SQL SERVER & DB CONTEXT ---
 builder.Services.AddDbContext<ApplicationDbContext>(options =>

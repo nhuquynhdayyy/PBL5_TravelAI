@@ -13,12 +13,18 @@ public class ServicesController : ControllerBase
     private readonly IServiceService _service;
     private readonly IWebHostEnvironment _env;
     private readonly IAuditLogService _auditLogService;
+    private readonly ILogger<ServicesController> _logger;
 
-    public ServicesController(IServiceService service, IWebHostEnvironment env, IAuditLogService auditLogService)
+    public ServicesController(
+        IServiceService service,
+        IWebHostEnvironment env,
+        IAuditLogService auditLogService,
+        ILogger<ServicesController> logger)
     {
         _service = service;
         _env = env;
         _auditLogService = auditLogService;
+        _logger = logger;
     }
 
     [HttpGet("public")]
@@ -41,8 +47,17 @@ public class ServicesController : ControllerBase
     [AllowAnonymous]
     public async Task<IActionResult> SearchServices([FromQuery] ServiceFilterRequest request)
     {
-        var result = await _service.FilterServicesAsync(request);
-        return Ok(result);
+        try
+        {
+            var result = await _service.FilterServicesAsync(request);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Loi he thong khi tim kiem dich vu.");
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                new { message = "He thong dang ban, vui long thu lai sau." });
+        }
     }
 
     [HttpGet("my-services")]
@@ -196,9 +211,17 @@ var result = await _service.CreateAsync(userId, request, _env.WebRootPath);
             var result = await _service.FilterServicesAsync(request);
             return Ok(result);
         }
+        catch (ArgumentException ex)
+        {
+            // Tham so khong hop le: loi cua nguoi dung
+            return BadRequest(new { message = ex.Message });
+        }
         catch (Exception ex)
         {
-            return BadRequest(new { message = ex.Message });
+            // Loi he thong (het ket noi, timeout...): khong tra 400 de khong gay hieu lam
+            _logger.LogError(ex, "Loi he thong khi loc dich vu.");
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                new { message = "He thong dang ban, vui long thu lai sau." });
         }
     }
 
